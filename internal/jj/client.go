@@ -109,6 +109,12 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
 		return fmt.Errorf("failed to create new commit: %w", err)
 	}
 
+	// Restore working copy to destination state so patch applies cleanly
+	if _, err := c.executeJJ("restore", "--from", destination); err != nil {
+		c.Undo()
+		return fmt.Errorf("failed to restore working copy: %w", err)
+	}
+
 	cmd := exec.Command("git", "apply", patchFile)
 	cmd.Dir = c.baseDir
 	if output, err := cmd.CombinedOutput(); err != nil {
