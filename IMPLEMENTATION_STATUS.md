@@ -112,29 +112,84 @@
 [Mode: Browse] Source: @ | Press ? for help
 ```
 
+## Phase 1 Interactive Mode (COMPLETED)
+
+### Implemented Features (Session 2)
+
+#### 11. Destination Picker Modal (`internal/components/destpicker/`)
+- ✅ Modal overlay for selecting destination revision
+- ✅ Loads recent revisions from jj log
+- ✅ Navigation with j/k keys
+- ✅ Enter to select, Esc to cancel
+- ✅ Clean centered modal UI with borders
+
+#### 12. Selection State Tracking (`internal/model/model.go`)
+- ✅ SelectionState data structure for tracking selected hunks
+- ✅ Per-file, per-hunk selection tracking
+- ✅ Support for line-level selection (data structure ready)
+- ✅ Toggle hunk selection with Space key
+- ✅ Hunk navigation with n/p keys
+
+#### 13. Visual Selection Indicators (`internal/components/diffview/`)
+- ✅ Current hunk indicator ("> " prefix and highlighted background)
+- ✅ Selected hunk indicator ("[X]" suffix)
+- ✅ Different styling for current vs selected hunks
+- ✅ Integration with selection state
+
+#### 14. Selection Application Framework (`internal/diff/patch.go`)
+- ✅ Patch generation from selected hunks
+- ✅ GeneratePatch function creates unified diff format
+- ✅ GetSelectedHunksMap helper for extracting selections
+- ✅ jj client MoveChanges method (placeholder implementation)
+- ✅ 'a' key to apply selections (shows not-yet-implemented error)
+
+#### 15. Help Overlay (`internal/components/help/`)
+- ✅ Comprehensive help modal with all keybindings
+- ✅ Context-sensitive (shows different help for Browse vs Interactive modes)
+- ✅ Toggle with '?' key
+- ✅ Clean modal UI with sections for Navigation, Actions, and workflow guide
+- ✅ Dismissable with '?', Esc, or 'q'
+
+### Interactive Mode Keybindings
+
+**Destination Selection:**
+- `d` - Open destination picker modal
+- `j/k` - Navigate revisions in picker
+- `Enter` - Select destination
+- `Esc` - Cancel picker
+
+**Hunk Selection:**
+- `n` - Next hunk
+- `p` - Previous hunk
+- `Space` - Toggle current hunk selection
+- `[X]` indicator shows selected hunks
+- `> ` indicator shows current hunk
+
+**Actions:**
+- `a` - Apply selected changes to destination (framework in place)
+- `?` - Show/hide help overlay
+- `r` - Refresh diff
+
 ## Phase 1 Remaining Work
 
-### High Priority (Needed for scm-diff-editor replacement)
+### High Priority (For Production Use)
 
-- [ ] **Interactive Mode Foundation**
-  - [ ] Destination picker modal
-  - [ ] Hunk/line selection state tracking
-  - [ ] Visual selection indicators
+- [ ] **Real jj Integration**
+  - [ ] Implement actual MoveChanges using jj commands
+  - [ ] Use jj restore/new for applying patches
+  - [ ] Handle partial file moves
+  - [ ] Test with real jj workflows
 
-- [ ] **scm-diff-editor Protocol**
+- [ ] **scm-diff-editor Protocol** (Optional - for drop-in replacement)
   - [ ] Parse scm-record input format
   - [ ] Generate scm-record output format
   - [ ] Adapter layer between formats
+  - [ ] Test with jj split/diffedit commands
 
-- [ ] **Selection & Application**
-  - [ ] Hunk selection with Space
-  - [ ] Line-level selection (visual mode)
-  - [ ] Real-time jj move/diffedit integration
-  - [ ] Undo tracking
-
-- [ ] **Help System**
-  - [ ] Help overlay with keybindings
-  - [ ] Context-sensitive help
+- [ ] **Line-Level Selection** (Future enhancement)
+  - [ ] Visual mode for line selection
+  - [ ] Line selection UI indicators
+  - [ ] Patch generation for partial hunks
 
 ### Nice to Have (Polish)
 
@@ -182,19 +237,25 @@
 
 ## Next Steps
 
-### Immediate (Week 1-2)
+### Immediate (To Complete Phase 1)
 
-1. Implement destination picker modal
-2. Add selection state tracking
-3. Implement Space to toggle selection
-4. Add visual selection indicators (highlighted lines/hunks)
+1. ✅ ~~Implement destination picker modal~~ - DONE
+2. ✅ ~~Add selection state tracking~~ - DONE
+3. ✅ ~~Implement Space to toggle selection~~ - DONE
+4. ✅ ~~Add visual selection indicators~~ - DONE
+5. ✅ ~~Add help overlay~~ - DONE
+6. **Implement real jj command integration for applying changes** - IN PROGRESS
+   - Use jj restore to apply patches
+   - Test with real repositories
+   - Handle errors gracefully
 
-### Short-term (Week 3-4)
+### Short-term (Phase 1 Completion + Polish)
 
-1. Integrate jj move -i for real-time application
-2. Parse and generate scm-record format
-3. Test with actual jj split/diffedit commands
-4. Add help overlay
+1. Manual testing in real terminal
+2. Fix any UI bugs discovered during testing
+3. Document known limitations
+4. (Optional) Parse and generate scm-record format for drop-in scm-diff-editor replacement
+5. Write user guide with workflows and examples
 
 ### Medium-term (Month 2)
 
@@ -224,8 +285,38 @@
 
 ## Conclusion
 
-Phase 1 core infrastructure is **COMPLETE**. The foundation is solid and follows best practices. The diff parser is fully tested and working. The Browse mode provides a functional read-only diff viewer.
+**Phase 1 Interactive Mode is SUBSTANTIALLY COMPLETE!**
 
-**Ready for:** Implementing Interactive mode and scm-diff-editor compatibility (Phase 1 remaining work).
+### What Works Now
 
-**Timeline estimate:** 2-3 weeks to complete Phase 1 fully (scm-diff-editor replacement).
+1. **Browse Mode** - Fully functional read-only diff viewer
+2. **Interactive Mode Framework** - Complete UI for selecting and applying changes:
+   - Destination picker with revision selection
+   - Hunk selection with visual indicators
+   - Navigation between hunks
+   - Selection state tracking
+   - Patch generation
+   - Help system with full keybinding documentation
+
+### What's Left for Production
+
+The core Interactive Mode UI is complete. The main remaining work is:
+
+1. **Real jj Integration** - The apply action (`a` key) shows a placeholder error. Need to implement actual jj command execution to move selected changes to the destination. This requires:
+   - Writing patches to temporary files
+   - Using jj restore/new/move commands
+   - Testing with real repositories
+
+2. **scm-record Protocol** (Optional) - Only needed if we want to be a drop-in replacement for jj's builtin scm-diff-editor. The current implementation can work standalone without this.
+
+### Status Summary
+
+- **Phase 1 Core Infrastructure**: ✅ COMPLETE
+- **Phase 1 Browse Mode**: ✅ COMPLETE
+- **Phase 1 Interactive Mode UI**: ✅ COMPLETE
+- **Phase 1 jj Integration**: ⚠️ FRAMEWORK IN PLACE, needs implementation
+- **Phase 1 scm-record Protocol**: ❌ NOT STARTED (optional)
+
+**Ready for:** Manual testing in a real terminal and implementing the jj command integration for applying changes.
+
+**Estimated time to production-ready:** 1-2 days for jj integration + testing.

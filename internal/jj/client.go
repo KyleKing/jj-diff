@@ -78,6 +78,39 @@ func (c *Client) Undo() error {
 	return nil
 }
 
+func (c *Client) MoveChanges(patch, source, destination string) error {
+	return fmt.Errorf("MoveChanges not yet implemented: would move changes from %s to %s", source, destination)
+}
+
+func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	template := `separate("\\n",` +
+		`change_id.shortest(),` +
+		`if(description, description.first_line(), "(no description)"),` +
+		`"---")`
+
+	cmd := exec.Command("jj", "log",
+		"--no-graph",
+		"--limit", fmt.Sprintf("%d", limit),
+		"--template", template)
+	cmd.Dir = c.baseDir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("jj log failed: %w: %s", err, output)
+	}
+
+	return parseRevisionEntries(string(output)), nil
+}
+
+type RevisionEntry struct {
+	ChangeID    string
+	Description string
+}
+
 type FileStatus struct {
 	Path       string
 	ChangeType ChangeType
@@ -173,6 +206,36 @@ func parseRevisionInfo(output string) *RevisionInfo {
 	}
 
 	return info
+}
+
+func parseRevisionEntries(output string) []RevisionEntry {
+	var entries []RevisionEntry
+	lines := strings.Split(output, "\n")
+
+	for i := 0; i < len(lines); i += 3 {
+		if i+2 >= len(lines) {
+			break
+		}
+
+		changeID := strings.TrimSpace(lines[i])
+		description := strings.TrimSpace(lines[i+1])
+		separator := strings.TrimSpace(lines[i+2])
+
+		if separator != "---" {
+			continue
+		}
+
+		if changeID == "" {
+			continue
+		}
+
+		entries = append(entries, RevisionEntry{
+			ChangeID:    changeID,
+			Description: description,
+		})
+	}
+
+	return entries
 }
 
 func (c *Client) executeJJ(args ...string) (string, error) {

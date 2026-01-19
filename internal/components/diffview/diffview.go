@@ -9,8 +9,10 @@ import (
 )
 
 type Model struct {
-	fileChange *diff.FileChange
-	offset     int
+	fileChange   *diff.FileChange
+	offset       int
+	selectedHunk int
+	isSelected   func(hunkIdx int) bool
 }
 
 func New() Model {
@@ -22,6 +24,11 @@ func New() Model {
 func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
+}
+
+func (m *Model) SetSelection(selectedHunk int, isSelected func(hunkIdx int) bool) {
+	m.selectedHunk = selectedHunk
+	m.isSelected = isSelected
 }
 
 func (m *Model) Scroll(delta int) {
@@ -66,9 +73,11 @@ func (m Model) View(width, height int) string {
 	lines = append(lines, styleHeader(header, width))
 
 	currentLine := 0
-	for _, hunk := range m.fileChange.Hunks {
+	for hunkIdx, hunk := range m.fileChange.Hunks {
 		if currentLine >= m.offset && len(lines) < height {
-			lines = append(lines, styleHunkHeader(hunk.Header, width))
+			isCurrent := hunkIdx == m.selectedHunk
+			isHunkSelected := m.isSelected != nil && m.isSelected(hunkIdx)
+			lines = append(lines, m.renderHunkHeader(hunk.Header, width, isCurrent, isHunkSelected))
 		}
 		currentLine++
 
@@ -122,6 +131,29 @@ func styleHeader(text string, width int) string {
 		Bold(true).
 		Foreground(lipgloss.Color("12"))
 	return style.Render(truncateOrPad(text, width))
+}
+
+func (m Model) renderHunkHeader(text string, width int, isCurrent, isSelected bool) string {
+	prefix := "  "
+	if isCurrent {
+		prefix = "> "
+	}
+
+	suffix := ""
+	if isSelected {
+		suffix = " [X]"
+	}
+
+	displayText := prefix + text + suffix
+
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("14"))
+
+	if isCurrent {
+		style = style.Background(lipgloss.Color("236"))
+	}
+
+	return style.Render(truncateOrPad(displayText, width))
 }
 
 func styleHunkHeader(text string, width int) string {

@@ -1,0 +1,25 @@
+[tasks.build]
+description = "Build the jj-diff binary"
+run = "go build -o jj-diff ./cmd/jj-diff"
+
+[tasks.run]
+description = "Build and run jj-diff"
+depends = ["build"]
+run = "./jj-diff"
+
+[tasks.test]
+description = "Run tests"
+run = "go test -v ./..."
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "rm -f jj-diff"
+
+[tasks.install]
+description = "Build and install jj-diff"
+depends = ["build"]
+run = "go install ./cmd/jj-diff"
+
+[tasks.deps]
+description = "Download and tidy Go modules"
+run = "go mod download && go mod tidy"
