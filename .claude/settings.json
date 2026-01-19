@@ -1,0 +1,8 @@
+{
+  "skills": {
+    "jj": {
+      "description": "Read-only jj (Jujutsu) operations for non-colocated repository",
+      "path": ".claude/skills/jj-readonly.md"
+    }
+  }
+}
