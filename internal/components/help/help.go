@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 type Model struct {
@@ -83,7 +84,7 @@ func (m Model) View(width, height int) string {
 func styleHeader(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("12")).
+		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
 	return style.Render(text)
@@ -92,14 +93,14 @@ func styleHeader(text string, width int) string {
 func styleSection(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("11")).
+		Foreground(theme.Secondary).
 		Width(width)
 	return style.Render(text)
 }
 
 func styleFooter(text string, width int) string {
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
 	return style.Render(text)
@@ -107,11 +108,11 @@ func styleFooter(text string, width int) string {
 
 func keyBinding(key, description string, width int) string {
 	keyStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("14")).
+		Foreground(theme.Accent).
 		Bold(true)
 
 	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15"))
+		Foreground(theme.Text)
 
 	keyWidth := 20
 	descWidth := width - keyWidth - 2
@@ -128,7 +129,7 @@ func keyBinding(key, description string, width int) string {
 
 func wrapText(text string, width int) string {
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
+		Foreground(theme.Text).
 		Width(width - 4)
 	return "  " + style.Render(text)
 }
@@ -143,7 +144,7 @@ func padRight(text string, width int) string {
 func renderModal(content string, termWidth, termHeight int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("12")).
+		BorderForeground(theme.Primary).
 		Padding(1, 2)
 
 	modal := borderStyle.Render(content)

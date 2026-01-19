@@ -352,10 +352,10 @@ func (m Model) applySelection() tea.Cmd {
 
 		err := m.client.MoveChanges(patch, m.source, m.destination)
 		if err != nil {
-			return errMsg{err}
+			return errMsg{fmt.Errorf("failed to move changes: %w", err)}
 		}
 
-		return diffLoadedMsg{m.changes}
+		return m.loadDiff()
 	}
 }
 

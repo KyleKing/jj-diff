@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kyleking/jj-diff/internal/diff"
+	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 type Model struct {
@@ -129,7 +130,7 @@ func (m Model) renderLine(line diff.Line, width int) string {
 func styleHeader(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("12"))
+		Foreground(theme.Primary)
 	return style.Render(truncateOrPad(text, width))
 }
 
@@ -147,10 +148,10 @@ func (m Model) renderHunkHeader(text string, width int, isCurrent, isSelected bo
 	displayText := prefix + text + suffix
 
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("14"))
+		Foreground(theme.Accent)
 
 	if isCurrent {
-		style = style.Background(lipgloss.Color("236"))
+		style = style.Background(theme.MutedBg)
 	}
 
 	return style.Render(truncateOrPad(displayText, width))
@@ -158,19 +159,19 @@ func (m Model) renderHunkHeader(text string, width int, isCurrent, isSelected bo
 
 func styleHunkHeader(text string, width int) string {
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("14"))
+		Foreground(theme.Accent)
 	return style.Render(truncateOrPad(text, width))
 }
 
 func styleAddition(text string) string {
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("22")).
+		Foreground(theme.AddedLine).
 		Render(text)
 }
 
 func styleDeletion(text string) string {
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("160")).
+		Foreground(theme.DeletedLine).
 		Render(text)
 }
 

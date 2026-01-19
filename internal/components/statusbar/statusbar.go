@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 type Model struct{}
@@ -28,8 +29,8 @@ func (m Model) View(width int, modeText, source, destination string) string {
 	content := strings.Join(parts, " | ")
 
 	style := lipgloss.NewStyle().
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("15")).
+		Background(theme.SoftMutedBg).
+		Foreground(theme.Text).
 		Width(width)
 
 	return style.Render(truncateOrPad(content, width))

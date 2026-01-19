@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kyleking/jj-diff/internal/jj"
+	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 type Model struct {
@@ -136,7 +137,7 @@ func (m Model) renderRevisionLine(rev jj.RevisionEntry, selected bool, width int
 func styleHeader(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("12")).
+		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
 	return style.Render(text)
@@ -144,7 +145,7 @@ func styleHeader(text string, width int) string {
 
 func styleFooter(text string, width int) string {
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
 	return style.Render(text)
@@ -152,8 +153,8 @@ func styleFooter(text string, width int) string {
 
 func styleSelected(text string) string {
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("25")).
-		Foreground(lipgloss.Color("15")).
+		Background(theme.SelectedBg).
+		Foreground(theme.Text).
 		Render(text)
 }
 
@@ -167,7 +168,7 @@ func truncateOrPad(text string, width int) string {
 func renderModal(content string, termWidth, termHeight int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("12")).
+		BorderForeground(theme.Primary).
 		Padding(1, 2)
 
 	modal := borderStyle.Render(content)

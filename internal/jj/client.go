@@ -3,7 +3,9 @@ package jj
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -79,7 +81,60 @@ func (c *Client) Undo() error {
 }
 
 func (c *Client) MoveChanges(patch, source, destination string) error {
-	return fmt.Errorf("MoveChanges not yet implemented: would move changes from %s to %s", source, destination)
+	tmpDir, err := os.MkdirTemp("", "jj-diff-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	patchFile := filepath.Join(tmpDir, "changes.patch")
+	if err := os.WriteFile(patchFile, []byte(patch), 0644); err != nil {
+		return fmt.Errorf("failed to write patch: %w", err)
+	}
+
+	return c.moveChangesWithPatch(patchFile, destination)
+}
+
+func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
+	currentWC, err := c.getCurrentWorkingCopy()
+	if err != nil {
+		return fmt.Errorf("failed to get current working copy: %w", err)
+	}
+
+	defer func() {
+		_ = c.restoreWorkingCopy(currentWC)
+	}()
+
+	if _, err := c.executeJJ("new", destination, "--no-edit"); err != nil {
+		return fmt.Errorf("failed to create new commit: %w", err)
+	}
+
+	cmd := exec.Command("git", "apply", patchFile)
+	cmd.Dir = c.baseDir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		c.Undo()
+		return fmt.Errorf("failed to apply patch: %w: %s", err, output)
+	}
+
+	if _, err := c.executeJJ("squash", "--into", destination); err != nil {
+		c.Undo()
+		return fmt.Errorf("failed to squash changes: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Client) getCurrentWorkingCopy() (string, error) {
+	output, err := c.executeJJ("log", "-r", "@", "--no-graph", "-T", "change_id")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func (c *Client) restoreWorkingCopy(changeID string) error {
+	_, err := c.executeJJ("edit", changeID)
+	return err
 }
 
 func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {

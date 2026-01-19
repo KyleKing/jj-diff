@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/model"
+	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 const version = "0.1.0"
@@ -70,6 +71,8 @@ func main() {
 	if err := client.CheckInstalled(); err != nil {
 		log.Fatalf("jj is not installed or not in PATH: %v", err)
 	}
+
+	theme.Init()
 
 	var initialModel tea.Model
 

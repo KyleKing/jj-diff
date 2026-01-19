@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kyleking/jj-diff/internal/diff"
+	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 type Model struct {
@@ -71,20 +72,20 @@ func (m Model) renderFileLine(file diff.FileChange, selected, focused bool) stri
 func styleHeader(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("12"))
+		Foreground(theme.Primary)
 	return style.Render(truncateOrPad(text, width))
 }
 
 func styleSelectedFocused(text string) string {
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("25")).
-		Foreground(lipgloss.Color("15")).
+		Background(theme.SelectedBg).
+		Foreground(theme.Text).
 		Render(text)
 }
 
 func styleSelected(text string) string {
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("236")).
+		Background(theme.MutedBg).
 		Render(text)
 }
 
