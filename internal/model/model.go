@@ -365,6 +365,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "g":
 		m.selectedFile = 0
 		m.selectedHunk = 0
+		m.lineCursor = 0
 		m.fileList.SetSelected(m.selectedFile)
 		if len(m.changes) > 0 {
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
@@ -374,6 +375,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		m.selectedFile = len(m.changes) - 1
 		m.selectedHunk = 0
+		m.lineCursor = 0
 		m.fileList.SetSelected(m.selectedFile)
 		if len(m.changes) > 0 {
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
@@ -407,6 +409,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			file := m.changes[m.selectedFile]
 			if m.selectedHunk < len(file.Hunks)-1 {
 				m.selectedHunk++
+				m.lineCursor = 0
 			}
 		}
 		return m, nil
@@ -421,6 +424,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.focusedPanel == PanelDiffView {
 			if m.selectedHunk > 0 {
 				m.selectedHunk--
+				m.lineCursor = 0
 			}
 		}
 		return m, nil
@@ -499,6 +503,7 @@ func (m Model) handleNavigation(delta int) (tea.Model, tea.Cmd) {
 		if newIdx >= 0 && newIdx < len(m.changes) {
 			m.selectedFile = newIdx
 			m.selectedHunk = 0
+			m.lineCursor = 0
 			m.fileList.SetSelected(m.selectedFile)
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
 		}

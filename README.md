@@ -27,11 +27,11 @@ A TUI for interactive diff viewing and manipulation in Jujutsu (jj).
 
 ### Planned Features (Phase 2)
 
-- **Line-level Selection**: Visual mode for selecting individual lines within hunks
 - **Multi-split**: Split commits into multiple focused commits
 - **Syntax Highlighting**: Code syntax highlighting with chroma
-- **Search & Filter**: Search in diffs, fuzzy file finder
+- **Advanced Search**: Fuzzy file finder
 - **scm-diff-editor Protocol**: Optional drop-in replacement for jj's builtin diff editor (if requested)
+- **Performance**: Virtualization for large diffs (>1000 lines)
 
 ## Installation
 
@@ -145,7 +145,7 @@ make build
 
 ## Testing
 
-The project has comprehensive test coverage with 32 tests across three layers:
+The project has comprehensive test coverage with 40 tests across three layers:
 
 ```bash
 # Run all tests
@@ -153,7 +153,7 @@ go test ./...
 
 # Run specific test layers
 go test ./internal/diff/...         # Unit tests (17 tests)
-go test ./internal/model/...        # Model tests (12 tests)
+go test ./internal/model/...        # Model tests (20 tests including line-level selection)
 go test ./tests/integration/...     # Integration tests (3 tests)
 
 # Run with coverage
@@ -162,6 +162,25 @@ go test -cover ./...
 # Verbose output
 go test -v ./...
 ```
+
+### Manual Testing with Real Repositories
+
+Two interactive test scripts are provided for manual testing:
+
+```bash
+# Quick test - Creates test repo, shows diff, runs jj-diff
+./scripts/test-in-tmpdir.sh
+
+# Interactive test suite - Multiple scenarios with menu
+./scripts/interactive-test.sh
+```
+
+The interactive test script provides scenarios for:
+- Simple changes (single file, few hunks)
+- Multiple files (nested directories, new files)
+- Large diffs (100+ lines, many hunks)
+- Move changes workflow (testing interactive mode)
+- Custom scenarios (open shell in test repo)
 
 ## Development
 

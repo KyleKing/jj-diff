@@ -164,6 +164,30 @@ func (a *ModelAssertion) HasChanges(count int) *ModelAssertion {
 	return a
 }
 
+func (a *ModelAssertion) IsInVisualMode() *ModelAssertion {
+	a.t.Helper()
+	if !a.m.isVisualMode {
+		a.t.Error("Expected model to be in visual mode")
+	}
+	return a
+}
+
+func (a *ModelAssertion) IsNotInVisualMode() *ModelAssertion {
+	a.t.Helper()
+	if a.m.isVisualMode {
+		a.t.Error("Expected model to NOT be in visual mode")
+	}
+	return a
+}
+
+func (a *ModelAssertion) HasLineCursor(position int) *ModelAssertion {
+	a.t.Helper()
+	if a.m.lineCursor != position {
+		a.t.Errorf("Expected lineCursor=%d, got %d", position, a.m.lineCursor)
+	}
+	return a
+}
+
 // TestChanges creates sample file changes for testing
 func TestChanges() []diff.FileChange {
 	return []diff.FileChange{

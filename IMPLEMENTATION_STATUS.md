@@ -70,11 +70,11 @@
 #### 10. Testing
 - ✅ Unit tests for diff parser (100% coverage - 8 tests)
 - ✅ Unit tests for patch generation (100% coverage - 9 tests)
-- ✅ Model tests for UI state management (12 tests)
+- ✅ Model tests for UI state management (20 tests including line-level selection)
 - ✅ Integration tests for jj workflows (3 tests)
 - ✅ Test helpers and utilities
-- ✅ All 32 tests passing
-- ✅ Test repository created for manual testing
+- ✅ All 40 tests passing
+- ✅ Test scripts for manual testing (scripts/test-in-tmpdir.sh, scripts/interactive-test.sh)
 
 ## Current Capabilities
 
@@ -169,8 +169,16 @@
 - `[X]` indicator shows selected hunks
 - `> ` indicator shows current hunk
 
+**Line-Level Selection (Visual Mode):**
+- `v` - Enter visual mode (when focused on diff view)
+- `j/k` - Navigate lines in visual mode
+- `Space` - Confirm line range selection and exit visual mode
+- `Esc` - Exit visual mode without selecting
+- `█` indicator shows lines in visual range
+- `•` indicator shows selected lines
+
 **Actions:**
-- `a` - Apply selected changes to destination (framework in place)
+- `a` - Apply selected changes to destination
 - `?` - Show/hide help overlay
 - `r` - Refresh diff
 
@@ -184,19 +192,22 @@
   - [✅] Handle partial file moves via patch generation
   - [✅] Automatic rollback on errors
   - [✅] Working copy state preservation
-  - [ ] Integration tests needed
-  - [ ] Manual testing in real repositories
+  - [✅] Integration tests complete
+  - [ ] Manual testing in real repositories (can use scripts/test-in-tmpdir.sh)
 
-- [~] **scm-diff-editor Protocol** (EVALUATED - Not implementing)
+- [~] **scm-diff-editor Protocol** (EVALUATED - Not implementing for v0.1.0)
   - Decision: Keep standalone approach (see PHASE1_ANALYSIS.md)
   - Rationale: Different use case, significant complexity, current approach works well
   - Alternative: Could be Phase 2 feature if user demand exists
   - Status: Placeholder flag exists in main.go (--scm-input)
 
-- [ ] **Line-Level Selection**
-  - [ ] Visual mode for line selection
-  - [ ] Line selection UI indicators
-  - [ ] Patch generation for partial hunks
+- [✅] **Line-Level Selection** (COMPLETE)
+  - [✅] Visual mode for line selection (v key)
+  - [✅] Line selection UI indicators (█ for visual range, • for selected)
+  - [✅] Patch generation for partial hunks with context lines
+  - [✅] Line navigation in visual mode (j/k)
+  - [✅] Line cursor reset when switching hunks/files
+  - [✅] Tests for visual mode and line selection (8 new tests)
 
 ### Nice to Have (Polish)
 
@@ -313,23 +324,25 @@ See **PHASE1_ANALYSIS.md** for comprehensive evaluation of:
 
 ## Conclusion
 
-**Phase 1 Interactive Mode is COMPLETE!**
+**Phase 1 is COMPLETE!**
 
 ### What Works Now
 
-1. **Browse Mode** - Fully functional read-only diff viewer
+1. **Browse Mode** - Fully functional read-only diff viewer with search
 2. **Interactive Mode** - Complete implementation for selecting and applying changes:
    - Destination picker with revision selection
    - Hunk selection with visual indicators
-   - Navigation between hunks
-   - Selection state tracking
-   - Patch generation
+   - **Line-level selection with visual mode** ⭐ NEW
+   - Navigation between hunks and lines
+   - Selection state tracking (whole hunks and individual lines)
+   - Patch generation for both whole hunks and partial selections
    - Real jj integration for applying changes
    - Automatic rollback on errors
    - Working copy preservation
    - Help system with full keybinding documentation
 3. **Theme System** - Catppuccin latte/macchiato with auto-detection
-4. **Test Suite** - 32 tests with 100% pass rate covering all critical workflows
+4. **Test Suite** - 40 tests with 100% pass rate covering all critical workflows
+5. **Testing Tools** - Interactive test scripts for manual testing in temporary repositories
 
 ### Production Readiness
 
@@ -342,22 +355,28 @@ Core functionality is production-ready:
 
 ### Optional Enhancements (Phase 2)
 
-1. **Line-level Selection** - Select individual lines within hunks (recommended next step)
-2. **scm-record Protocol** - Optional drop-in replacement for jj's builtin scm-diff-editor (evaluated, not implementing for v0.1.0)
-3. **Manual Testing** - Test with real repositories in various scenarios
-4. **Performance Optimization** - Handle large diffs (>1000 lines)
+1. **scm-record Protocol** - Optional drop-in replacement for jj's builtin scm-diff-editor (evaluated, not implementing for v0.1.0)
+2. **Manual Testing** - Test with real repositories in various scenarios (scripts provided)
+3. **Performance Optimization** - Handle large diffs (>1000 lines) with virtualization
+4. **Syntax Highlighting** - Integrate chroma for better readability
 
 ### Status Summary
 
 - **Phase 1 Core Infrastructure**: ✅ COMPLETE
 - **Phase 1 Browse Mode**: ✅ COMPLETE
 - **Phase 1 Interactive Mode UI**: ✅ COMPLETE
+- **Phase 1 Line-Level Selection**: ✅ COMPLETE (Visual mode with line selection)
 - **Phase 1 jj Integration**: ✅ COMPLETE (MoveChanges implemented)
 - **Phase 1 Theme System**: ✅ COMPLETE (Catppuccin latte/macchiato)
+- **Phase 1 Search System**: ✅ COMPLETE (Incremental search with highlighting)
+- **Phase 1 Testing**: ✅ COMPLETE (40 tests, interactive test scripts)
 - **Phase 1 scm-record Protocol**: 🤔 EVALUATED - Not implementing (see PHASE1_ANALYSIS.md)
 
-**Ready for:** Manual testing in real repositories, integration tests, and optional line-level selection.
+**Status:** ✅ Phase 1 COMPLETE - Ready for v0.1.0 release
 
-**Next steps:** See PHASE1_ANALYSIS.md for detailed completion recommendations.
+**Next steps:**
+1. Manual testing with real repositories using `scripts/test-in-tmpdir.sh` or `scripts/interactive-test.sh`
+2. Create v0.1.0 release with release notes
+3. Share with jj community for feedback
 
-**Estimated time to v0.1.0 release:** 1-3 days (testing + optional line-level selection)
+**Estimated time to v0.1.0 release:** Ready now (pending manual testing)

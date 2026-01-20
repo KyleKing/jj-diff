@@ -295,3 +295,159 @@ func TestSelectionState_WholeHunkClearsLines(t *testing.T) {
 		t.Errorf("Expected SelectedLines map to be cleared, got %d entries", len(hunkSelection.SelectedLines))
 	}
 }
+
+// TestSelectionState_SelectLineRange tests selecting a range of lines
+func TestSelectionState_SelectLineRange(t *testing.T) {
+	s := NewSelectionState()
+
+	s.SelectLineRange("file.txt", 0, 2, 5)
+
+	for i := 2; i <= 5; i++ {
+		if !s.IsLineSelected("file.txt", 0, i) {
+			t.Errorf("Expected line %d to be selected", i)
+		}
+	}
+
+	if s.IsLineSelected("file.txt", 0, 1) {
+		t.Error("Expected line 1 to not be selected")
+	}
+	if s.IsLineSelected("file.txt", 0, 6) {
+		t.Error("Expected line 6 to not be selected")
+	}
+
+	if s.IsHunkSelected("file.txt", 0) {
+		t.Error("Expected whole hunk to not be selected")
+	}
+}
+
+// TestSelectionState_SelectLineRangeReversed tests selecting line range with reversed bounds
+func TestSelectionState_SelectLineRangeReversed(t *testing.T) {
+	s := NewSelectionState()
+
+	s.SelectLineRange("file.txt", 0, 5, 2)
+
+	for i := 2; i <= 5; i++ {
+		if !s.IsLineSelected("file.txt", 0, i) {
+			t.Errorf("Expected line %d to be selected", i)
+		}
+	}
+}
+
+// TestSelectionState_HasPartialSelection tests partial selection detection
+func TestSelectionState_HasPartialSelection(t *testing.T) {
+	s := NewSelectionState()
+
+	if s.HasPartialSelection("file.txt", 0) {
+		t.Error("Expected no partial selection initially")
+	}
+
+	s.ToggleLine("file.txt", 0, 3)
+	if !s.HasPartialSelection("file.txt", 0) {
+		t.Error("Expected partial selection after selecting individual line")
+	}
+
+	s.ToggleHunk("file.txt", 0)
+	if s.HasPartialSelection("file.txt", 0) {
+		t.Error("Expected no partial selection when whole hunk is selected")
+	}
+}
+
+// TestModelVisualMode tests entering and exiting visual mode
+func TestModelVisualMode(t *testing.T) {
+	m := NewTestModel(t, ModeInteractive).
+		WithChanges(TestChanges())
+
+	m.focusedPanel = PanelDiffView
+
+	Assert(t, m).IsNotInVisualMode()
+
+	m = Update(t, m, KeyPress('v'))
+	Assert(t, m).IsInVisualMode()
+
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
+	Assert(t, m).IsNotInVisualMode()
+}
+
+// TestModelVisualModeNavigation tests line navigation in visual mode
+func TestModelVisualModeNavigation(t *testing.T) {
+	m := NewTestModel(t, ModeInteractive).
+		WithChanges(TestChanges())
+
+	m.focusedPanel = PanelDiffView
+	m.selectedFile = 0
+
+	m = Update(t, m, KeyPress('v'))
+	Assert(t, m).IsInVisualMode().HasLineCursor(0)
+
+	m = Update(t, m, KeyPress('j'))
+	Assert(t, m).HasLineCursor(1)
+
+	m = Update(t, m, KeyPress('j'))
+	Assert(t, m).HasLineCursor(2)
+
+	m = Update(t, m, KeyPress('k'))
+	Assert(t, m).HasLineCursor(1)
+}
+
+// TestModelVisualModeSelection tests line range selection in visual mode
+func TestModelVisualModeSelection(t *testing.T) {
+	m := NewTestModel(t, ModeInteractive).
+		WithChanges(TestChanges())
+
+	m.focusedPanel = PanelDiffView
+	m.selectedFile = 0
+
+	m = Update(t, m, KeyPress('v'))
+	Assert(t, m).IsInVisualMode()
+
+	m = Update(t, m, KeyPress('j'))
+	m = Update(t, m, KeyPress('j'))
+	m = Update(t, m, KeyPress(' '))
+
+	Assert(t, m).IsNotInVisualMode()
+
+	if !m.selection.IsLineSelected("file1.txt", 0, 0) {
+		t.Error("Expected line 0 to be selected")
+	}
+	if !m.selection.IsLineSelected("file1.txt", 0, 1) {
+		t.Error("Expected line 1 to be selected")
+	}
+	if !m.selection.IsLineSelected("file1.txt", 0, 2) {
+		t.Error("Expected line 2 to be selected")
+	}
+}
+
+// TestModelLineCursorReset tests that lineCursor resets when switching hunks/files
+func TestModelLineCursorReset(t *testing.T) {
+	m := NewTestModel(t, ModeInteractive).
+		WithChanges(TestChanges())
+
+	m.focusedPanel = PanelDiffView
+	m.lineCursor = 5
+
+	m = Update(t, m, KeyPress('n'))
+	Assert(t, m).HasLineCursor(0)
+
+	m.lineCursor = 3
+	m = Update(t, m, KeyPress('p'))
+	Assert(t, m).HasLineCursor(0)
+
+	m.lineCursor = 7
+	m = Update(t, m, KeyPress('g'))
+	Assert(t, m).HasLineCursor(0)
+
+	m.lineCursor = 4
+	m = Update(t, m, KeyPress('G'))
+	Assert(t, m).HasLineCursor(0)
+}
+
+// TestModelBrowseModeNoVisual tests that visual mode is disabled in browse mode
+func TestModelBrowseModeNoVisual(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).
+		WithChanges(TestChanges())
+
+	m.focusedPanel = PanelDiffView
+
+	m = Update(t, m, KeyPress('v'))
+	Assert(t, m).IsNotInVisualMode()
+}
