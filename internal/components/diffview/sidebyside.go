@@ -26,9 +26,6 @@ func (v *SideBySideView) Render(file *diff.FileChange, ctx RenderContext) string
 
 	var lines []string
 
-	header := fmt.Sprintf("%s %s", file.ChangeType.String(), file.Path)
-	lines = append(lines, styleHeader(header, ctx.Width))
-
 	paneWidth := (ctx.Width - 3) / 2
 	leftHeader := truncateOrPad("OLD", paneWidth)
 	rightHeader := truncateOrPad("NEW", paneWidth)
@@ -39,7 +36,13 @@ func (v *SideBySideView) Render(file *diff.FileChange, ctx RenderContext) string
 		hunkHeader := v.renderSideBySideHunkHeader(hunk.Header, ctx.Width, hunkIdx == ctx.SelectedHunk)
 		lines = append(lines, hunkHeader)
 
-		pairedLines := v.pairLines(hunk.Lines)
+		// Process hunk lines to hide whitespace changes if enabled
+		hunkLines := hunk.Lines
+		if ctx.ShowWhitespace {
+			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
+		}
+
+		pairedLines := v.pairLines(hunkLines)
 		for _, pair := range pairedLines {
 			if len(lines) >= ctx.Height {
 				break
@@ -140,10 +143,6 @@ func (v *SideBySideView) renderSinglePane(line *diff.Line, paneWidth int, ctx Re
 	}
 	if len(content) > maxContentWidth {
 		content = content[:maxContentWidth]
-	}
-
-	if ctx.ShowWhitespace {
-		content = diff.RenderWhitespaceSimple(content, ctx.TabWidth)
 	}
 
 	text := lineNumStr + content

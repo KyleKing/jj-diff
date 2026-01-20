@@ -161,6 +161,22 @@ func (m *Model) Scroll(delta int) {
 	m.offset = newOffset
 }
 
+func (m *Model) ScrollHalfPageDown(viewHeight int) {
+	m.Scroll(viewHeight / 2)
+}
+
+func (m *Model) ScrollHalfPageUp(viewHeight int) {
+	m.Scroll(-viewHeight / 2)
+}
+
+func (m *Model) ScrollFullPageDown(viewHeight int) {
+	m.Scroll(viewHeight)
+}
+
+func (m *Model) ScrollFullPageUp(viewHeight int) {
+	m.Scroll(-viewHeight)
+}
+
 func (m Model) calculateTotalLines() int {
 	if m.fileChange == nil {
 		return 0
@@ -174,7 +190,7 @@ func (m Model) calculateTotalLines() int {
 	return total
 }
 
-func (m Model) View(width, height int) string {
+func (m Model) View(width, height int, focused bool) string {
 	if m.fileChange == nil {
 		return padToSize("No file selected", width, height)
 	}
@@ -196,19 +212,17 @@ func (m Model) View(width, height int) string {
 			IsLineSelected:  m.isLineSelected,
 			GetMatches:      m.getMatches,
 			WordDiffCache:   m.wordDiffCache,
+			Focused:         focused,
 		}
 		sbs := NewSideBySideView()
 		return sbs.Render(m.fileChange, ctx)
 	}
 
-	return m.renderUnified(width, height)
+	return m.renderUnified(width, height, focused)
 }
 
-func (m Model) renderUnified(width, height int) string {
+func (m Model) renderUnified(width, height int, focused bool) string {
 	var lines []string
-
-	header := fmt.Sprintf("%s %s", m.fileChange.ChangeType.String(), m.fileChange.Path)
-	lines = append(lines, styleHeader(header, width))
 
 	currentLine := 0
 	for hunkIdx, hunk := range m.fileChange.Hunks {
@@ -219,7 +233,13 @@ func (m Model) renderUnified(width, height int) string {
 		}
 		currentLine++
 
-		for lineIdx, line := range hunk.Lines {
+		// Process hunk lines to hide whitespace changes if enabled
+		hunkLines := hunk.Lines
+		if m.showWhitespace {
+			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
+		}
+
+		for lineIdx, line := range hunkLines {
 			if currentLine >= m.offset && len(lines) < height {
 				lines = append(lines, m.renderLine(line, width, hunkIdx, lineIdx))
 			}
@@ -258,17 +278,13 @@ func (m Model) renderLine(line diff.Line, width int, hunkIdx, lineIdx int) strin
 		content = content[:maxContentWidth]
 	}
 
-	if m.showWhitespace {
-		content = diff.RenderWhitespaceSimple(content, m.tabWidth)
-	}
-
 	if m.wordLevelDiff && m.wordDiffCache != nil && line.Type != diff.LineContext {
 		if hunkDiffs, ok := m.wordDiffCache.HunkDiffs[hunkIdx]; ok {
 			if wordDiff, ok := hunkDiffs[lineIdx]; ok {
 				content = m.applyWordDiffHighlight(line.Content, line.Type, wordDiff)
 			}
 		}
-	} else if m.enableHighlight && m.fileChange != nil && line.Type == diff.LineContext && !m.showWhitespace {
+	} else if m.enableHighlight && m.fileChange != nil && line.Type == diff.LineContext {
 		highlighted := m.highlighter.HighlightLine(m.fileChange.Path, content)
 		if highlighted != "" {
 			content = highlighted
@@ -398,10 +414,13 @@ func (m Model) applyWordDiffHighlight(content string, lineType diff.LineType, wo
 	return result.String()
 }
 
-func styleHeader(text string, width int) string {
+func styleHeader(text string, width int, focused bool) string {
 	style := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(theme.Primary)
+	if focused {
+		style = style.Background(theme.MutedBg)
+	}
 	return style.Render(truncateOrPad(text, width))
 }
 

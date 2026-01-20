@@ -5,21 +5,22 @@ import (
 )
 
 type RenderContext struct {
-	Width           int
+	Focused         bool
 	Height          int
-	SelectedHunk    int
-	LineCursor      int
-	IsVisualMode    bool
-	VisualAnchor    int
-	ShowWhitespace  bool
-	ShowLineNumbers bool
-	TabWidth        int
-	WordLevelDiff   bool
+	IsLineSelected  func(hunkIdx, lineIdx int) bool
 	IsSearching     bool
 	IsSelected      func(hunkIdx int) bool
-	IsLineSelected  func(hunkIdx, lineIdx int) bool
+	IsVisualMode    bool
 	GetMatches      func(hunkIdx, lineIdx int) []MatchRange
+	LineCursor      int
+	SelectedHunk    int
+	ShowLineNumbers bool
+	ShowWhitespace  bool
+	TabWidth        int
+	VisualAnchor    int
+	Width           int
 	WordDiffCache   *WordDiffCache
+	WordLevelDiff   bool
 }
 
 type ViewMode interface {

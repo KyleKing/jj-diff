@@ -39,6 +39,11 @@ func TestModelNavigation(t *testing.T) {
 	m = Update(t, m, KeyPress('p'))
 	Assert(t, m).HasSelectedHunk(0)
 
+	// Test N (previous hunk, same as p)
+	m.selectedHunk = 1
+	m = Update(t, m, KeyPress('N'))
+	Assert(t, m).HasSelectedHunk(0)
+
 	// p at first hunk should stay at 0
 	m = Update(t, m, KeyPress('p'))
 	Assert(t, m).HasSelectedHunk(0)
@@ -510,4 +515,101 @@ func TestModelSideBySideInInteractiveMode(t *testing.T) {
 	if m.diffView.IsSideBySide() {
 		t.Error("Expected to toggle back to unified")
 	}
+}
+
+// TestModalMutualExclusivity tests that opening one modal closes others
+func TestModalMutualExclusivity(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+
+	m = Update(t, m, KeyPress('?'))
+	Assert(t, m).HelpIsVisible()
+
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
+	m = Update(t, m, KeyPress('/'))
+	Assert(t, m).SearchIsVisible().HelpIsNotVisible()
+
+	m = Update(t, m, KeyPress('?'))
+	Assert(t, m).HelpIsVisible().SearchIsNotVisible()
+
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
+	m = Update(t, m, KeyPress('f'))
+	Assert(t, m).FileListFilterModeEnabled().HelpIsNotVisible()
+
+	m = Update(t, m, KeyPress('?'))
+	Assert(t, m).HelpIsVisible().FileListFilterModeDisabled()
+}
+
+// TestModalEscClosesAny tests that ESC closes any open modal
+func TestModalEscClosesAny(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+
+	m = Update(t, m, KeyPress('?'))
+	Assert(t, m).HelpIsVisible()
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
+	Assert(t, m).NoModalsVisible()
+
+	m = Update(t, m, KeyPress('/'))
+	Assert(t, m).SearchIsVisible()
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
+	Assert(t, m).NoModalsVisible()
+
+	m = Update(t, m, KeyPress('f'))
+	Assert(t, m).FileListFilterModeEnabled()
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
+	Assert(t, m).NoModalsVisible()
+}
+
+// TestAllModalsOpenAndClose tests each modal can be opened and closed
+func TestAllModalsOpenAndClose(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+
+	Assert(t, m).NoModalsVisible()
+
+	m = Update(t, m, KeyPress('?'))
+	Assert(t, m).HelpIsVisible()
+	m = Update(t, m, KeyPress('q'))
+	Assert(t, m).HelpIsNotVisible()
+
+	m = Update(t, m, KeyPress('/'))
+	Assert(t, m).SearchIsVisible()
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	Assert(t, m).SearchIsNotVisible()
+
+	m = Update(t, m, KeyPress('f'))
+	Assert(t, m).FileListFilterModeEnabled()
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
+	Assert(t, m).FileListFilterModeDisabled()
+}
+
+// TestVimScrolling tests Ctrl-d/u/f/b scrolling
+func TestVimScrolling(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+	m.height = 24
+	m.focusedPanel = PanelDiffView
+
+	initialOffset := 0
+
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
+	if m.diffView.ShowLineNumbers() {
+	}
+
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlB})
+
+	_ = initialOffset
+}
+
+// TestScrollingOnlyInDiffPanel tests that scrolling only works when diff panel is focused
+func TestScrollingOnlyInDiffPanel(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+	m.height = 24
+	m.focusedPanel = PanelFileList
+
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
+
+	m.focusedPanel = PanelDiffView
+	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
 }

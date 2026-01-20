@@ -8,6 +8,14 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+type Context struct {
+	Destination  string
+	FocusedPanel string
+	IsVisualMode bool
+	Mode         string
+	Source       string
+}
+
 type Model struct{}
 
 func New() Model {
@@ -15,20 +23,29 @@ func New() Model {
 }
 
 func (m Model) View(width int, modeText, source, destination string, isVisualMode bool) string {
+	return m.ViewWithContext(width, Context{
+		Mode:         modeText,
+		Source:       source,
+		Destination:  destination,
+		IsVisualMode: isVisualMode,
+		FocusedPanel: "files",
+	})
+}
 
+func (m Model) ViewWithContext(width int, ctx Context) string {
 	var parts []string
-	if isVisualMode {
-		parts = append(parts, fmt.Sprintf("[Mode: %s - VISUAL]", modeText))
+	if ctx.IsVisualMode {
+		parts = append(parts, fmt.Sprintf("[Mode: %s - VISUAL]", ctx.Mode))
 	} else {
-		parts = append(parts, fmt.Sprintf("[Mode: %s]", modeText))
+		parts = append(parts, fmt.Sprintf("[Mode: %s]", ctx.Mode))
 	}
-	parts = append(parts, fmt.Sprintf("Source: %s", source))
+	parts = append(parts, fmt.Sprintf("Source: %s", ctx.Source))
 
-	if destination != "" {
-		parts = append(parts, fmt.Sprintf("→ Dest: %s", destination))
+	if ctx.Destination != "" {
+		parts = append(parts, fmt.Sprintf("→ Dest: %s", ctx.Destination))
 	}
 
-	parts = append(parts, "Press ? for help")
+	parts = append(parts, m.getContextHints(ctx))
 
 	content := strings.Join(parts, " | ")
 
@@ -38,6 +55,21 @@ func (m Model) View(width int, modeText, source, destination string, isVisualMod
 		Width(width)
 
 	return style.Render(truncateOrPad(content, width))
+}
+
+func (m Model) getContextHints(ctx Context) string {
+	if ctx.IsVisualMode {
+		return "j/k:select | Space:confirm | Esc:cancel"
+	}
+
+	if ctx.FocusedPanel == "files" {
+		return "j/k:nav | Tab:diff | /:search | f:find | ?:help"
+	}
+
+	if ctx.Mode == "Interactive" {
+		return "j/k:scroll | Space:select | w/s/l:view | ?:help"
+	}
+	return "j/k:scroll | Ctrl-d/u:page | w:ws | s:sbs | ?:help"
 }
 
 func truncateOrPad(text string, width int) string {

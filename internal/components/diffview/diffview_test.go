@@ -72,11 +72,8 @@ func TestViewUnifiedMode(t *testing.T) {
 	m := New(config.DefaultConfig())
 	m.SetFileChange(testFileChange())
 
-	output := m.View(80, 20)
+	output := m.View(80, 20, false)
 
-	if !strings.Contains(output, "test.go") {
-		t.Error("Expected file path in output")
-	}
 	if !strings.Contains(output, "@@") {
 		t.Error("Expected hunk header in output")
 	}
@@ -91,11 +88,8 @@ func TestViewSideBySideMode(t *testing.T) {
 	m := New(cfg)
 	m.SetFileChange(testFileChange())
 
-	output := m.View(80, 20)
+	output := m.View(80, 20, false)
 
-	if !strings.Contains(output, "test.go") {
-		t.Error("Expected file path in output")
-	}
 	if !strings.Contains(output, "OLD") {
 		t.Error("Expected OLD header in side-by-side")
 	}
@@ -107,7 +101,7 @@ func TestViewSideBySideMode(t *testing.T) {
 	}
 }
 
-func TestViewWithWhitespace(t *testing.T) {
+func TestViewWithWhitespaceHiding(t *testing.T) {
 	cfg := config.Config{
 		ShowWhitespace:  true,
 		ShowLineNumbers: true,
@@ -120,19 +114,31 @@ func TestViewWithWhitespace(t *testing.T) {
 		ChangeType: diff.ChangeTypeModified,
 		Hunks: []diff.Hunk{
 			{
-				Header: "@@ -1,1 +1,1 @@",
+				Header: "@@ -1,2 +1,2 @@",
 				Lines: []diff.Line{
-					{Type: diff.LineContext, Content: "hello world", OldLineNum: 1, NewLineNum: 1},
+					{Type: diff.LineDeletion, Content: "  hello", OldLineNum: 1, NewLineNum: 0},
+					{Type: diff.LineAddition, Content: "    hello", OldLineNum: 0, NewLineNum: 1},
+					{Type: diff.LineContext, Content: "world", OldLineNum: 2, NewLineNum: 2},
 				},
 			},
 		},
 	}
 	m.SetFileChange(fc)
 
-	output := m.View(80, 10)
+	output := m.View(80, 10, false)
 
-	if !strings.Contains(output, string(diff.SpaceChar)) {
-		t.Errorf("Expected middle dot for space in whitespace mode, got: %s", output)
+	// When hiding whitespace, the deletion+addition pair should be converted to context
+	// Should not contain deletion (-) or addition (+) indicators for whitespace-only changes
+	lines := strings.Split(output, "\n")
+	hasWhitespaceOnlyChange := false
+	for _, line := range lines {
+		if strings.Contains(line, "hello") && !strings.HasPrefix(strings.TrimSpace(line), "-") && !strings.HasPrefix(strings.TrimSpace(line), "+") {
+			hasWhitespaceOnlyChange = true
+			break
+		}
+	}
+	if !hasWhitespaceOnlyChange {
+		t.Errorf("Expected whitespace-only change to be hidden, got: %s", output)
 	}
 }
 
@@ -144,7 +150,7 @@ func TestViewWithoutLineNumbers(t *testing.T) {
 	m := New(cfg)
 	m.SetFileChange(testFileChange())
 
-	output := m.View(80, 20)
+	output := m.View(80, 20, false)
 
 	lines := strings.Split(output, "\n")
 	for _, line := range lines[2:] {
@@ -217,10 +223,10 @@ func TestScrolling(t *testing.T) {
 	m.SetFileChange(fc)
 
 	m.Scroll(5)
-	output1 := m.View(80, 10)
+	output1 := m.View(80, 10, false)
 
 	m.Scroll(-5)
-	output2 := m.View(80, 10)
+	output2 := m.View(80, 10, false)
 
 	if output1 == output2 {
 		t.Error("Expected different output after scrolling")
@@ -230,7 +236,7 @@ func TestScrolling(t *testing.T) {
 func TestNoFileSelected(t *testing.T) {
 	m := New(config.DefaultConfig())
 
-	output := m.View(80, 20)
+	output := m.View(80, 20, false)
 
 	if !strings.Contains(output, "No file selected") {
 		t.Error("Expected 'No file selected' message")

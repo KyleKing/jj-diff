@@ -2,8 +2,10 @@ package model
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/components/filefinder"
@@ -15,6 +17,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/search"
+	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 type OperatingMode int
@@ -279,6 +282,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case revisionsLoadedMsg:
+		m.closeAllModals()
 		m.destPicker.SetRevisions(msg.revisions)
 		m.destPicker.Show()
 		return m, nil
@@ -293,9 +297,61 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+
+	if key == "esc" {
+		if m.help.IsVisible() {
+			m.help.Hide()
+			return m, nil
+		}
+		if m.destPicker.IsVisible() {
+			m.destPicker.Hide()
+			return m, nil
+		}
+		if m.searchModal.IsVisible() {
+			if m.searchState != nil {
+				origState := m.searchState.RestoreOriginalState()
+				m.selectedFile = origState.SelectedFile
+				m.selectedHunk = origState.SelectedHunk
+				m.focusedPanel = FocusedPanel(origState.FocusedPanel)
+			}
+			m.searchModal.Hide()
+			m.searchState.IsActive = false
+			return m, nil
+		}
+		if m.fileFinder.IsVisible() {
+			m.fileFinder.Hide()
+			return m, nil
+		}
+		if m.fileList.IsFilterMode() {
+			m.fileList.SetFilterMode(false)
+			return m, nil
+		}
+		if m.isVisualMode {
+			m.isVisualMode = false
+			m.visualAnchor = 0
+			return m, nil
+		}
+		return m, nil
+	}
+
+	if key == "?" && !m.destPicker.IsVisible() {
+		if m.help.IsVisible() {
+			m.help.Hide()
+			return m, nil
+		}
+		m.closeAllModals()
+		modeText := "Browse"
+		if m.mode == ModeInteractive {
+			modeText = "Interactive"
+		}
+		m.help.Show(modeText)
+		return m, nil
+	}
+
 	if m.help.IsVisible() {
-		switch msg.String() {
-		case "?", "esc", "q":
+		switch key {
+		case "q":
 			m.help.Hide()
 		}
 		return m, nil
@@ -313,17 +369,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFileFinderKeyPress(msg)
 	}
 
+	if m.fileList.IsFilterMode() {
+		return m.handleFileListFilterKeyPress(msg)
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
-
-	case "?":
-		modeText := "Browse"
-		if m.mode == ModeInteractive {
-			modeText = "Interactive"
-		}
-		m.help.Show(modeText)
-		return m, nil
 
 	case "d":
 		if m.mode == ModeInteractive {
@@ -332,10 +384,14 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "/":
+		m.closeAllModals()
 		return m.enterSearchMode()
 
 	case "f":
-		return m.enterFileFinderMode()
+		m.closeAllModals()
+		m.focusedPanel = PanelFileList
+		m.fileList.SetFilterMode(true)
+		return m, nil
 
 	case "v":
 		if m.mode == ModeInteractive && m.focusedPanel == PanelDiffView {
@@ -349,19 +405,37 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "esc":
-		if m.isVisualMode {
-			m.isVisualMode = false
-			m.visualAnchor = 0
-			return m, nil
-		}
-		return m, nil
-
 	case "tab":
 		if m.focusedPanel == PanelFileList {
 			m.focusedPanel = PanelDiffView
 		} else {
 			m.focusedPanel = PanelFileList
+		}
+		return m, nil
+
+	case "[":
+		// Previous file (works from diff view)
+		if m.focusedPanel == PanelDiffView && m.selectedFile > 0 {
+			m.selectedFile--
+			m.selectedHunk = 0
+			m.lineCursor = 0
+			m.fileList.SetSelected(m.selectedFile)
+			if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+				m.diffView.SetFileChange(m.changes[m.selectedFile])
+			}
+		}
+		return m, nil
+
+	case "]":
+		// Next file (works from diff view)
+		if m.focusedPanel == PanelDiffView && m.selectedFile < len(m.changes)-1 {
+			m.selectedFile++
+			m.selectedHunk = 0
+			m.lineCursor = 0
+			m.fileList.SetSelected(m.selectedFile)
+			if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+				m.diffView.SetFileChange(m.changes[m.selectedFile])
+			}
 		}
 		return m, nil
 
@@ -376,6 +450,34 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.handleVisualNavigation(-1)
 		}
 		return m.handleNavigation(-1)
+
+	case "ctrl+d":
+		if m.focusedPanel == PanelDiffView {
+			contentHeight := m.height - 2
+			m.diffView.ScrollHalfPageDown(contentHeight)
+		}
+		return m, nil
+
+	case "ctrl+u":
+		if m.focusedPanel == PanelDiffView {
+			contentHeight := m.height - 2
+			m.diffView.ScrollHalfPageUp(contentHeight)
+		}
+		return m, nil
+
+	case "ctrl+f":
+		if m.focusedPanel == PanelDiffView {
+			contentHeight := m.height - 2
+			m.diffView.ScrollFullPageDown(contentHeight)
+		}
+		return m, nil
+
+	case "ctrl+b":
+		if m.focusedPanel == PanelDiffView {
+			contentHeight := m.height - 2
+			m.diffView.ScrollFullPageUp(contentHeight)
+		}
+		return m, nil
 
 	case "g":
 		m.selectedFile = 0
@@ -432,6 +534,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "N":
 		if m.searchState != nil && m.searchState.IsActive && len(m.searchState.Matches) > 0 {
 			return m.prevSearchMatch()
+		}
+		if m.focusedPanel == PanelDiffView {
+			if m.selectedHunk > 0 {
+				m.selectedHunk--
+				m.lineCursor = 0
+			}
 		}
 		return m, nil
 
@@ -504,7 +612,7 @@ func (m Model) applySelection() tea.Cmd {
 
 func (m Model) handleDestPickerKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "ctrl+c", "esc":
+	case "q", "ctrl+c":
 		m.destPicker.Hide()
 		return m, nil
 
@@ -564,6 +672,14 @@ func (m Model) handleVisualNavigation(delta int) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) closeAllModals() {
+	m.help.Hide()
+	m.destPicker.Hide()
+	m.searchModal.Hide()
+	m.fileFinder.Hide()
+	m.fileList.SetFilterMode(false)
+}
+
 func (m *Model) toggleVisualSelection() {
 	if m.selectedFile < 0 || m.selectedFile >= len(m.changes) {
 		return
@@ -592,17 +708,6 @@ func (m Model) enterSearchMode() (tea.Model, tea.Cmd) {
 
 func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
-		if m.searchState != nil {
-			origState := m.searchState.RestoreOriginalState()
-			m.selectedFile = origState.SelectedFile
-			m.selectedHunk = origState.SelectedHunk
-			m.focusedPanel = FocusedPanel(origState.FocusedPanel)
-		}
-		m.searchModal.Hide()
-		m.searchState.IsActive = false
-		return m, nil
-
 	case "enter":
 		m.searchModal.Hide()
 		return m, nil
@@ -732,12 +837,38 @@ func (m Model) enterFileFinderMode() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.fileFinder.Hide()
+		m.fileList.SetFilterMode(false)
 		return m, nil
 
+	case "enter":
+		// Exit filter mode and focus diff view
+		m.fileList.SetFilterMode(false)
+		m.focusedPanel = PanelDiffView
+		return m, nil
+
+	case "backspace":
+		query := m.fileList.FilterQuery()
+		if len(query) > 0 {
+			query = query[:len(query)-1]
+			m.fileList.SetFilterQuery(query)
+		}
+		return m, nil
+
+	default:
+		if len(msg.String()) == 1 {
+			query := m.fileList.FilterQuery()
+			query += msg.String()
+			m.fileList.SetFilterQuery(query)
+		}
+		return m, nil
+	}
+}
+
+func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
 	case "enter":
 		if selected := m.fileFinder.GetSelected(); selected != nil {
 			fileIdx := selected.(int)
@@ -788,28 +919,49 @@ func (m Model) View() string {
 		return "No changes found.\n\nPress r to refresh or q to quit"
 	}
 
-	fileListWidth := m.width / 4
-	diffViewWidth := m.width - fileListWidth - 2
-	contentHeight := m.height - 2
+	// Calculate panel heights for vertical layout
+	fileListExpanded := m.focusedPanel == PanelFileList
+	m.fileList.SetExpanded(fileListExpanded)
+
+	var fileListHeight int
+	if fileListExpanded {
+		fileListHeight = m.height / 4 // 25% when expanded
+		if fileListHeight < 5 {
+			fileListHeight = 5
+		}
+	} else {
+		fileListHeight = 1 // Single row when collapsed
+	}
+
+	diffViewHeight := m.height - fileListHeight - 2 // -2 for border + status bar
 
 	modeText := "Browse"
 	if m.mode == ModeInteractive {
 		modeText = "Interactive"
 	}
 
-	if m.mode == ModeInteractive && m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+	// Set selection state for diffview (needed for navigation highlighting in both modes)
+	if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
 		currentFile := m.changes[m.selectedFile]
-		m.diffView.SetSelection(m.selectedHunk, func(hunkIdx int) bool {
-			return m.selection.IsHunkSelected(currentFile.Path, hunkIdx)
-		})
-		m.diffView.SetVisualState(
-			m.lineCursor,
-			m.isVisualMode,
-			m.visualAnchor,
-			func(hunkIdx, lineIdx int) bool {
-				return m.selection.IsLineSelected(currentFile.Path, hunkIdx, lineIdx)
-			},
-		)
+
+		if m.mode == ModeInteractive {
+			m.diffView.SetSelection(m.selectedHunk, func(hunkIdx int) bool {
+				return m.selection.IsHunkSelected(currentFile.Path, hunkIdx)
+			})
+			m.diffView.SetVisualState(
+				m.lineCursor,
+				m.isVisualMode,
+				m.visualAnchor,
+				func(hunkIdx, lineIdx int) bool {
+					return m.selection.IsLineSelected(currentFile.Path, hunkIdx, lineIdx)
+				},
+			)
+		} else {
+			// In Browse mode, just set the selected hunk for navigation
+			m.diffView.SetSelection(m.selectedHunk, func(hunkIdx int) bool {
+				return false // No selection in browse mode
+			})
+		}
 	}
 
 	// Set search state for components
@@ -829,26 +981,58 @@ func (m Model) View() string {
 		m.diffView.SetSearchState(false, nil)
 	}
 
-	fileListView := m.fileList.View(fileListWidth, contentHeight, m.focusedPanel == PanelFileList)
-	diffViewView := m.diffView.View(diffViewWidth, contentHeight)
-	statusBarView := m.statusBar.View(m.width, modeText, m.source, m.destination, m.isVisualMode)
+	// Render file list panel
+	fileListView := m.fileList.View(m.width, fileListHeight, m.focusedPanel == PanelFileList)
 
-	baseView := fmt.Sprintf("%s│%s\n%s", fileListView, diffViewView, statusBarView)
+	// Render diff view panel with optional dimming when file list focused
+	diffViewFocused := m.focusedPanel == PanelDiffView
+	diffViewView := m.diffView.View(m.width, diffViewHeight, diffViewFocused)
+
+	// Apply dimming to diff view when file list is focused
+	if !diffViewFocused {
+		dimmedLines := strings.Split(diffViewView, "\n")
+		dimStyle := lipgloss.NewStyle().Faint(true)
+		for i, line := range dimmedLines {
+			dimmedLines[i] = dimStyle.Render(line)
+		}
+		diffViewView = strings.Join(dimmedLines, "\n")
+	}
+
+	// Create border between panels
+	borderLine := strings.Repeat("─", m.width)
+	border := lipgloss.NewStyle().
+		Foreground(theme.Secondary).
+		Render(borderLine)
+
+	focusedPanelStr := "files"
+	if m.focusedPanel == PanelDiffView {
+		focusedPanelStr = "diff"
+	}
+	statusBarView := m.statusBar.ViewWithContext(m.width, statusbar.Context{
+		Destination:  m.destination,
+		FocusedPanel: focusedPanelStr,
+		IsVisualMode: m.isVisualMode,
+		Mode:         modeText,
+		Source:       m.source,
+	})
+
+	// Vertical layout: file list on top, border, diff view, status bar
+	baseView := fmt.Sprintf("%s\n%s\n%s\n%s", fileListView, border, diffViewView, statusBarView)
 
 	if m.help.IsVisible() {
-		return m.help.View(m.width, m.height) + "\n" + baseView
+		return m.help.View(m.width, m.height)
 	}
 
 	if m.destPicker.IsVisible() {
-		return m.destPicker.View(m.width, m.height) + "\n" + baseView
+		return m.destPicker.View(m.width, m.height)
 	}
 
 	if m.searchModal.IsVisible() {
-		return m.searchModal.View(m.width, m.height) + "\n" + baseView
+		return m.searchModal.View(m.width, m.height)
 	}
 
 	if m.fileFinder.IsVisible() {
-		return m.fileFinder.View(m.width, m.height) + "\n" + baseView
+		return m.fileFinder.View(m.width, m.height)
 	}
 
 	return baseView

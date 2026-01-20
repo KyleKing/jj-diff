@@ -190,6 +190,110 @@ func (a *ModelAssertion) HasLineCursor(position int) *ModelAssertion {
 	return a
 }
 
+func (a *ModelAssertion) HelpIsVisible() *ModelAssertion {
+	a.t.Helper()
+	if !a.m.help.IsVisible() {
+		a.t.Error("Expected help modal to be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) HelpIsNotVisible() *ModelAssertion {
+	a.t.Helper()
+	if a.m.help.IsVisible() {
+		a.t.Error("Expected help modal to NOT be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) SearchIsVisible() *ModelAssertion {
+	a.t.Helper()
+	if !a.m.searchModal.IsVisible() {
+		a.t.Error("Expected search modal to be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) SearchIsNotVisible() *ModelAssertion {
+	a.t.Helper()
+	if a.m.searchModal.IsVisible() {
+		a.t.Error("Expected search modal to NOT be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) FileFinderIsVisible() *ModelAssertion {
+	a.t.Helper()
+	if !a.m.fileFinder.IsVisible() {
+		a.t.Error("Expected file finder modal to be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) FileFinderIsNotVisible() *ModelAssertion {
+	a.t.Helper()
+	if a.m.fileFinder.IsVisible() {
+		a.t.Error("Expected file finder modal to NOT be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) FileListFilterModeEnabled() *ModelAssertion {
+	a.t.Helper()
+	if !a.m.fileList.IsFilterMode() {
+		a.t.Error("Expected file list filter mode to be enabled")
+	}
+	return a
+}
+
+func (a *ModelAssertion) FileListFilterModeDisabled() *ModelAssertion {
+	a.t.Helper()
+	if a.m.fileList.IsFilterMode() {
+		a.t.Error("Expected file list filter mode to be disabled")
+	}
+	return a
+}
+
+func (a *ModelAssertion) DestPickerIsVisible() *ModelAssertion {
+	a.t.Helper()
+	if !a.m.destPicker.IsVisible() {
+		a.t.Error("Expected dest picker modal to be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) DestPickerIsNotVisible() *ModelAssertion {
+	a.t.Helper()
+	if a.m.destPicker.IsVisible() {
+		a.t.Error("Expected dest picker modal to NOT be visible")
+	}
+	return a
+}
+
+func (a *ModelAssertion) NoModalsVisible() *ModelAssertion {
+	a.t.Helper()
+	if a.m.help.IsVisible() {
+		a.t.Error("Expected help modal to NOT be visible")
+	}
+	if a.m.searchModal.IsVisible() {
+		a.t.Error("Expected search modal to NOT be visible")
+	}
+	if a.m.fileFinder.IsVisible() {
+		a.t.Error("Expected file finder modal to NOT be visible")
+	}
+	if a.m.destPicker.IsVisible() {
+		a.t.Error("Expected dest picker modal to NOT be visible")
+	}
+	if a.m.fileList.IsFilterMode() {
+		a.t.Error("Expected file list filter mode to NOT be enabled")
+	}
+	return a
+}
+
+func CtrlKey(key rune) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyCtrlD + tea.KeyType(key-'d'), Runes: nil}
+}
+
 // TestChanges creates sample file changes for testing
 func TestChanges() []diff.FileChange {
 	return []diff.FileChange{

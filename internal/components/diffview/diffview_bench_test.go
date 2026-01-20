@@ -54,7 +54,7 @@ func BenchmarkDiffViewRender_SmallDiff(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.View(80, 40)
+		_ = m.View(80, 40, false)
 	}
 }
 
@@ -71,7 +71,7 @@ func BenchmarkDiffViewRender_MediumDiff(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.View(80, 40)
+		_ = m.View(80, 40, false)
 	}
 }
 
@@ -88,7 +88,7 @@ func BenchmarkDiffViewRender_LargeDiff(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.View(80, 40)
+		_ = m.View(80, 40, false)
 	}
 }
 
@@ -105,7 +105,7 @@ func BenchmarkDiffViewRender_HugeDiff(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.View(80, 40)
+		_ = m.View(80, 40, false)
 	}
 }
 
@@ -125,7 +125,7 @@ func BenchmarkDiffViewRender_WithSelection(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.View(80, 40)
+		_ = m.View(80, 40, false)
 	}
 }
 
@@ -146,7 +146,7 @@ func BenchmarkDiffViewRender_WithSearchMatches(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.View(80, 40)
+		_ = m.View(80, 40, false)
 	}
 }
 
@@ -165,7 +165,7 @@ func BenchmarkDiffViewScroll(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for offset := 0; offset < 100; offset++ {
 			m.Scroll(1)
-			_ = m.View(80, 40)
+			_ = m.View(80, 40, false)
 		}
 	}
 }
