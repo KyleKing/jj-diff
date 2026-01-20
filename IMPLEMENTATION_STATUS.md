@@ -232,12 +232,42 @@
   - [✅] Visual match highlighting
   - [✅] Search modal with match navigation
 
+### Post-Phase 2: UI Polish & Layout Improvements (v0.3.0)
+
+- [✅] **Vertical Layout Enhancement** (COMPLETE)
+  - [✅] Integrated fuzzy finder into file list panel (f key toggles filter mode)
+  - [✅] Vertical split layout (file list top, diff view bottom)
+  - [✅] Expandable file list with Table view (Type | Path | Stats columns)
+  - [✅] Collapsible file list showing single-line summary when diff focused
+  - [✅] Border between panels with themed styling
+
+- [✅] **File List Visual Improvements** (COMPLETE)
+  - [✅] Collapsed filelist uses Primary (mauve) color with bold, matching diff headers
+  - [✅] Collapsed filelist shows focused state with MutedBg background
+  - [✅] Expanded filelist selection highlighting with proper contrast:
+    - Focused: ModalBg background + Primary foreground
+    - Unfocused: MutedBg background + Text foreground
+  - [✅] Background highlight only extends to content length (not full panel width)
+  - [✅] Vertical centering scroll - selected row stays centered in viewport
+  - [✅] Right-aligned stats column for better number comparison
+  - [✅] Proper boundary handling in scroll logic (no blank space at top/bottom)
+
+- [✅] **Diff View Space Optimization** (COMPLETE)
+  - [✅] Removed duplicate file headers from diff views (unified and side-by-side)
+  - [✅] File information only appears in collapsed filelist (one line when diff focused)
+  - [✅] Saves vertical space for actual diff content
+
+- [✅] **Theme Integration** (COMPLETE)
+  - [✅] Border styled with Secondary (peach) color
+  - [✅] Consistent use of theme colors throughout UI
+  - [✅] Proper contrast ratios for accessibility
+
 ### Phase 3 Features (Planned)
 
 - [ ] File tree collapsing for nested paths
 - [ ] Multi-split: Split commits into multiple focused commits
-- [ ] Configuration file support
-- [ ] Custom keybindings
+- [ ] (Defer) Configuration file support
+- [ ] (Defer) Custom keybindings
 - [ ] Performance optimization for large diffs (>1000 lines)
 - [ ] scm-diff-editor protocol support
 
@@ -266,7 +296,7 @@
 ## Technical Debt
 
 1. **Diff view scrolling** - Currently line-based, should support page up/down
-2. **Long file paths** - Need better truncation/ellipsis strategy
+2. **~~Long file paths~~** - ✅ Improved with table layout, proper truncation, and vertical centering scroll
 3. **Large diffs** - No virtualization, may be slow for >1000 lines
 4. **Error recovery** - Some jj command failures may leave UI in bad state
 5. **Line number calculation** - May be off for complex hunks
@@ -365,8 +395,10 @@ See **PHASE1_ANALYSIS.md** for comprehensive evaluation of:
 3. **Theme System** - Catppuccin latte/macchiato with auto-detection
 4. **Fuzzy File Finder** - Press 'f' to quickly navigate with intelligent fuzzy matching ⭐ PHASE 2
 5. **Syntax Highlighting** - Context lines highlighted with chroma (100+ languages) ⭐ PHASE 2
-6. **Test Suite** - 60 tests with 100% pass rate covering all critical workflows
-7. **Testing Tools** - Interactive test scripts for manual testing in temporary repositories
+6. **Vertical Layout** - File list top, diff bottom with expandable/collapsible modes ⭐ v0.3.0
+7. **Polished UI** - Proper contrast, centered scrolling, right-aligned stats, space-optimized layout ⭐ v0.3.0
+8. **Test Suite** - 60 tests with 100% pass rate covering all critical workflows
+9. **Testing Tools** - Interactive test scripts for manual testing in temporary repositories
 
 ### Production Readiness
 
@@ -395,20 +427,23 @@ Core functionality is production-ready:
 - **Phase 1 Search System**: ✅ COMPLETE (Incremental search with highlighting)
 - **Phase 1 Testing**: ✅ COMPLETE (40 tests, interactive test scripts)
 - **Phase 1 scm-record Protocol**: 🤔 EVALUATED - Not implementing (see PHASE1_ANALYSIS.md)
+- **Phase 2 Enhancements**: ✅ COMPLETE (Fuzzy finder + Syntax highlighting)
+- **Post-Phase 2 UI Polish**: ✅ COMPLETE (Vertical layout + Visual improvements)
 
-**Status:** ✅ Phase 2 COMPLETE - Ready for v0.2.0 release
+**Status:** ✅ v0.3.0 COMPLETE - Ready for release
 
 **Completed Phases:**
 - ✅ Phase 1: Core functionality (Browse + Interactive modes)
-- ✅ Phase 2: Search enhancement + Syntax highlighting
+- ✅ Phase 2: Fuzzy finder + Syntax highlighting (v0.2.0)
+- ✅ Post-Phase 2: Vertical layout + UI polish (v0.3.0)
 
 **Next steps:**
 1. Manual testing with real repositories using `scripts/test-in-tmpdir.sh` or `scripts/interactive-test.sh`
-2. Create v0.2.0 release with release notes
+2. Create v0.3.0 release with release notes
 3. Share with jj community for feedback
 4. Begin Phase 3 planning based on user feedback
 
-**Estimated time to v0.2.0 release:** Ready now (pending manual testing)
+**Estimated time to v0.3.0 release:** Ready now (pending manual testing)
 
 ## Phase 2 Summary
 
@@ -419,3 +454,20 @@ Phase 2 adds two major enhancements that significantly improve the user experien
 2. **Syntax Highlighting**: Context lines in diffs now have syntax highlighting, making code easier to read while preserving the visual prominence of additions (green) and deletions (red).
 
 Both features integrate seamlessly with the existing keyboard-driven workflow and are fully tested with 20 new tests (12 fuzzy + 8 highlight).
+
+## v0.3.0 Summary - UI Polish & Layout
+
+Post-Phase 2 work focused on layout improvements and visual polish:
+
+1. **Vertical Layout**: File list moved to top panel, diff view to bottom panel. File list is expandable (shows table) when focused, collapsible (shows one-line summary) when diff is focused. Saves horizontal space and provides better focus management.
+
+2. **Visual Improvements**:
+   - **Proper contrast**: Selection highlighting now uses high-contrast color combinations (ModalBg + Primary for focused, MutedBg + Text for unfocused)
+   - **Centered scrolling**: Selected row stays vertically centered in file list viewport
+   - **Right-aligned stats**: Numbers now align properly for easier comparison
+   - **Space optimization**: Removed duplicate file headers from diff views
+   - **Themed borders**: Secondary (peach) color for panel borders
+
+3. **Integrated fuzzy finder**: `f` key now toggles filter mode directly in the file list panel, eliminating the need for a separate modal and streamlining the workflow.
+
+These improvements address key usability issues and make the interface more readable and efficient, particularly for repositories with many files.
