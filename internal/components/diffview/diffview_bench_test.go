@@ -4,8 +4,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 )
+
+func testConfig() config.Config {
+	return config.DefaultConfig()
+}
 
 // generateHunks creates n hunks with linesPerHunk lines each
 func generateHunks(n, linesPerHunk int) []diff.Hunk {
@@ -44,7 +49,7 @@ func BenchmarkDiffViewRender_SmallDiff(b *testing.B) {
 		Hunks:      generateHunks(10, 10),
 	}
 
-	m := New()
+	m := New(testConfig())
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
@@ -61,7 +66,7 @@ func BenchmarkDiffViewRender_MediumDiff(b *testing.B) {
 		Hunks:      generateHunks(50, 20),
 	}
 
-	m := New()
+	m := New(testConfig())
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
@@ -78,7 +83,7 @@ func BenchmarkDiffViewRender_LargeDiff(b *testing.B) {
 		Hunks:      generateHunks(100, 50),
 	}
 
-	m := New()
+	m := New(testConfig())
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
@@ -95,7 +100,7 @@ func BenchmarkDiffViewRender_HugeDiff(b *testing.B) {
 		Hunks:      generateHunks(200, 100),
 	}
 
-	m := New()
+	m := New(testConfig())
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
@@ -112,7 +117,7 @@ func BenchmarkDiffViewRender_WithSelection(b *testing.B) {
 		Hunks:      generateHunks(50, 20),
 	}
 
-	m := New()
+	m := New(testConfig())
 	m.SetFileChange(fileChange)
 	m.SetSelection(5, func(hunkIdx int) bool {
 		return hunkIdx == 5
@@ -132,7 +137,7 @@ func BenchmarkDiffViewRender_WithSearchMatches(b *testing.B) {
 		Hunks:      generateHunks(50, 20),
 	}
 
-	m := New()
+	m := New(testConfig())
 	m.SetFileChange(fileChange)
 	m.SetSearchState(true, func(hunkIdx, lineIdx int) []MatchRange {
 		// Simulate one match per line
@@ -153,7 +158,7 @@ func BenchmarkDiffViewScroll(b *testing.B) {
 		Hunks:      generateHunks(100, 50),
 	}
 
-	m := New()
+	m := New(testConfig())
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()

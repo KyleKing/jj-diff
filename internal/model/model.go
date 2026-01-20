@@ -11,6 +11,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/components/help"
 	"github.com/kyleking/jj-diff/internal/components/searchmodal"
 	"github.com/kyleking/jj-diff/internal/components/statusbar"
+	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/search"
@@ -153,6 +154,7 @@ type Model struct {
 	mode        OperatingMode
 	source      string
 	destination string
+	cfg         config.Config
 
 	changes      []diff.FileChange
 	selectedFile int
@@ -200,12 +202,13 @@ type destinationSelectedMsg struct {
 	changeID string
 }
 
-func NewModel(client *jj.Client, source, destination string, mode OperatingMode) (Model, error) {
+func NewModel(client *jj.Client, source, destination string, mode OperatingMode, cfg config.Config) (Model, error) {
 	m := Model{
 		client:       client,
 		mode:         mode,
 		source:       source,
 		destination:  destination,
+		cfg:          cfg,
 		selectedFile: 0,
 		selectedHunk: 0,
 		focusedPanel: PanelFileList,
@@ -215,7 +218,7 @@ func NewModel(client *jj.Client, source, destination string, mode OperatingMode)
 	}
 
 	m.fileList = filelist.New()
-	m.diffView = diffview.New()
+	m.diffView = diffview.New(cfg)
 	m.statusBar = statusbar.New()
 	m.destPicker = destpicker.New()
 	m.help = help.New()
@@ -439,6 +442,22 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.lineCursor = 0
 			}
 		}
+		return m, nil
+
+	case "w":
+		m.diffView.ToggleWhitespace()
+		return m, nil
+
+	case "W":
+		m.diffView.ToggleWordDiff()
+		return m, nil
+
+	case "s":
+		m.diffView.ToggleSideBySide()
+		return m, nil
+
+	case "l":
+		m.diffView.ToggleLineNumbers()
 		return m, nil
 
 	case "a":

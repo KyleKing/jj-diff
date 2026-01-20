@@ -7,6 +7,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/model"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -15,12 +16,16 @@ import (
 const version = "0.1.0"
 
 type flags struct {
-	version     bool
-	revision    string
-	browse      bool
-	interactive bool
-	scmInput    string
-	destination string
+	version        bool
+	revision       string
+	browse         bool
+	interactive    bool
+	scmInput       string
+	destination    string
+	showWhitespace bool
+	sideBySide     bool
+	wordDiff       bool
+	tabWidth       int
 }
 
 func parseFlags() flags {
@@ -36,6 +41,11 @@ func parseFlags() flags {
 	flag.StringVar(&f.scmInput, "scm-input", "", "Path to scm-record input file (compatibility mode)")
 	flag.StringVar(&f.destination, "destination", "", "Pre-set destination revision")
 	flag.StringVar(&f.destination, "d", "", "Pre-set destination revision (shorthand)")
+	flag.BoolVar(&f.showWhitespace, "show-whitespace", false, "Visualize whitespace characters")
+	flag.BoolVar(&f.sideBySide, "side-by-side", false, "Side-by-side diff view")
+	flag.BoolVar(&f.sideBySide, "s", false, "Side-by-side diff view (shorthand)")
+	flag.BoolVar(&f.wordDiff, "word-diff", false, "Enable word-level highlighting")
+	flag.IntVar(&f.tabWidth, "tab-width", 0, "Tab display width (default: 4, 0 uses config/default)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
@@ -85,7 +95,21 @@ func main() {
 		mode = model.ModeInteractive
 	}
 
-	initialModel, err = model.NewModel(client, f.revision, f.destination, mode)
+	cfg := config.LoadConfig()
+	if f.showWhitespace {
+		cfg.ShowWhitespace = true
+	}
+	if f.sideBySide {
+		cfg.ViewMode = config.ViewModeSideBySide
+	}
+	if f.wordDiff {
+		cfg.WordLevelDiff = true
+	}
+	if f.tabWidth > 0 {
+		cfg.TabWidth = f.tabWidth
+	}
+
+	initialModel, err = model.NewModel(client, f.revision, f.destination, mode, cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize model: %v", err)
 	}

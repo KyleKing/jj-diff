@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
 )
@@ -13,8 +14,9 @@ func NewTestModel(t *testing.T, mode OperatingMode) Model {
 	t.Helper()
 
 	client := jj.NewClient(t.TempDir())
+	cfg := config.DefaultConfig()
 
-	m, err := NewModel(client, "@", "", mode)
+	m, err := NewModel(client, "@", "", mode, cfg)
 	if err != nil {
 		t.Fatalf("Failed to create model: %v", err)
 	}

@@ -451,3 +451,63 @@ func TestModelBrowseModeNoVisual(t *testing.T) {
 	m = Update(t, m, KeyPress('v'))
 	Assert(t, m).IsNotInVisualMode()
 }
+
+// TestModelViewOptionToggles tests the new view option keybindings
+func TestModelViewOptionToggles(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+
+	tests := []struct {
+		name     string
+		key      rune
+		checkFn  func(m Model) bool
+		expected bool
+	}{
+		{"toggle whitespace on", 'w', func(m Model) bool { return m.diffView.ShowWhitespace() }, true},
+		{"toggle whitespace off", 'w', func(m Model) bool { return m.diffView.ShowWhitespace() }, false},
+		{"toggle word diff on", 'W', func(m Model) bool { return m.diffView.WordLevelDiff() }, true},
+		{"toggle word diff off", 'W', func(m Model) bool { return m.diffView.WordLevelDiff() }, false},
+		{"toggle line numbers off", 'l', func(m Model) bool { return m.diffView.ShowLineNumbers() }, false},
+		{"toggle line numbers on", 'l', func(m Model) bool { return m.diffView.ShowLineNumbers() }, true},
+	}
+
+	for _, tt := range tests {
+		m = Update(t, m, KeyPress(tt.key))
+		if got := tt.checkFn(m); got != tt.expected {
+			t.Errorf("%s: expected %v, got %v", tt.name, tt.expected, got)
+		}
+	}
+}
+
+// TestModelSideBySideToggle tests side-by-side view toggling
+func TestModelSideBySideToggle(t *testing.T) {
+	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+
+	if m.diffView.IsSideBySide() {
+		t.Error("Expected unified mode initially")
+	}
+
+	m = Update(t, m, KeyPress('s'))
+	if !m.diffView.IsSideBySide() {
+		t.Error("Expected side-by-side mode after toggle")
+	}
+
+	m = Update(t, m, KeyPress('s'))
+	if m.diffView.IsSideBySide() {
+		t.Error("Expected unified mode after second toggle")
+	}
+}
+
+// TestModelSideBySideDisablesSelectionInInteractive tests that side-by-side stays when toggled on in interactive
+func TestModelSideBySideInInteractiveMode(t *testing.T) {
+	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
+
+	m = Update(t, m, KeyPress('s'))
+	if !m.diffView.IsSideBySide() {
+		t.Error("Expected side-by-side mode to be enabled")
+	}
+
+	m = Update(t, m, KeyPress('s'))
+	if m.diffView.IsSideBySide() {
+		t.Error("Expected to toggle back to unified")
+	}
+}

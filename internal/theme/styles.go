@@ -4,16 +4,18 @@ import "github.com/charmbracelet/lipgloss"
 
 // Exported color variables
 var (
-	Primary     lipgloss.Color
-	Accent      lipgloss.Color
-	Secondary   lipgloss.Color
-	Text        lipgloss.Color
-	SelectedBg  lipgloss.Color
-	MutedBg     lipgloss.Color
-	SoftMutedBg lipgloss.Color
-	ModalBg     lipgloss.Color
-	AddedLine   lipgloss.Color
-	DeletedLine lipgloss.Color
+	Primary         lipgloss.Color
+	Accent          lipgloss.Color
+	Secondary       lipgloss.Color
+	Text            lipgloss.Color
+	SelectedBg      lipgloss.Color
+	MutedBg         lipgloss.Color
+	SoftMutedBg     lipgloss.Color
+	ModalBg         lipgloss.Color
+	AddedLine       lipgloss.Color
+	DeletedLine     lipgloss.Color
+	WordDiffAddedBg lipgloss.Color
+	WordDiffDelBg   lipgloss.Color
 )
 
 // Exported style variables
@@ -29,6 +31,8 @@ var (
 	SelectedUnfocusedStyle lipgloss.Style
 	StatusBarStyle         lipgloss.Style
 	BorderStyle            lipgloss.Style
+	WordDiffAddedStyle     lipgloss.Style
+	WordDiffDeletedStyle   lipgloss.Style
 )
 
 // Init detects the appropriate theme and initializes all colors and styles
@@ -39,7 +43,6 @@ func Init() {
 
 // applyTheme sets color variables and recomputes all styles
 func applyTheme(t Theme) {
-	// Set color variables
 	Primary = t.Primary
 	Accent = t.Accent
 	Secondary = t.Secondary
@@ -50,8 +53,9 @@ func applyTheme(t Theme) {
 	ModalBg = t.ModalBg
 	AddedLine = t.AddedLine
 	DeletedLine = t.DeletedLine
+	WordDiffAddedBg = t.WordDiffAddedBg
+	WordDiffDelBg = t.WordDiffDelBg
 
-	// Recompute styles
 	HeaderStyle = lipgloss.NewStyle().
 		Foreground(Primary).
 		Bold(true)
@@ -96,6 +100,14 @@ func applyTheme(t Theme) {
 	BorderStyle = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(Primary)
+
+	WordDiffAddedStyle = lipgloss.NewStyle().
+		Background(WordDiffAddedBg).
+		Foreground(AddedLine)
+
+	WordDiffDeletedStyle = lipgloss.NewStyle().
+		Background(WordDiffDelBg).
+		Foreground(DeletedLine)
 }
 
 // PaneStyle returns a dynamic border style for panes

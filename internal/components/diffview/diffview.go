@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/highlight"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -15,32 +16,77 @@ type MatchRange struct {
 	End   int
 }
 
-type Model struct {
-	fileChange     *diff.FileChange
-	offset         int
-	selectedHunk   int
-	lineCursor     int
-	isVisualMode   bool
-	visualAnchor   int
-	isSelected     func(hunkIdx int) bool
-	isLineSelected func(hunkIdx, lineIdx int) bool
-	getMatches     func(hunkIdx, lineIdx int) []MatchRange
-	isSearching    bool
-	highlighter    *highlight.Highlighter
-	enableHighlight bool
+type ViewModeType string
+
+const (
+	ViewModeUnified    ViewModeType = "unified"
+	ViewModeSideBySide ViewModeType = "side-by-side"
+)
+
+type WordDiffCache struct {
+	HunkDiffs map[int]map[int]diff.WordDiffResult
 }
 
-func New() Model {
+type Model struct {
+	fileChange      *diff.FileChange
+	offset          int
+	selectedHunk    int
+	lineCursor      int
+	isVisualMode    bool
+	visualAnchor    int
+	isSelected      func(hunkIdx int) bool
+	isLineSelected  func(hunkIdx, lineIdx int) bool
+	getMatches      func(hunkIdx, lineIdx int) []MatchRange
+	isSearching     bool
+	highlighter     *highlight.Highlighter
+	enableHighlight bool
+
+	viewMode        ViewModeType
+	showWhitespace  bool
+	showLineNumbers bool
+	tabWidth        int
+	wordLevelDiff   bool
+	wordDiffCache   *WordDiffCache
+}
+
+func New(cfg config.Config) Model {
+	viewMode := ViewModeUnified
+	if cfg.ViewMode == config.ViewModeSideBySide {
+		viewMode = ViewModeSideBySide
+	}
 	return Model{
 		offset:          0,
 		highlighter:     highlight.New(),
 		enableHighlight: true,
+		viewMode:        viewMode,
+		showWhitespace:  cfg.ShowWhitespace,
+		showLineNumbers: cfg.ShowLineNumbers,
+		tabWidth:        cfg.TabWidth,
+		wordLevelDiff:   cfg.WordLevelDiff,
 	}
 }
 
 func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
+	m.computeWordDiffs()
+}
+
+func (m *Model) computeWordDiffs() {
+	if m.fileChange == nil || !m.wordLevelDiff {
+		m.wordDiffCache = nil
+		return
+	}
+
+	m.wordDiffCache = &WordDiffCache{
+		HunkDiffs: make(map[int]map[int]diff.WordDiffResult),
+	}
+
+	for hunkIdx := range m.fileChange.Hunks {
+		hunk := &m.fileChange.Hunks[hunkIdx]
+		hunkWordDiffs := diff.ComputeHunkWordDiffs(hunk)
+		m.wordDiffCache.HunkDiffs[hunkIdx] = hunkWordDiffs
+	}
 }
 
 func (m *Model) SetSelection(selectedHunk int, isSelected func(hunkIdx int) bool) {
@@ -58,6 +104,43 @@ func (m *Model) SetVisualState(lineCursor int, isVisualMode bool, visualAnchor i
 func (m *Model) SetSearchState(isSearching bool, getMatches func(hunkIdx, lineIdx int) []MatchRange) {
 	m.isSearching = isSearching
 	m.getMatches = getMatches
+}
+
+func (m *Model) ToggleWhitespace() {
+	m.showWhitespace = !m.showWhitespace
+}
+
+func (m *Model) ToggleLineNumbers() {
+	m.showLineNumbers = !m.showLineNumbers
+}
+
+func (m *Model) ToggleWordDiff() {
+	m.wordLevelDiff = !m.wordLevelDiff
+	m.computeWordDiffs()
+}
+
+func (m *Model) ToggleSideBySide() {
+	if m.viewMode == ViewModeUnified {
+		m.viewMode = ViewModeSideBySide
+	} else {
+		m.viewMode = ViewModeUnified
+	}
+}
+
+func (m *Model) IsSideBySide() bool {
+	return m.viewMode == ViewModeSideBySide
+}
+
+func (m *Model) ShowWhitespace() bool {
+	return m.showWhitespace
+}
+
+func (m *Model) ShowLineNumbers() bool {
+	return m.showLineNumbers
+}
+
+func (m *Model) WordLevelDiff() bool {
+	return m.wordLevelDiff
 }
 
 func (m *Model) Scroll(delta int) {
@@ -96,6 +179,32 @@ func (m Model) View(width, height int) string {
 		return padToSize("No file selected", width, height)
 	}
 
+	if m.viewMode == ViewModeSideBySide {
+		ctx := RenderContext{
+			Width:           width,
+			Height:          height,
+			SelectedHunk:    m.selectedHunk,
+			LineCursor:      m.lineCursor,
+			IsVisualMode:    m.isVisualMode,
+			VisualAnchor:    m.visualAnchor,
+			ShowWhitespace:  m.showWhitespace,
+			ShowLineNumbers: m.showLineNumbers,
+			TabWidth:        m.tabWidth,
+			WordLevelDiff:   m.wordLevelDiff,
+			IsSearching:     m.isSearching,
+			IsSelected:      m.isSelected,
+			IsLineSelected:  m.isLineSelected,
+			GetMatches:      m.getMatches,
+			WordDiffCache:   m.wordDiffCache,
+		}
+		sbs := NewSideBySideView()
+		return sbs.Render(m.fileChange, ctx)
+	}
+
+	return m.renderUnified(width, height)
+}
+
+func (m Model) renderUnified(width, height int) string {
 	var lines []string
 
 	header := fmt.Sprintf("%s %s", m.fileChange.ChangeType.String(), m.fileChange.Path)
@@ -126,32 +235,46 @@ func (m Model) View(width, height int) string {
 }
 
 func (m Model) renderLine(line diff.Line, width int, hunkIdx, lineIdx int) string {
-	lineNum := ""
-	if line.Type == diff.LineAddition {
-		lineNum = fmt.Sprintf("%4d", line.NewLineNum)
-	} else if line.Type == diff.LineDeletion {
-		lineNum = fmt.Sprintf("%4d", line.OldLineNum)
-	} else {
-		lineNum = fmt.Sprintf("%4d", line.NewLineNum)
+	lineNumStr := ""
+	if m.showLineNumbers {
+		switch line.Type {
+		case diff.LineAddition:
+			lineNumStr = fmt.Sprintf("%4d ", line.NewLineNum)
+		case diff.LineDeletion:
+			lineNumStr = fmt.Sprintf("%4d ", line.OldLineNum)
+		default:
+			lineNumStr = fmt.Sprintf("%4d ", line.NewLineNum)
+		}
 	}
 
 	prefix := line.Type.String()
 	content := line.Content
 
 	maxContentWidth := width - 8
+	if !m.showLineNumbers {
+		maxContentWidth = width - 4
+	}
 	if len(content) > maxContentWidth {
 		content = content[:maxContentWidth]
 	}
 
-	// Apply syntax highlighting to context lines only (preserve diff colors for +/-)
-	if m.enableHighlight && m.fileChange != nil && line.Type == diff.LineContext {
+	if m.showWhitespace {
+		content = diff.RenderWhitespaceSimple(content, m.tabWidth)
+	}
+
+	if m.wordLevelDiff && m.wordDiffCache != nil && line.Type != diff.LineContext {
+		if hunkDiffs, ok := m.wordDiffCache.HunkDiffs[hunkIdx]; ok {
+			if wordDiff, ok := hunkDiffs[lineIdx]; ok {
+				content = m.applyWordDiffHighlight(line.Content, line.Type, wordDiff)
+			}
+		}
+	} else if m.enableHighlight && m.fileChange != nil && line.Type == diff.LineContext && !m.showWhitespace {
 		highlighted := m.highlighter.HighlightLine(m.fileChange.Path, content)
 		if highlighted != "" {
 			content = highlighted
 		}
 	}
 
-	// Apply search match highlighting if searching (takes precedence over syntax)
 	if m.isSearching && m.getMatches != nil {
 		matches := m.getMatches(hunkIdx, lineIdx)
 		if len(matches) > 0 {
@@ -159,12 +282,10 @@ func (m Model) renderLine(line diff.Line, width int, hunkIdx, lineIdx int) strin
 		}
 	}
 
-	// Check selection state
 	isCurrentLine := m.lineCursor == lineIdx && hunkIdx == m.selectedHunk
 	isInVisualRange := m.isVisualMode && hunkIdx == m.selectedHunk && m.isLineInVisualRange(lineIdx)
 	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
 
-	// Determine line indicator
 	lineIndicator := "  "
 	if isInVisualRange {
 		lineIndicator = "█ "
@@ -174,7 +295,7 @@ func (m Model) renderLine(line diff.Line, width int, hunkIdx, lineIdx int) strin
 		lineIndicator = "> "
 	}
 
-	lineText := fmt.Sprintf("%s%s %s %s", lineIndicator, lineNum, prefix, content)
+	lineText := fmt.Sprintf("%s%s%s %s", lineIndicator, lineNumStr, prefix, content)
 
 	// Apply styling
 	style := lipgloss.NewStyle()
@@ -242,6 +363,39 @@ func (m Model) highlightMatches(content string, matches []MatchRange) string {
 	}
 
 	return strings.Join(segments, "")
+}
+
+func (m Model) applyWordDiffHighlight(content string, lineType diff.LineType, wordDiff diff.WordDiffResult) string {
+	var spans []diff.IntraLineSpan
+	switch lineType {
+	case diff.LineDeletion:
+		spans = wordDiff.OldSpans
+	case diff.LineAddition:
+		spans = wordDiff.NewSpans
+	default:
+		return content
+	}
+
+	if len(spans) == 0 {
+		return content
+	}
+
+	var result strings.Builder
+	for _, span := range spans {
+		text := span.Text
+		switch span.Type {
+		case diff.SpanEqual:
+			result.WriteString(text)
+		case diff.SpanDeleted:
+			styled := theme.WordDiffDeletedStyle.Render(text)
+			result.WriteString(styled)
+		case diff.SpanAdded:
+			styled := theme.WordDiffAddedStyle.Render(text)
+			result.WriteString(styled)
+		}
+	}
+
+	return result.String()
 }
 
 func styleHeader(text string, width int) string {
