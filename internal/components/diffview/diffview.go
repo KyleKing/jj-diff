@@ -9,11 +9,22 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+type MatchRange struct {
+	Start int
+	End   int
+}
+
 type Model struct {
-	fileChange   *diff.FileChange
-	offset       int
-	selectedHunk int
-	isSelected   func(hunkIdx int) bool
+	fileChange     *diff.FileChange
+	offset         int
+	selectedHunk   int
+	lineCursor     int
+	isVisualMode   bool
+	visualAnchor   int
+	isSelected     func(hunkIdx int) bool
+	isLineSelected func(hunkIdx, lineIdx int) bool
+	getMatches     func(hunkIdx, lineIdx int) []MatchRange
+	isSearching    bool
 }
 
 func New() Model {
@@ -30,6 +41,18 @@ func (m *Model) SetFileChange(file diff.FileChange) {
 func (m *Model) SetSelection(selectedHunk int, isSelected func(hunkIdx int) bool) {
 	m.selectedHunk = selectedHunk
 	m.isSelected = isSelected
+}
+
+func (m *Model) SetVisualState(lineCursor int, isVisualMode bool, visualAnchor int, isLineSelected func(hunkIdx, lineIdx int) bool) {
+	m.lineCursor = lineCursor
+	m.isVisualMode = isVisualMode
+	m.visualAnchor = visualAnchor
+	m.isLineSelected = isLineSelected
+}
+
+func (m *Model) SetSearchState(isSearching bool, getMatches func(hunkIdx, lineIdx int) []MatchRange) {
+	m.isSearching = isSearching
+	m.getMatches = getMatches
 }
 
 func (m *Model) Scroll(delta int) {
@@ -82,9 +105,9 @@ func (m Model) View(width, height int) string {
 		}
 		currentLine++
 
-		for _, line := range hunk.Lines {
+		for lineIdx, line := range hunk.Lines {
 			if currentLine >= m.offset && len(lines) < height {
-				lines = append(lines, m.renderLine(line, width))
+				lines = append(lines, m.renderLine(line, width, hunkIdx, lineIdx))
 			}
 			currentLine++
 		}
@@ -97,7 +120,7 @@ func (m Model) View(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderLine(line diff.Line, width int) string {
+func (m Model) renderLine(line diff.Line, width int, hunkIdx, lineIdx int) string {
 	lineNum := ""
 	if line.Type == diff.LineAddition {
 		lineNum = fmt.Sprintf("%4d", line.NewLineNum)
@@ -110,21 +133,102 @@ func (m Model) renderLine(line diff.Line, width int) string {
 	prefix := line.Type.String()
 	content := line.Content
 
-	maxContentWidth := width - 6
+	maxContentWidth := width - 8
 	if len(content) > maxContentWidth {
 		content = content[:maxContentWidth]
 	}
 
-	lineText := fmt.Sprintf("%s %s %s", lineNum, prefix, content)
+	// Apply search match highlighting if searching
+	if m.isSearching && m.getMatches != nil {
+		matches := m.getMatches(hunkIdx, lineIdx)
+		if len(matches) > 0 {
+			content = m.highlightMatches(content, matches)
+		}
+	}
 
+	// Check selection state
+	isCurrentLine := m.lineCursor == lineIdx && hunkIdx == m.selectedHunk
+	isInVisualRange := m.isVisualMode && hunkIdx == m.selectedHunk && m.isLineInVisualRange(lineIdx)
+	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
+
+	// Determine line indicator
+	lineIndicator := "  "
+	if isInVisualRange {
+		lineIndicator = "█ "
+	} else if isSelected {
+		lineIndicator = "• "
+	} else if isCurrentLine {
+		lineIndicator = "> "
+	}
+
+	lineText := fmt.Sprintf("%s%s %s %s", lineIndicator, lineNum, prefix, content)
+
+	// Apply styling
+	style := lipgloss.NewStyle()
 	switch line.Type {
 	case diff.LineAddition:
-		return styleAddition(truncateOrPad(lineText, width))
+		style = style.Foreground(theme.AddedLine)
 	case diff.LineDeletion:
-		return styleDeletion(truncateOrPad(lineText, width))
-	default:
-		return truncateOrPad(lineText, width)
+		style = style.Foreground(theme.DeletedLine)
 	}
+
+	if isInVisualRange {
+		style = style.Background(theme.SelectedBg)
+	} else if isCurrentLine {
+		style = style.Background(theme.MutedBg)
+	}
+
+	return style.Render(truncateOrPad(lineText, width))
+}
+
+func (m Model) isLineInVisualRange(lineIdx int) bool {
+	if !m.isVisualMode {
+		return false
+	}
+	start := m.visualAnchor
+	end := m.lineCursor
+	if start > end {
+		start, end = end, start
+	}
+	return lineIdx >= start && lineIdx <= end
+}
+
+func (m Model) highlightMatches(content string, matches []MatchRange) string {
+	if len(matches) == 0 {
+		return content
+	}
+
+	var segments []string
+	lastEnd := 0
+
+	for _, match := range matches {
+		// Add text before match
+		if lastEnd < match.Start && match.Start <= len(content) {
+			segments = append(segments, content[lastEnd:match.Start])
+		}
+
+		// Add highlighted match
+		if match.Start < len(content) {
+			endIdx := match.End
+			if endIdx > len(content) {
+				endIdx = len(content)
+			}
+			matchText := content[match.Start:endIdx]
+			highlightedMatch := lipgloss.NewStyle().
+				Background(theme.Accent).
+				Foreground(theme.ModalBg).
+				Render(matchText)
+			segments = append(segments, highlightedMatch)
+			lastEnd = endIdx
+		}
+	}
+
+	// Add remaining text after last match
+	if lastEnd < len(content) {
+		segments = append(segments, content[lastEnd:])
+	}
+
+	return strings.Join(segments, "")
 }
 
 func styleHeader(text string, width int) string {

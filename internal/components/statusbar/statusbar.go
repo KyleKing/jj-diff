@@ -14,10 +14,14 @@ func New() Model {
 	return Model{}
 }
 
-func (m Model) View(width int, modeText, source, destination string) string {
+func (m Model) View(width int, modeText, source, destination string, isVisualMode bool) string {
 
 	var parts []string
-	parts = append(parts, fmt.Sprintf("[Mode: %s]", modeText))
+	if isVisualMode {
+		parts = append(parts, fmt.Sprintf("[Mode: %s - VISUAL]", modeText))
+	} else {
+		parts = append(parts, fmt.Sprintf("[Mode: %s]", modeText))
+	}
 	parts = append(parts, fmt.Sprintf("Source: %s", source))
 
 	if destination != "" {

@@ -59,6 +59,10 @@ func (m Model) View(width, height int) string {
 	if m.mode == "Interactive" {
 		lines = append(lines, keyBinding("d", "Select destination revision", modalWidth))
 		lines = append(lines, keyBinding("Space", "Toggle hunk selection", modalWidth))
+		lines = append(lines, keyBinding("v", "Enter visual mode (line selection)", modalWidth))
+		lines = append(lines, keyBinding("j/k in visual", "Extend/contract line selection", modalWidth))
+		lines = append(lines, keyBinding("Space in visual", "Confirm line selection", modalWidth))
+		lines = append(lines, keyBinding("Esc", "Exit visual mode", modalWidth))
 		lines = append(lines, keyBinding("a", "Apply selected changes to destination", modalWidth))
 	}
 	lines = append(lines, keyBinding("?", "Toggle this help", modalWidth))
@@ -69,8 +73,11 @@ func (m Model) View(width, height int) string {
 		lines = append(lines, styleSection("Interactive Mode", modalWidth))
 		lines = append(lines, wrapText("1. Press 'd' to select a destination revision", modalWidth))
 		lines = append(lines, wrapText("2. Navigate to hunks with 'n'/'p'", modalWidth))
-		lines = append(lines, wrapText("3. Press Space to select/deselect hunks", modalWidth))
-		lines = append(lines, wrapText("4. Press 'a' to apply selected hunks", modalWidth))
+		lines = append(lines, wrapText("3. Press Space to select whole hunks", modalWidth))
+		lines = append(lines, wrapText("4. Press 'v' for line-level selection (visual mode)", modalWidth))
+		lines = append(lines, wrapText("   - Use j/k to extend selection range", modalWidth))
+		lines = append(lines, wrapText("   - Press Space to confirm selection", modalWidth))
+		lines = append(lines, wrapText("5. Press 'a' to apply selected hunks/lines", modalWidth))
 		lines = append(lines, "")
 	}
 

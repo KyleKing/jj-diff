@@ -7,7 +7,9 @@ import (
 
 // mockSelectionState implements the selection state interface for testing
 type mockSelectionState struct {
-	selections map[string]map[int]bool
+	selections      map[string]map[int]bool
+	lineSelections  map[string]map[int]map[int]bool
+	partialHunks    map[string]map[int]bool
 }
 
 func (m *mockSelectionState) IsHunkSelected(filePath string, hunkIdx int) bool {
@@ -17,8 +19,28 @@ func (m *mockSelectionState) IsHunkSelected(filePath string, hunkIdx int) bool {
 	return false
 }
 
+func (m *mockSelectionState) HasPartialSelection(filePath string, hunkIdx int) bool {
+	if filePartials, ok := m.partialHunks[filePath]; ok {
+		return filePartials[hunkIdx]
+	}
+	return false
+}
+
+func (m *mockSelectionState) IsLineSelected(filePath string, hunkIdx, lineIdx int) bool {
+	if fileLines, ok := m.lineSelections[filePath]; ok {
+		if hunkLines, ok := fileLines[hunkIdx]; ok {
+			return hunkLines[lineIdx]
+		}
+	}
+	return false
+}
+
 func newMockSelection(selections map[string]map[int]bool) *mockSelectionState {
-	return &mockSelectionState{selections: selections}
+	return &mockSelectionState{
+		selections:      selections,
+		lineSelections:  make(map[string]map[int]map[int]bool),
+		partialHunks:    make(map[string]map[int]bool),
+	}
 }
 
 // TestGeneratePatch_SingleHunk tests patch generation with a single selected hunk
@@ -44,7 +66,7 @@ func TestGeneratePatch_SingleHunk(t *testing.T) {
 		"file.txt": {0: true},
 	}
 
-	patch := GeneratePatch(files, selection)
+	patch := GeneratePatch(files, newMockSelection(selection))
 
 	// Verify patch structure
 	if !strings.Contains(patch, "diff --git a/file.txt b/file.txt") {
@@ -94,7 +116,7 @@ func TestGeneratePatch_MultipleHunks(t *testing.T) {
 		"file.txt": {0: true, 1: true},
 	}
 
-	patch := GeneratePatch(files, selection)
+	patch := GeneratePatch(files, newMockSelection(selection))
 
 	if !strings.Contains(patch, "@@ -1,2 +1,3 @@") {
 		t.Error("Patch missing first hunk")
@@ -134,7 +156,7 @@ func TestGeneratePatch_MultipleFiles(t *testing.T) {
 		"file2.txt": {0: true},
 	}
 
-	patch := GeneratePatch(files, selection)
+	patch := GeneratePatch(files, newMockSelection(selection))
 
 	if !strings.Contains(patch, "diff --git a/file1.txt b/file1.txt") {
 		t.Error("Patch missing file1 header")
@@ -172,7 +194,7 @@ func TestGeneratePatch_NewFile(t *testing.T) {
 		"newfile.txt": {0: true},
 	}
 
-	patch := GeneratePatch(files, selection)
+	patch := GeneratePatch(files, newMockSelection(selection))
 
 	if !strings.Contains(patch, "new file mode 100644") {
 		t.Error("Patch missing new file mode")
@@ -206,7 +228,7 @@ func TestGeneratePatch_DeletedFile(t *testing.T) {
 		"deleted.txt": {0: true},
 	}
 
-	patch := GeneratePatch(files, selection)
+	patch := GeneratePatch(files, newMockSelection(selection))
 
 	if !strings.Contains(patch, "deleted file mode 100644") {
 		t.Error("Patch missing deleted file mode")
@@ -231,7 +253,7 @@ func TestGeneratePatch_NoSelection(t *testing.T) {
 
 	selection := map[string]map[int]bool{}
 
-	patch := GeneratePatch(files, selection)
+	patch := GeneratePatch(files, newMockSelection(selection))
 
 	if patch != "" {
 		t.Errorf("Expected empty patch, got: %s", patch)
@@ -266,7 +288,7 @@ func TestGeneratePatch_PartialSelection(t *testing.T) {
 		"file.txt": {0: true, 2: true},
 	}
 
-	patch := GeneratePatch(files, selection)
+	patch := GeneratePatch(files, newMockSelection(selection))
 
 	if !strings.Contains(patch, "hunk 0") {
 		t.Error("Patch missing selected hunk 0")
@@ -334,5 +356,163 @@ func TestGetSelectedHunksMap_NoSelections(t *testing.T) {
 
 	if len(result) != 0 {
 		t.Errorf("Expected empty result, got %d entries", len(result))
+	}
+}
+
+// TestGeneratePatch_PartialHunk tests generating patch with line-level selection
+func TestGeneratePatch_PartialHunk(t *testing.T) {
+	files := []FileChange{
+		{
+			Path:       "file.txt",
+			ChangeType: ChangeTypeModified,
+			Hunks: []Hunk{
+				{
+					Header: "@@ -1,10 +1,11 @@",
+					Lines: []Line{
+						{Type: LineContext, Content: "line 1", OldLineNum: 1, NewLineNum: 1},
+						{Type: LineContext, Content: "line 2", OldLineNum: 2, NewLineNum: 2},
+						{Type: LineContext, Content: "line 3", OldLineNum: 3, NewLineNum: 3},
+						{Type: LineAddition, Content: "added line", OldLineNum: 0, NewLineNum: 4},
+						{Type: LineContext, Content: "line 4", OldLineNum: 4, NewLineNum: 5},
+						{Type: LineContext, Content: "line 5", OldLineNum: 5, NewLineNum: 6},
+						{Type: LineContext, Content: "line 6", OldLineNum: 6, NewLineNum: 7},
+						{Type: LineContext, Content: "line 7", OldLineNum: 7, NewLineNum: 8},
+						{Type: LineContext, Content: "line 8", OldLineNum: 8, NewLineNum: 9},
+						{Type: LineContext, Content: "line 9", OldLineNum: 9, NewLineNum: 10},
+					},
+				},
+			},
+		},
+	}
+
+	// Select only line index 3 (the addition)
+	mock := &mockSelectionState{
+		selections:     make(map[string]map[int]bool),
+		lineSelections: make(map[string]map[int]map[int]bool),
+		partialHunks:   make(map[string]map[int]bool),
+	}
+	mock.partialHunks["file.txt"] = map[int]bool{0: true}
+	mock.lineSelections["file.txt"] = map[int]map[int]bool{
+		0: {3: true}, // Select only the added line
+	}
+
+	patch := GeneratePatch(files, mock)
+
+	// Should include the added line plus 3 lines of context before and after
+	if !strings.Contains(patch, "+added line") {
+		t.Error("Patch missing selected addition")
+	}
+	if !strings.Contains(patch, "line 1") {
+		t.Error("Patch missing context before")
+	}
+	if !strings.Contains(patch, "line 6") {
+		t.Error("Patch missing context after")
+	}
+}
+
+// TestExpandWithContext tests context expansion algorithm
+func TestExpandWithContext(t *testing.T) {
+	tests := []struct {
+		name         string
+		selected     map[int]bool
+		totalLines   int
+		contextLines int
+		expected     map[int]bool
+	}{
+		{
+			name:         "single line with context",
+			selected:     map[int]bool{5: true},
+			totalLines:   10,
+			contextLines: 2,
+			expected:     map[int]bool{3: true, 4: true, 5: true, 6: true, 7: true},
+		},
+		{
+			name:         "line at start",
+			selected:     map[int]bool{0: true},
+			totalLines:   10,
+			contextLines: 3,
+			expected:     map[int]bool{0: true, 1: true, 2: true, 3: true},
+		},
+		{
+			name:         "line at end",
+			selected:     map[int]bool{9: true},
+			totalLines:   10,
+			contextLines: 3,
+			expected:     map[int]bool{6: true, 7: true, 8: true, 9: true},
+		},
+		{
+			name:         "adjacent selections merge",
+			selected:     map[int]bool{3: true, 5: true},
+			totalLines:   10,
+			contextLines: 1,
+			expected:     map[int]bool{2: true, 3: true, 4: true, 5: true, 6: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := expandWithContext(tt.selected, tt.totalLines, tt.contextLines)
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("Expected %d lines, got %d", len(tt.expected), len(result))
+			}
+
+			for line := range tt.expected {
+				if !result[line] {
+					t.Errorf("Expected line %d to be included", line)
+				}
+			}
+		})
+	}
+}
+
+// TestRecalculateHunkHeader tests hunk header recalculation
+func TestRecalculateHunkHeader(t *testing.T) {
+	tests := []struct {
+		name     string
+		lines    []Line
+		expected string
+	}{
+		{
+			name: "only additions",
+			lines: []Line{
+				{Type: LineAddition, Content: "line 1", OldLineNum: 0, NewLineNum: 1},
+				{Type: LineAddition, Content: "line 2", OldLineNum: 0, NewLineNum: 2},
+			},
+			expected: "@@ -0,0 +1,2 @@",
+		},
+		{
+			name: "only deletions",
+			lines: []Line{
+				{Type: LineDeletion, Content: "line 1", OldLineNum: 1, NewLineNum: 0},
+				{Type: LineDeletion, Content: "line 2", OldLineNum: 2, NewLineNum: 0},
+			},
+			expected: "@@ -1,2 +0,0 @@",
+		},
+		{
+			name: "mixed with context",
+			lines: []Line{
+				{Type: LineContext, Content: "line 1", OldLineNum: 1, NewLineNum: 1},
+				{Type: LineAddition, Content: "added", OldLineNum: 0, NewLineNum: 2},
+				{Type: LineContext, Content: "line 2", OldLineNum: 2, NewLineNum: 3},
+				{Type: LineDeletion, Content: "deleted", OldLineNum: 3, NewLineNum: 0},
+				{Type: LineContext, Content: "line 3", OldLineNum: 4, NewLineNum: 4},
+			},
+			expected: "@@ -1,4 +1,4 @@",
+		},
+		{
+			name:     "empty",
+			lines:    []Line{},
+			expected: "@@ -0,0 +0,0 @@",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := recalculateHunkHeader(tt.lines)
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
 	}
 }
