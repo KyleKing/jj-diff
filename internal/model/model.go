@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
 	"github.com/kyleking/jj-diff/internal/components/diffview"
+	"github.com/kyleking/jj-diff/internal/components/filefinder"
 	"github.com/kyleking/jj-diff/internal/components/filelist"
 	"github.com/kyleking/jj-diff/internal/components/help"
 	"github.com/kyleking/jj-diff/internal/components/searchmodal"
@@ -174,6 +175,9 @@ type Model struct {
 	searchModal searchmodal.Model
 	searchState *search.SearchState
 
+	// File finder
+	fileFinder filefinder.Model
+
 	width  int
 	height int
 
@@ -217,6 +221,7 @@ func NewModel(client *jj.Client, source, destination string, mode OperatingMode)
 	m.help = help.New()
 	m.searchModal = searchmodal.New()
 	m.searchState = search.NewSearchState()
+	m.fileFinder = filefinder.New()
 
 	return m, nil
 }
@@ -301,6 +306,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSearchKeyPress(msg)
 	}
 
+	if m.fileFinder.IsVisible() {
+		return m.handleFileFinderKeyPress(msg)
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
@@ -321,6 +330,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "/":
 		return m.enterSearchMode()
+
+	case "f":
+		return m.enterFileFinderMode()
 
 	case "v":
 		if m.mode == ModeInteractive && m.focusedPanel == PanelDiffView {
@@ -688,6 +700,66 @@ func (m Model) getLineContentMatches(filePath string, hunkIdx, lineIdx int) []di
 	return ranges
 }
 
+func (m Model) enterFileFinderMode() (tea.Model, tea.Cmd) {
+	// Build list of file paths and indices
+	paths := make([]string, len(m.changes))
+	indices := make([]interface{}, len(m.changes))
+	for i, change := range m.changes {
+		paths[i] = change.Path
+		indices[i] = i
+	}
+
+	m.fileFinder.Show(paths, indices)
+	return m, nil
+}
+
+func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.fileFinder.Hide()
+		return m, nil
+
+	case "enter":
+		if selected := m.fileFinder.GetSelected(); selected != nil {
+			fileIdx := selected.(int)
+			m.selectedFile = fileIdx
+			m.selectedHunk = 0
+			m.lineCursor = 0
+			m.fileList.SetSelected(m.selectedFile)
+			if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+				m.diffView.SetFileChange(m.changes[m.selectedFile])
+			}
+			m.focusedPanel = PanelDiffView
+			m.fileFinder.Hide()
+		}
+		return m, nil
+
+	case "up", "ctrl+p":
+		m.fileFinder.SelectPrev()
+		return m, nil
+
+	case "down", "ctrl+n":
+		m.fileFinder.SelectNext()
+		return m, nil
+
+	case "backspace":
+		query := m.fileFinder.Query()
+		if len(query) > 0 {
+			query = query[:len(query)-1]
+			m.fileFinder.SetQuery(query)
+		}
+		return m, nil
+
+	default:
+		if len(msg.String()) == 1 {
+			query := m.fileFinder.Query()
+			query += msg.String()
+			m.fileFinder.SetQuery(query)
+		}
+		return m, nil
+	}
+}
+
 func (m Model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit", m.err)
@@ -754,6 +826,10 @@ func (m Model) View() string {
 
 	if m.searchModal.IsVisible() {
 		return m.searchModal.View(m.width, m.height) + "\n" + baseView
+	}
+
+	if m.fileFinder.IsVisible() {
+		return m.fileFinder.View(m.width, m.height) + "\n" + baseView
 	}
 
 	return baseView

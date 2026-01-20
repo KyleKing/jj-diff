@@ -56,6 +56,8 @@ func (m Model) View(width, height int) string {
 
 	lines = append(lines, styleSection("Actions", modalWidth))
 	lines = append(lines, keyBinding("r", "Refresh diff from jj", modalWidth))
+	lines = append(lines, keyBinding("/", "Search in files and diff content", modalWidth))
+	lines = append(lines, keyBinding("f", "Fuzzy file finder", modalWidth))
 	if m.mode == "Interactive" {
 		lines = append(lines, keyBinding("d", "Select destination revision", modalWidth))
 		lines = append(lines, keyBinding("Space", "Toggle hunk selection", modalWidth))

@@ -25,11 +25,23 @@ A TUI for interactive diff viewing and manipulation in Jujutsu (jj).
 - Comprehensive help overlay with keybindings
 - Catppuccin themes with auto-detection
 
-### Planned Features (Phase 2)
+**Search and Navigation (Phase 2 - v0.2.0)**
+- Incremental search through files and diff content (/ key)
+- Visual match highlighting in file paths and line content
+- Fuzzy file finder with intelligent scoring (f key)
+- Real-time filtering as you type
+- Match highlighting for easy navigation
+
+**Syntax Highlighting (Phase 2 - v0.2.0)**
+- Code syntax highlighting powered by chroma
+- Automatic language detection from file extensions
+- Supports 100+ languages (Go, Python, JavaScript, Rust, etc.)
+- Subtle highlighting that preserves diff colors
+- Context lines highlighted for better readability
+
+### Planned Features (Phase 3)
 
 - **Multi-split**: Split commits into multiple focused commits
-- **Syntax Highlighting**: Code syntax highlighting with chroma
-- **Advanced Search**: Fuzzy file finder
 - **scm-diff-editor Protocol**: Optional drop-in replacement for jj's builtin diff editor (if requested)
 - **Performance**: Virtualization for large diffs (>1000 lines)
 
@@ -72,6 +84,7 @@ make build
 ### Actions
 - `r` - Refresh diff from jj
 - `/` - Open search (type to search files and diff content)
+- `f` - Open fuzzy file finder (filter-as-you-type)
 - `n` - Next search match (or next hunk when not searching)
 - `N` - Previous search match
 - `?` - Show/hide help overlay
@@ -82,6 +95,12 @@ make build
 - `Enter` - Close search and stay at current match
 - `Esc` - Cancel search and return to original position
 - `Ctrl-N/P` or `↓`/`↑` - Navigate matches while search is open
+
+### File Finder Mode (Fuzzy)
+- Type to filter files with fuzzy matching
+- `↑`/`↓` - Navigate filtered results
+- `Enter` - Select file and jump to it
+- `Esc` - Cancel and return to current file
 
 ### Interactive Mode Only
 - `d` - Select destination revision (opens picker modal)
@@ -197,9 +216,9 @@ make clean
 
 ## Known Limitations
 
-- No syntax highlighting
 - Large diffs (>1000 lines) may have performance impact
 - Diff view scrolling is line-based (no page up/down yet)
+- Syntax highlighting only on context lines (not additions/deletions)
 
 ## License
 

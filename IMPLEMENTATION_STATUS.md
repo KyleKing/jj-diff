@@ -71,9 +71,11 @@
 - ✅ Unit tests for diff parser (100% coverage - 8 tests)
 - ✅ Unit tests for patch generation (100% coverage - 9 tests)
 - ✅ Model tests for UI state management (20 tests including line-level selection)
+- ✅ Fuzzy matching tests (12 tests)
+- ✅ Syntax highlighting tests (8 tests)
 - ✅ Integration tests for jj workflows (3 tests)
 - ✅ Test helpers and utilities
-- ✅ All 40 tests passing
+- ✅ All 60 tests passing
 - ✅ Test scripts for manual testing (scripts/test-in-tmpdir.sh, scripts/interactive-test.sh)
 
 ## Current Capabilities
@@ -209,15 +211,35 @@
   - [✅] Line cursor reset when switching hunks/files
   - [✅] Tests for visual mode and line selection (8 new tests)
 
-### Nice to Have (Polish)
+### Phase 2 Features (COMPLETED - v0.2.0)
 
-- [~] (On-hold) Syntax highlighting (chroma integration)
+- [✅] **Fuzzy File Finder** (COMPLETE)
+  - [✅] Fuzzy matching algorithm with intelligent scoring
+  - [✅] File finder modal component with real-time filtering
+  - [✅] Integration with 'f' keybinding
+  - [✅] Match highlighting in filtered results
+  - [✅] Tests for fuzzy matching (12 tests)
+
+- [✅] **Syntax Highlighting** (COMPLETE)
+  - [✅] Chroma integration for syntax highlighting
+  - [✅] Automatic language detection from file extensions
+  - [✅] Support for 100+ languages
+  - [✅] Context lines highlighted (preserves diff colors)
+  - [✅] Tests for highlighter (8 tests)
+
+- [✅] **Search Enhancement** (Already existed from Phase 1)
+  - [✅] Incremental search through files and content (/ key)
+  - [✅] Visual match highlighting
+  - [✅] Search modal with match navigation
+
+### Phase 3 Features (Planned)
+
 - [ ] File tree collapsing for nested paths
-- [ ] Search in diff (`/` command)
-- [ ] Fuzzy file finder (`f` command)
-- [~] (On hold) Configuration file support
-- [~] (On hold) Custom keybindings
-- [~] (On hold) Theme system
+- [ ] Multi-split: Split commits into multiple focused commits
+- [ ] Configuration file support
+- [ ] Custom keybindings
+- [ ] Performance optimization for large diffs (>1000 lines)
+- [ ] scm-diff-editor protocol support
 
 ## Code Quality
 
@@ -341,8 +363,10 @@ See **PHASE1_ANALYSIS.md** for comprehensive evaluation of:
    - Working copy preservation
    - Help system with full keybinding documentation
 3. **Theme System** - Catppuccin latte/macchiato with auto-detection
-4. **Test Suite** - 40 tests with 100% pass rate covering all critical workflows
-5. **Testing Tools** - Interactive test scripts for manual testing in temporary repositories
+4. **Fuzzy File Finder** - Press 'f' to quickly navigate with intelligent fuzzy matching ⭐ PHASE 2
+5. **Syntax Highlighting** - Context lines highlighted with chroma (100+ languages) ⭐ PHASE 2
+6. **Test Suite** - 60 tests with 100% pass rate covering all critical workflows
+7. **Testing Tools** - Interactive test scripts for manual testing in temporary repositories
 
 ### Production Readiness
 
@@ -372,11 +396,26 @@ Core functionality is production-ready:
 - **Phase 1 Testing**: ✅ COMPLETE (40 tests, interactive test scripts)
 - **Phase 1 scm-record Protocol**: 🤔 EVALUATED - Not implementing (see PHASE1_ANALYSIS.md)
 
-**Status:** ✅ Phase 1 COMPLETE - Ready for v0.1.0 release
+**Status:** ✅ Phase 2 COMPLETE - Ready for v0.2.0 release
+
+**Completed Phases:**
+- ✅ Phase 1: Core functionality (Browse + Interactive modes)
+- ✅ Phase 2: Search enhancement + Syntax highlighting
 
 **Next steps:**
 1. Manual testing with real repositories using `scripts/test-in-tmpdir.sh` or `scripts/interactive-test.sh`
-2. Create v0.1.0 release with release notes
+2. Create v0.2.0 release with release notes
 3. Share with jj community for feedback
+4. Begin Phase 3 planning based on user feedback
 
-**Estimated time to v0.1.0 release:** Ready now (pending manual testing)
+**Estimated time to v0.2.0 release:** Ready now (pending manual testing)
+
+## Phase 2 Summary
+
+Phase 2 adds two major enhancements that significantly improve the user experience:
+
+1. **Fuzzy File Finder**: Press `f` to quickly navigate to any file using fuzzy matching. No more scrolling through long file lists - just type a few characters and jump directly to your file.
+
+2. **Syntax Highlighting**: Context lines in diffs now have syntax highlighting, making code easier to read while preserving the visual prominence of additions (green) and deletions (red).
+
+Both features integrate seamlessly with the existing keyboard-driven workflow and are fully tested with 20 new tests (12 fuzzy + 8 highlight).

@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kyleking/jj-diff/internal/diff"
+	"github.com/kyleking/jj-diff/internal/highlight"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -25,11 +26,15 @@ type Model struct {
 	isLineSelected func(hunkIdx, lineIdx int) bool
 	getMatches     func(hunkIdx, lineIdx int) []MatchRange
 	isSearching    bool
+	highlighter    *highlight.Highlighter
+	enableHighlight bool
 }
 
 func New() Model {
 	return Model{
-		offset: 0,
+		offset:          0,
+		highlighter:     highlight.New(),
+		enableHighlight: true,
 	}
 }
 
@@ -138,7 +143,15 @@ func (m Model) renderLine(line diff.Line, width int, hunkIdx, lineIdx int) strin
 		content = content[:maxContentWidth]
 	}
 
-	// Apply search match highlighting if searching
+	// Apply syntax highlighting to context lines only (preserve diff colors for +/-)
+	if m.enableHighlight && m.fileChange != nil && line.Type == diff.LineContext {
+		highlighted := m.highlighter.HighlightLine(m.fileChange.Path, content)
+		if highlighted != "" {
+			content = highlighted
+		}
+	}
+
+	// Apply search match highlighting if searching (takes precedence over syntax)
 	if m.isSearching && m.getMatches != nil {
 		matches := m.getMatches(hunkIdx, lineIdx)
 		if len(matches) > 0 {
