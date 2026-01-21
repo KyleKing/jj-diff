@@ -27,6 +27,39 @@ type WordDiffCache struct {
 	HunkDiffs map[int]map[int]diff.WordDiffResult
 }
 
+type SplitTag rune
+
+type LineIndex struct {
+	TotalLines     int
+	HunkOffsets    []int
+	HunkLineCounts []int
+}
+
+func (idx *LineIndex) FindHunkForOffset(offset int) (hunkIdx, lineInHunk int) {
+	if len(idx.HunkOffsets) == 0 {
+		return 0, 0
+	}
+
+	if offset >= idx.TotalLines {
+		lastHunk := len(idx.HunkOffsets) - 1
+		return lastHunk, idx.HunkLineCounts[lastHunk]
+	}
+
+	left, right := 0, len(idx.HunkOffsets)-1
+	for left < right {
+		mid := (left + right + 1) / 2
+		if idx.HunkOffsets[mid] <= offset {
+			left = mid
+		} else {
+			right = mid - 1
+		}
+	}
+
+	hunkIdx = left
+	lineInHunk = offset - idx.HunkOffsets[hunkIdx]
+	return hunkIdx, lineInHunk
+}
+
 type Model struct {
 	fileChange      *diff.FileChange
 	offset          int
@@ -38,6 +71,7 @@ type Model struct {
 	isLineSelected  func(hunkIdx, lineIdx int) bool
 	getMatches      func(hunkIdx, lineIdx int) []MatchRange
 	isSearching     bool
+	getHunkTags     func(hunkIdx int) []SplitTag
 	highlighter     *highlight.Highlighter
 	enableHighlight bool
 
@@ -47,6 +81,7 @@ type Model struct {
 	tabWidth        int
 	wordLevelDiff   bool
 	wordDiffCache   *WordDiffCache
+	lineIndex       *LineIndex
 }
 
 func New(cfg config.Config) Model {
@@ -70,6 +105,36 @@ func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
 	m.computeWordDiffs()
+	m.buildLineIndex()
+}
+
+func (m *Model) buildLineIndex() {
+	if m.fileChange == nil {
+		m.lineIndex = nil
+		return
+	}
+
+	index := &LineIndex{
+		HunkOffsets:    make([]int, len(m.fileChange.Hunks)),
+		HunkLineCounts: make([]int, len(m.fileChange.Hunks)),
+	}
+
+	totalLines := 0
+	for hunkIdx, hunk := range m.fileChange.Hunks {
+		index.HunkOffsets[hunkIdx] = totalLines
+
+		hunkLines := hunk.Lines
+		if m.showWhitespace {
+			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
+		}
+
+		linesInHunk := 1 + len(hunkLines)
+		index.HunkLineCounts[hunkIdx] = linesInHunk
+		totalLines += linesInHunk
+	}
+
+	index.TotalLines = totalLines
+	m.lineIndex = index
 }
 
 func (m *Model) computeWordDiffs() {
@@ -106,8 +171,13 @@ func (m *Model) SetSearchState(isSearching bool, getMatches func(hunkIdx, lineId
 	m.getMatches = getMatches
 }
 
+func (m *Model) SetTagState(getHunkTags func(hunkIdx int) []SplitTag) {
+	m.getHunkTags = getHunkTags
+}
+
 func (m *Model) ToggleWhitespace() {
 	m.showWhitespace = !m.showWhitespace
+	m.buildLineIndex()
 }
 
 func (m *Model) ToggleLineNumbers() {
@@ -224,27 +294,40 @@ func (m Model) View(width, height int, focused bool) string {
 func (m Model) renderUnified(width, height int, focused bool) string {
 	var lines []string
 
-	currentLine := 0
-	for hunkIdx, hunk := range m.fileChange.Hunks {
-		if currentLine >= m.offset && len(lines) < height {
+	if m.lineIndex == nil || len(m.fileChange.Hunks) == 0 {
+		for len(lines) < height {
+			lines = append(lines, strings.Repeat(" ", width))
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	startHunkIdx, lineInHunk := m.lineIndex.FindHunkForOffset(m.offset)
+
+	for hunkIdx := startHunkIdx; hunkIdx < len(m.fileChange.Hunks) && len(lines) < height; hunkIdx++ {
+		hunk := m.fileChange.Hunks[hunkIdx]
+
+		if lineInHunk == 0 {
 			isCurrent := hunkIdx == m.selectedHunk
 			isHunkSelected := m.isSelected != nil && m.isSelected(hunkIdx)
-			lines = append(lines, m.renderHunkHeader(hunk.Header, width, isCurrent, isHunkSelected))
+			lines = append(lines, m.renderHunkHeader(hunk.Header, width, hunkIdx, isCurrent, isHunkSelected))
 		}
-		currentLine++
 
-		// Process hunk lines to hide whitespace changes if enabled
 		hunkLines := hunk.Lines
 		if m.showWhitespace {
 			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
 		}
 
-		for lineIdx, line := range hunkLines {
-			if currentLine >= m.offset && len(lines) < height {
-				lines = append(lines, m.renderLine(line, width, hunkIdx, lineIdx))
-			}
-			currentLine++
+		startLineIdx := lineInHunk
+		if lineInHunk > 0 {
+			startLineIdx = lineInHunk - 1
 		}
+
+		for lineIdx := startLineIdx; lineIdx < len(hunkLines) && len(lines) < height; lineIdx++ {
+			line := hunkLines[lineIdx]
+			lines = append(lines, m.renderLine(line, width, hunkIdx, lineIdx))
+		}
+
+		lineInHunk = 0
 	}
 
 	for len(lines) < height {
@@ -424,7 +507,7 @@ func styleHeader(text string, width int, focused bool) string {
 	return style.Render(truncateOrPad(text, width))
 }
 
-func (m Model) renderHunkHeader(text string, width int, isCurrent, isSelected bool) string {
+func (m Model) renderHunkHeader(text string, width, hunkIdx int, isCurrent, isSelected bool) string {
 	prefix := "  "
 	if isCurrent {
 		prefix = "> "
@@ -433,6 +516,17 @@ func (m Model) renderHunkHeader(text string, width int, isCurrent, isSelected bo
 	suffix := ""
 	if isSelected {
 		suffix = " [X]"
+	}
+
+	if m.getHunkTags != nil {
+		tags := m.getHunkTags(hunkIdx)
+		if len(tags) > 0 {
+			tagStr := ""
+			for _, tag := range tags {
+				tagStr += " [" + string(tag) + "]"
+			}
+			suffix = tagStr + suffix
+		}
 	}
 
 	displayText := prefix + text + suffix

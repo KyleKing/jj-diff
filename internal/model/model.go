@@ -6,12 +6,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kyleking/jj-diff/internal/components/commitmsg"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/components/filefinder"
 	"github.com/kyleking/jj-diff/internal/components/filelist"
 	"github.com/kyleking/jj-diff/internal/components/help"
 	"github.com/kyleking/jj-diff/internal/components/searchmodal"
+	"github.com/kyleking/jj-diff/internal/components/splitassign"
+	"github.com/kyleking/jj-diff/internal/components/splitpreview"
 	"github.com/kyleking/jj-diff/internal/components/statusbar"
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -50,6 +53,37 @@ type SelectionState struct {
 func NewSelectionState() *SelectionState {
 	return &SelectionState{
 		Files: make(map[string]*FileSelection),
+	}
+}
+
+type SplitTag rune
+
+type DestinationType int
+
+const (
+	DestExistingRevision DestinationType = iota
+	DestNewCommit
+)
+
+type DestinationSpec struct {
+	Type        DestinationType
+	ChangeID    string
+	Description string
+}
+
+type MultiSplitState struct {
+	Active       bool
+	Selections   map[SplitTag]*SelectionState
+	Destinations map[SplitTag]*DestinationSpec
+	CurrentTag   SplitTag
+}
+
+func NewMultiSplitState() *MultiSplitState {
+	return &MultiSplitState{
+		Active:       false,
+		Selections:   make(map[SplitTag]*SelectionState),
+		Destinations: make(map[SplitTag]*DestinationSpec),
+		CurrentTag:   'A',
 	}
 }
 
@@ -169,12 +203,16 @@ type Model struct {
 	visualAnchor int
 	lineCursor   int
 
-	selection  *SelectionState
-	fileList   filelist.Model
-	diffView   diffview.Model
-	statusBar  statusbar.Model
-	destPicker destpicker.Model
-	help       help.Model
+	selection       *SelectionState
+	multiSplitState *MultiSplitState
+	fileList        filelist.Model
+	diffView        diffview.Model
+	statusBar       statusbar.Model
+	destPicker      destpicker.Model
+	splitAssign     splitassign.Model
+	splitPreview    splitpreview.Model
+	commitMsg       commitmsg.Model
+	help            help.Model
 
 	// Search state
 	searchModal searchmodal.Model
@@ -207,23 +245,27 @@ type destinationSelectedMsg struct {
 
 func NewModel(client *jj.Client, source, destination string, mode OperatingMode, cfg config.Config) (Model, error) {
 	m := Model{
-		client:       client,
-		mode:         mode,
-		source:       source,
-		destination:  destination,
-		cfg:          cfg,
-		selectedFile: 0,
-		selectedHunk: 0,
-		focusedPanel: PanelFileList,
-		width:        80,
-		height:       24,
-		selection:    NewSelectionState(),
+		client:          client,
+		mode:            mode,
+		source:          source,
+		destination:     destination,
+		cfg:             cfg,
+		selectedFile:    0,
+		selectedHunk:    0,
+		focusedPanel:    PanelFileList,
+		width:           80,
+		height:          24,
+		selection:       NewSelectionState(),
+		multiSplitState: NewMultiSplitState(),
 	}
 
 	m.fileList = filelist.New()
 	m.diffView = diffview.New(cfg)
 	m.statusBar = statusbar.New()
 	m.destPicker = destpicker.New()
+	m.splitAssign = splitassign.New()
+	m.splitPreview = splitpreview.New()
+	m.commitMsg = commitmsg.New()
 	m.help = help.New()
 	m.searchModal = searchmodal.New()
 	m.searchState = search.NewSearchState()
@@ -308,6 +350,18 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.destPicker.Hide()
 			return m, nil
 		}
+		if m.splitAssign.IsVisible() {
+			m.splitAssign.Hide()
+			return m, nil
+		}
+		if m.splitPreview.IsVisible() {
+			m.splitPreview.Hide()
+			return m, nil
+		}
+		if m.commitMsg.IsVisible() {
+			m.commitMsg.Hide()
+			return m, nil
+		}
 		if m.searchModal.IsVisible() {
 			if m.searchState != nil {
 				origState := m.searchState.RestoreOriginalState()
@@ -359,6 +413,18 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if m.destPicker.IsVisible() {
 		return m.handleDestPickerKeyPress(msg)
+	}
+
+	if m.splitAssign.IsVisible() {
+		return m.handleSplitAssignKeyPress(msg)
+	}
+
+	if m.splitPreview.IsVisible() {
+		return m.handleSplitPreviewKeyPress(msg)
+	}
+
+	if m.commitMsg.IsVisible() {
+		return m.handleCommitMsgKeyPress(msg)
 	}
 
 	if m.searchModal.IsVisible() {
@@ -524,8 +590,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
 			file := m.changes[m.selectedFile]
-			if m.selectedHunk < len(file.Hunks)-1 {
+			if len(file.Hunks) > 0 {
 				m.selectedHunk++
+				if m.selectedHunk >= len(file.Hunks) {
+					m.selectedHunk = 0
+				}
 				m.lineCursor = 0
 			}
 		}
@@ -535,18 +604,26 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.searchState != nil && m.searchState.IsActive && len(m.searchState.Matches) > 0 {
 			return m.prevSearchMatch()
 		}
-		if m.focusedPanel == PanelDiffView {
-			if m.selectedHunk > 0 {
+		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+			file := m.changes[m.selectedFile]
+			if len(file.Hunks) > 0 {
 				m.selectedHunk--
+				if m.selectedHunk < 0 {
+					m.selectedHunk = len(file.Hunks) - 1
+				}
 				m.lineCursor = 0
 			}
 		}
 		return m, nil
 
 	case "p":
-		if m.focusedPanel == PanelDiffView {
-			if m.selectedHunk > 0 {
+		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+			file := m.changes[m.selectedFile]
+			if len(file.Hunks) > 0 {
 				m.selectedHunk--
+				if m.selectedHunk < 0 {
+					m.selectedHunk = len(file.Hunks) - 1
+				}
 				m.lineCursor = 0
 			}
 		}
@@ -573,6 +650,52 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.applySelection()
 		}
 		return m, nil
+
+	case "S":
+		if m.mode == ModeInteractive && m.focusedPanel == PanelDiffView {
+			m.multiSplitState.Active = !m.multiSplitState.Active
+			if m.multiSplitState.Active {
+				m.multiSplitState.CurrentTag = 'A'
+			}
+		}
+		return m, nil
+
+	case "D":
+		if m.mode == ModeInteractive && m.multiSplitState.Active {
+			var tags []splitassign.SplitTag
+			for tag := range m.multiSplitState.Selections {
+				tags = append(tags, splitassign.SplitTag(tag))
+			}
+			if len(tags) > 0 {
+				m.splitAssign.SetTags(tags)
+				return m, m.loadRevisionsForSplitAssign()
+			}
+		}
+		return m, nil
+
+	case "P":
+		if m.mode == ModeInteractive && m.multiSplitState.Active {
+			destinations := m.splitAssign.GetDestinations()
+			if len(destinations) > 0 {
+				summaries := m.buildSplitSummaries(destinations)
+				m.splitPreview.SetSummaries(summaries)
+				m.splitPreview.Show()
+			}
+		}
+		return m, nil
+
+	default:
+		if m.multiSplitState.Active && m.mode == ModeInteractive && m.focusedPanel == PanelDiffView {
+			if len(key) == 1 {
+				r := rune(key[0])
+				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+					if r >= 'a' && r <= 'z' {
+						r = r - 'a' + 'A'
+					}
+					return m.toggleTagSelection(SplitTag(r))
+				}
+			}
+		}
 	}
 
 	return m, nil
@@ -636,6 +759,183 @@ func (m Model) handleDestPickerKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleSplitAssignKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.splitAssign.Hide()
+		return m, nil
+
+	case "j", "down":
+		m.splitAssign.MoveDown()
+		return m, nil
+
+	case "k", "up":
+		m.splitAssign.MoveUp()
+		return m, nil
+
+	case "tab":
+		m.splitAssign.ToggleFocus()
+		return m, nil
+
+	case "enter":
+		m.splitAssign.AssignRevisionToCurrentTag()
+		return m, nil
+
+	case "N":
+		m.commitMsg.SetTag(commitmsg.SplitTag(m.multiSplitState.CurrentTag))
+		m.splitAssign.Hide()
+		m.commitMsg.Show()
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func (m Model) handleSplitPreviewKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.splitPreview.Hide()
+		return m, nil
+
+	case "e":
+		m.splitPreview.Hide()
+		return m, m.loadRevisionsForSplitAssign()
+
+	case "enter":
+		return m, m.applySplit()
+	}
+
+	return m, nil
+}
+
+func (m Model) handleCommitMsgKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.commitMsg.Hide()
+		m.splitAssign.Show()
+		return m, nil
+
+	case "enter":
+		message := m.commitMsg.GetMessage()
+		if message != "" {
+			tag := m.commitMsg.GetTag()
+			m.splitAssign.AssignNewCommitToTag(splitassign.SplitTag(tag), message)
+		}
+		m.commitMsg.Hide()
+		m.splitAssign.Show()
+		return m, nil
+
+	case "backspace":
+		m.commitMsg.Backspace()
+		return m, nil
+
+	default:
+		if len(msg.String()) == 1 {
+			m.commitMsg.AppendChar(rune(msg.String()[0]))
+		}
+		return m, nil
+	}
+}
+
+func (m Model) loadRevisionsForSplitAssign() tea.Cmd {
+	return func() tea.Msg {
+		revisions, err := m.client.GetRevisions(20)
+		if err != nil {
+			return errMsg{err}
+		}
+		m.closeAllModals()
+		m.splitAssign.SetRevisions(revisions)
+		m.splitAssign.Show()
+		return nil
+	}
+}
+
+func (m Model) buildSplitSummaries(destinations map[splitassign.SplitTag]*splitassign.DestinationSpec) []splitpreview.SplitSummary {
+	var summaries []splitpreview.SplitSummary
+
+	for tag, dest := range destinations {
+		tagSelection := m.multiSplitState.Selections[SplitTag(tag)]
+		if tagSelection == nil {
+			continue
+		}
+
+		fileCount := 0
+		hunkCount := 0
+		for _, file := range m.changes {
+			fileHasSelection := false
+			for hunkIdx := range file.Hunks {
+				if tagSelection.IsHunkSelected(file.Path, hunkIdx) || tagSelection.HasPartialSelection(file.Path, hunkIdx) {
+					hunkCount++
+					fileHasSelection = true
+				}
+			}
+			if fileHasSelection {
+				fileCount++
+			}
+		}
+
+		summary := splitpreview.SplitSummary{
+			Tag: splitpreview.SplitTag(tag),
+			Destination: splitpreview.DestinationSpec{
+				Type:        splitpreview.DestinationType(dest.Type),
+				ChangeID:    dest.ChangeID,
+				Description: dest.Description,
+			},
+			FileCount: fileCount,
+			HunkCount: hunkCount,
+		}
+		summaries = append(summaries, summary)
+	}
+
+	return summaries
+}
+
+func (m Model) applySplit() tea.Cmd {
+	return func() tea.Msg {
+		destinations := m.splitAssign.GetDestinations()
+		if len(destinations) == 0 {
+			return errMsg{fmt.Errorf("no destinations assigned")}
+		}
+
+		var plans []jj.SplitPlan
+		for tag, dest := range destinations {
+			tagSelection := m.multiSplitState.Selections[SplitTag(tag)]
+			if tagSelection == nil {
+				continue
+			}
+
+			patch := diff.GeneratePatchForTag(m.changes, tagSelection)
+			if patch == "" {
+				continue
+			}
+
+			jjDest := jj.SplitDestination{
+				Type:        jj.SplitDestinationType(dest.Type),
+				ChangeID:    dest.ChangeID,
+				Description: dest.Description,
+			}
+
+			plans = append(plans, jj.SplitPlan{
+				Tag:         rune(tag),
+				Patch:       patch,
+				Destination: jjDest,
+			})
+		}
+
+		if len(plans) == 0 {
+			return errMsg{fmt.Errorf("no valid split plans generated")}
+		}
+
+		if err := m.client.ApplySplit(plans, m.source); err != nil {
+			return errMsg{fmt.Errorf("failed to apply split: %w", err)}
+		}
+
+		m.multiSplitState = NewMultiSplitState()
+		m.splitPreview.Hide()
+		return m.loadDiff()
+	}
+}
+
 func (m Model) handleNavigation(delta int) (tea.Model, tea.Cmd) {
 	if m.focusedPanel == PanelFileList {
 		newIdx := m.selectedFile + delta
@@ -675,6 +975,9 @@ func (m Model) handleVisualNavigation(delta int) (tea.Model, tea.Cmd) {
 func (m *Model) closeAllModals() {
 	m.help.Hide()
 	m.destPicker.Hide()
+	m.splitAssign.Hide()
+	m.splitPreview.Hide()
+	m.commitMsg.Hide()
 	m.searchModal.Hide()
 	m.fileFinder.Hide()
 	m.fileList.SetFilterMode(false)
@@ -693,6 +996,47 @@ func (m *Model) toggleVisualSelection() {
 	endLine := m.lineCursor
 
 	m.selection.SelectLineRange(file.Path, m.selectedHunk, startLine, endLine)
+}
+
+func (m Model) toggleTagSelection(tag SplitTag) (tea.Model, tea.Cmd) {
+	if m.selectedFile < 0 || m.selectedFile >= len(m.changes) {
+		return m, nil
+	}
+	file := m.changes[m.selectedFile]
+	if m.selectedHunk < 0 || m.selectedHunk >= len(file.Hunks) {
+		return m, nil
+	}
+
+	if _, ok := m.multiSplitState.Selections[tag]; !ok {
+		m.multiSplitState.Selections[tag] = NewSelectionState()
+	}
+
+	tagSelection := m.multiSplitState.Selections[tag]
+	if m.isVisualMode {
+		startLine := m.visualAnchor
+		endLine := m.lineCursor
+		tagSelection.SelectLineRange(file.Path, m.selectedHunk, startLine, endLine)
+		m.isVisualMode = false
+	} else {
+		tagSelection.ToggleHunk(file.Path, m.selectedHunk)
+	}
+
+	m.multiSplitState.CurrentTag = tag
+	return m, nil
+}
+
+func (m Model) getHunkTags(filePath string, hunkIdx int) []SplitTag {
+	if !m.multiSplitState.Active {
+		return nil
+	}
+
+	var tags []SplitTag
+	for tag, selection := range m.multiSplitState.Selections {
+		if selection.IsHunkSelected(filePath, hunkIdx) || selection.HasPartialSelection(filePath, hunkIdx) {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
 }
 
 func (m Model) enterSearchMode() (tea.Model, tea.Cmd) {
@@ -981,6 +1325,19 @@ func (m Model) View() string {
 		m.diffView.SetSearchState(false, nil)
 	}
 
+	// Set tag state for diffview
+	if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+		currentFile := m.changes[m.selectedFile]
+		m.diffView.SetTagState(func(hunkIdx int) []diffview.SplitTag {
+			tags := m.getHunkTags(currentFile.Path, hunkIdx)
+			var diffviewTags []diffview.SplitTag
+			for _, tag := range tags {
+				diffviewTags = append(diffviewTags, diffview.SplitTag(tag))
+			}
+			return diffviewTags
+		})
+	}
+
 	// Render file list panel
 	fileListView := m.fileList.View(m.width, fileListHeight, m.focusedPanel == PanelFileList)
 
@@ -1025,6 +1382,18 @@ func (m Model) View() string {
 
 	if m.destPicker.IsVisible() {
 		return m.destPicker.View(m.width, m.height)
+	}
+
+	if m.splitAssign.IsVisible() {
+		return m.splitAssign.View(m.width, m.height)
+	}
+
+	if m.splitPreview.IsVisible() {
+		return m.splitPreview.View(m.width, m.height)
+	}
+
+	if m.commitMsg.IsVisible() {
+		return m.commitMsg.View(m.width, m.height)
 	}
 
 	if m.searchModal.IsVisible() {

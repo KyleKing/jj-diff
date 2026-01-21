@@ -44,14 +44,14 @@ func TestModelNavigation(t *testing.T) {
 	m = Update(t, m, KeyPress('N'))
 	Assert(t, m).HasSelectedHunk(0)
 
-	// p at first hunk should stay at 0
+	// p at first hunk should wrap to last hunk
 	m = Update(t, m, KeyPress('p'))
-	Assert(t, m).HasSelectedHunk(0)
+	Assert(t, m).HasSelectedHunk(1)
 
-	// n at last hunk should stay at last
+	// n at last hunk should wrap to first hunk
 	m.selectedHunk = 1
 	m = Update(t, m, KeyPress('n'))
-	Assert(t, m).HasSelectedHunk(1)
+	Assert(t, m).HasSelectedHunk(0)
 }
 
 // TestModelPanelSwitching tests Tab key panel focus switching

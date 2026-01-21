@@ -177,6 +177,10 @@ func recalculateHunkHeader(selectedLines []Line) string {
 	return fmt.Sprintf("@@ -%d,%d +%d,%d @@", oldStart, oldCount, newStart, newCount)
 }
 
+func GeneratePatchForTag(files []FileChange, selection SelectionState) string {
+	return GeneratePatch(files, selection)
+}
+
 // GetSelectedHunksMap is deprecated but kept for backward compatibility
 func GetSelectedHunksMap(files []FileChange, selectionState interface {
 	IsHunkSelected(filePath string, hunkIdx int) bool

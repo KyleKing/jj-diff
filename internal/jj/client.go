@@ -172,6 +172,25 @@ type RevisionEntry struct {
 	Description string
 }
 
+type SplitDestinationType int
+
+const (
+	SplitDestExistingRevision SplitDestinationType = iota
+	SplitDestNewCommit
+)
+
+type SplitDestination struct {
+	Type        SplitDestinationType
+	ChangeID    string
+	Description string
+}
+
+type SplitPlan struct {
+	Tag         rune
+	Patch       string
+	Destination SplitDestination
+}
+
 type FileStatus struct {
 	Path       string
 	ChangeType ChangeType
@@ -297,6 +316,66 @@ func parseRevisionEntries(output string) []RevisionEntry {
 	}
 
 	return entries
+}
+
+func (c *Client) getCurrentOperationID() (string, error) {
+	output, err := c.executeJJ("op", "log", "--no-graph", "--limit", "1", "-T", "id")
+	if err != nil {
+		return "", fmt.Errorf("failed to get current operation ID: %w", err)
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func (c *Client) createNewCommit(description string) (string, error) {
+	if _, err := c.executeJJ("new", "-m", description, "--no-edit"); err != nil {
+		return "", fmt.Errorf("failed to create new commit: %w", err)
+	}
+
+	changeID, err := c.getCurrentWorkingCopy()
+	if err != nil {
+		return "", fmt.Errorf("failed to get new commit ID: %w", err)
+	}
+	return changeID, nil
+}
+
+func (c *Client) restoreOperation(opID string) error {
+	if _, err := c.executeJJ("op", "restore", opID); err != nil {
+		return fmt.Errorf("failed to restore operation: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
+	if len(plans) == 0 {
+		return fmt.Errorf("no split plans provided")
+	}
+
+	opID, err := c.getCurrentOperationID()
+	if err != nil {
+		return fmt.Errorf("failed to get operation ID for rollback: %w", err)
+	}
+
+	for i, plan := range plans {
+		var destChangeID string
+
+		if plan.Destination.Type == SplitDestNewCommit {
+			changeID, err := c.createNewCommit(plan.Destination.Description)
+			if err != nil {
+				c.restoreOperation(opID)
+				return fmt.Errorf("failed to create new commit for tag %c: %w", plan.Tag, err)
+			}
+			destChangeID = changeID
+		} else {
+			destChangeID = plan.Destination.ChangeID
+		}
+
+		if err := c.MoveChanges(plan.Patch, source, destChangeID); err != nil {
+			c.restoreOperation(opID)
+			return fmt.Errorf("failed to apply patch for tag %c (plan %d): %w", plan.Tag, i+1, err)
+		}
+	}
+
+	return nil
 }
 
 func (c *Client) executeJJ(args ...string) (string, error) {

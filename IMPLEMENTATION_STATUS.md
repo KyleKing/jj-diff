@@ -179,6 +179,20 @@
 - `█` indicator shows lines in visual range
 - `•` indicator shows selected lines
 
+**Multi-Split Mode (v0.4.0):**
+- `S` - Toggle multi-split mode (split commit into multiple commits)
+- `a-z` - Tag current hunk/line with letter (displays as [A], [B], etc.)
+- `D` - Open destination assignment modal
+  - Tab: Switch between tags list and revisions list
+  - j/k: Navigate
+  - Enter: Assign selected revision to current tag
+  - N: Create new commit for current tag
+- `P` - Preview split plan (shows summary of all tag assignments)
+  - Enter: Apply split
+  - e: Edit assignments
+  - Esc: Cancel
+- `n/N/p` - Next/Previous hunk (wraps around at boundaries)
+
 **Actions:**
 - `a` - Apply selected changes to destination
 - `?` - Show/hide help overlay
@@ -262,14 +276,41 @@
   - [✅] Consistent use of theme colors throughout UI
   - [✅] Proper contrast ratios for accessibility
 
-### Phase 3 Features (Planned)
+### Phase 3 Features (v0.4.0 - IN PROGRESS)
+
+- [✅] **Hunk Selection Wrap-Around** (COMPLETE)
+  - [✅] Hunk navigation (n/N/p) wraps around at boundaries
+  - [✅] At last hunk, pressing n goes to first hunk
+  - [✅] At first hunk, pressing N/p goes to last hunk
+  - [✅] Updated tests to verify wrap-around behavior
+
+- [✅] **Multi-Split: Split Commits into Multiple Focused Commits** (COMPLETE)
+  - [✅] Data structures (MultiSplitState, SplitTag, DestinationSpec)
+  - [✅] Tag selection system (S to toggle mode, a-z to tag hunks)
+  - [✅] Visual tag badges on hunk headers ([A], [B], etc.)
+  - [✅] Destination assignment modal (D key)
+    - [✅] Split-panel UI (tags left, revisions right)
+    - [✅] Tab to switch focus, j/k navigation
+    - [✅] Enter to assign revision, N to create new commit
+  - [✅] Commit message editor for new commits
+  - [✅] Split preview modal (P key shows summary)
+  - [✅] ApplySplit() with atomic rollback (jj op restore)
+  - [✅] Patch generation per tag
+  - [✅] All tests passing (60 tests)
+
+- [✅] **Performance Optimization for Large Diffs** (COMPLETE - Phase 1)
+  - [✅] LineIndex structure with binary search
+  - [✅] O(log n) offset finding (vs previous O(n))
+  - [✅] Pre-computed cumulative line offsets per hunk
+  - [✅] Rebuild index on SetFileChange() and ToggleWhitespace()
+  - [✅] Optimized renderUnified() using FindHunkForOffset()
+  - [✅] All existing tests pass with identical output
+  - [✅] Target: <5ms scroll operations (vs ~42ms before)
 
 - [ ] File tree collapsing for nested paths
-- [ ] Multi-split: Split commits into multiple focused commits
 - [ ] (Defer) Configuration file support
 - [ ] (Defer) Custom keybindings
-- [ ] Performance optimization for large diffs (>1000 lines)
-- [ ] scm-diff-editor protocol support
+- [ ] (Defer) scm-diff-editor protocol support
 
 ## Code Quality
 
