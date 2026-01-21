@@ -28,6 +28,7 @@ type OperatingMode int
 const (
 	ModeBrowse OperatingMode = iota
 	ModeInteractive
+	ModeDiffEditor
 )
 
 type FocusedPanel int
@@ -188,6 +189,7 @@ func (s *SelectionState) HasPartialSelection(filePath string, hunkIdx int) bool 
 
 type Model struct {
 	client      *jj.Client
+	diffSource  diff.DiffSource
 	mode        OperatingMode
 	source      string
 	destination string
@@ -244,10 +246,16 @@ type destinationSelectedMsg struct {
 }
 
 func NewModel(client *jj.Client, source, destination string, mode OperatingMode, cfg config.Config) (Model, error) {
+	revSource := diff.NewRevisionSource(client, source)
+	return NewModelWithSource(revSource, client, destination, mode, cfg)
+}
+
+func NewModelWithSource(source diff.DiffSource, client *jj.Client, destination string, mode OperatingMode, cfg config.Config) (Model, error) {
 	m := Model{
 		client:          client,
+		diffSource:      source,
 		mode:            mode,
-		source:          source,
+		source:          source.GetSourceLabel(),
 		destination:     destination,
 		cfg:             cfg,
 		selectedFile:    0,
@@ -280,7 +288,7 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) loadDiff() tea.Cmd {
 	return func() tea.Msg {
-		diffText, err := m.client.Diff(m.source)
+		diffText, err := m.diffSource.GetDiff()
 		if err != nil {
 			return errMsg{err}
 		}
@@ -333,6 +341,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.destination = msg.changeID
 		m.destPicker.Hide()
 		return m, m.loadDiff()
+
+	case diffEditorAppliedMsg:
+		return m, tea.Quit
 	}
 
 	return m, nil
@@ -444,7 +455,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "d":
-		if m.mode == ModeInteractive {
+		if m.mode == ModeInteractive && m.diffSource.SupportsRevisions() {
 			return m, m.loadRevisions()
 		}
 		return m, nil
@@ -460,7 +471,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "v":
-		if m.mode == ModeInteractive && m.focusedPanel == PanelDiffView {
+		if (m.mode == ModeInteractive || m.mode == ModeDiffEditor) && m.focusedPanel == PanelDiffView {
 			if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
 				file := m.changes[m.selectedFile]
 				if m.selectedHunk >= 0 && m.selectedHunk < len(file.Hunks) {
@@ -569,7 +580,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.loadDiff()
 
 	case " ":
-		if m.mode == ModeInteractive && m.focusedPanel == PanelDiffView {
+		if (m.mode == ModeInteractive || m.mode == ModeDiffEditor) && m.focusedPanel == PanelDiffView {
 			if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
 				file := m.changes[m.selectedFile]
 				if m.selectedHunk >= 0 && m.selectedHunk < len(file.Hunks) {
@@ -649,6 +660,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == ModeInteractive && m.destination != "" {
 			return m, m.applySelection()
 		}
+		if m.mode == ModeDiffEditor {
+			return m, m.applyDiffEditorSelection()
+		}
 		return m, nil
 
 	case "S":
@@ -703,7 +717,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) applySelection() tea.Cmd {
 	return func() tea.Msg {
-		// Check if any hunks or lines are selected
 		hasSelection := false
 		for _, file := range m.changes {
 			for hunkIdx := range file.Hunks {
@@ -730,6 +743,24 @@ func (m Model) applySelection() tea.Cmd {
 		}
 
 		return m.loadDiff()
+	}
+}
+
+type diffEditorAppliedMsg struct{}
+
+func (m Model) applyDiffEditorSelection() tea.Cmd {
+	return func() tea.Msg {
+		dirSource, ok := m.diffSource.(*diff.DirectorySource)
+		if !ok {
+			return errMsg{fmt.Errorf("diff-editor mode requires directory source")}
+		}
+
+		applier := diff.NewApplier(dirSource.LeftPath, dirSource.RightPath)
+		if err := applier.ApplySelections(m.changes, m.selection); err != nil {
+			return errMsg{fmt.Errorf("failed to apply selections: %w", err)}
+		}
+
+		return diffEditorAppliedMsg{}
 	}
 }
 
@@ -1279,16 +1310,21 @@ func (m Model) View() string {
 
 	diffViewHeight := m.height - fileListHeight - 2 // -2 for border + status bar
 
-	modeText := "Browse"
-	if m.mode == ModeInteractive {
+	var modeText string
+	switch m.mode {
+	case ModeBrowse:
+		modeText = "Browse"
+	case ModeInteractive:
 		modeText = "Interactive"
+	case ModeDiffEditor:
+		modeText = "Diff-Editor"
 	}
 
 	// Set selection state for diffview (needed for navigation highlighting in both modes)
 	if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
 		currentFile := m.changes[m.selectedFile]
 
-		if m.mode == ModeInteractive {
+		if m.mode == ModeInteractive || m.mode == ModeDiffEditor {
 			m.diffView.SetSelection(m.selectedHunk, func(hunkIdx int) bool {
 				return m.selection.IsHunkSelected(currentFile.Path, hunkIdx)
 			})

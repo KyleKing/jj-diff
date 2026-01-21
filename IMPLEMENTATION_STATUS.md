@@ -278,6 +278,13 @@
 
 ### Phase 3 Features (v0.4.0 - IN PROGRESS)
 
+- [✅] **Diff-Editor Mode** (`jj-diff LEFT RIGHT`)
+  - [✅] DiffSource interface for abstracting diff generation
+  - [✅] Directory walking and unified diff generation
+  - [✅] File reconstruction based on user selections
+  - [✅] Integration with jj's diff-editor protocol
+  - [ ] Manual testing with `jj split`, `jj diffedit`
+
 - [✅] **Hunk Selection Wrap-Around** (COMPLETE)
   - [✅] Hunk navigation (n/N/p) wraps around at boundaries
   - [✅] At last hunk, pressing n goes to first hunk

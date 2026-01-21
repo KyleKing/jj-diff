@@ -473,14 +473,18 @@ Guidelines for:
 - ✅ Easy to test and maintain
 - ✅ Production-ready as-is
 
-### Not Implementing: ❌ scm-diff-editor Drop-in Replacement
+### Revisited: ✅ Implementing Diff-Editor Mode
 
-**Reasons:**
-- Different use case (split/amend single commit vs move between revisions)
-- Significant architecture changes required
-- File-based protocol doesn't fit current design
-- Builtin scm-diff-editor already exists for that use case
-- Could be Phase 2 if user demand exists
+**Decision changed** based on user value proposition:
+- Syntax highlighting, SBS toggle, themes, fuzzy finder provide real UX improvements
+- Directory-based mode is architecturally clean (separate from revision mode)
+- Enables `jj split`, `jj diffedit`, `jj amend -i`, `jj squash -i` workflows
+
+**Implementation approach:**
+- DiffSource interface abstracts diff generation (revision vs directory)
+- DirectorySource walks directories and generates unified diff
+- Applier reconstructs files based on user selections
+- Model handles ModeDiffEditor with appropriate keybindings
 
 ### Phase 2 Considerations: 🤔 Advanced Features
 

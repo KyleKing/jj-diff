@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kyleking/jj-diff/internal/config"
+	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/model"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -48,7 +49,7 @@ func parseFlags() flags {
 	flag.IntVar(&f.tabWidth, "tab-width", 0, "Tab display width (default: 4, 0 uses config/default)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [LEFT RIGHT]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "A TUI for interactive diff viewing and manipulation in Jujutsu (jj)\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
@@ -57,6 +58,7 @@ func parseFlags() flags {
 		fmt.Fprintf(os.Stderr, "  jj-diff -r @-        # Browse parent's changes\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -i           # Interactive mode (move changes)\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -i -d @-     # Move changes to parent\n")
+		fmt.Fprintf(os.Stderr, "  jj-diff LEFT RIGHT   # Diff-editor mode (for jj split, diffedit)\n")
 	}
 
 	flag.Parse()
@@ -71,29 +73,7 @@ func main() {
 		return
 	}
 
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Failed to get working directory: %v", err)
-	}
-
-	client := jj.NewClient(wd)
-
-	if err := client.CheckInstalled(); err != nil {
-		log.Fatalf("jj is not installed or not in PATH: %v", err)
-	}
-
 	theme.Init()
-
-	var initialModel tea.Model
-
-	if f.scmInput != "" {
-		log.Fatal("scm-record compatibility mode not yet implemented")
-	}
-
-	mode := model.ModeBrowse
-	if f.interactive {
-		mode = model.ModeInteractive
-	}
 
 	cfg := config.LoadConfig()
 	if f.showWhitespace {
@@ -109,13 +89,61 @@ func main() {
 		cfg.TabWidth = f.tabWidth
 	}
 
-	initialModel, err = model.NewModel(client, f.revision, f.destination, mode, cfg)
+	var initialModel tea.Model
+	var err error
+
+	args := flag.Args()
+	if len(args) == 2 {
+		initialModel, err = initDiffEditorMode(args[0], args[1], cfg)
+	} else if len(args) == 0 {
+		initialModel, err = initRevisionMode(f, cfg)
+	} else {
+		log.Fatalf("Invalid arguments. Use 'jj-diff' for revision mode or 'jj-diff LEFT RIGHT' for diff-editor mode.")
+	}
+
 	if err != nil {
-		log.Fatalf("Failed to initialize model: %v", err)
+		log.Fatalf("Failed to initialize: %v", err)
 	}
 
 	p := tea.NewProgram(initialModel, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running program: %v", err)
 	}
+}
+
+func initRevisionMode(f flags, cfg config.Config) (tea.Model, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	client := jj.NewClient(wd)
+
+	if err := client.CheckInstalled(); err != nil {
+		return nil, fmt.Errorf("jj is not installed or not in PATH: %w", err)
+	}
+
+	if f.scmInput != "" {
+		return nil, fmt.Errorf("scm-record compatibility mode not yet implemented")
+	}
+
+	mode := model.ModeBrowse
+	if f.interactive {
+		mode = model.ModeInteractive
+	}
+
+	source := diff.NewRevisionSource(client, f.revision)
+	return model.NewModelWithSource(source, client, f.destination, mode, cfg)
+}
+
+func initDiffEditorMode(leftDir, rightDir string, cfg config.Config) (tea.Model, error) {
+	if _, err := os.Stat(leftDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("left directory does not exist: %s", leftDir)
+	}
+	if _, err := os.Stat(rightDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("right directory does not exist: %s", rightDir)
+	}
+
+	source := diff.NewDirectorySource(leftDir, rightDir)
+	return model.NewModelWithSource(source, nil, "", model.ModeDiffEditor, cfg)
 }

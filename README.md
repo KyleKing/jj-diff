@@ -41,8 +41,10 @@ A TUI for interactive diff viewing and manipulation in Jujutsu (jj).
 
 ### Planned Features (Phase 3)
 
+- **Diff-Editor Mode**: Drop-in replacement for jj's builtin diff editor
+  - Use with `jj split`, `jj diffedit`, `jj amend -i`, `jj squash -i`
+  - Configure: `ui.diff-editor = "jj-diff"`
 - **Multi-split**: Split commits into multiple focused commits
-- **scm-diff-editor Protocol**: Optional drop-in replacement for jj's builtin diff editor (if requested)
 - **Performance**: Virtualization for large diffs (>1000 lines)
 
 ## Installation
@@ -69,7 +71,23 @@ make build
 
 # Interactive mode with initial destination
 ./jj-diff -i --destination @-
+
+# As jj diff-editor (invoked by jj split, diffedit, etc.)
+./jj-diff $left $right
 ```
+
+### Configuring as jj's Diff-Editor
+
+To use jj-diff as jj's default diff-editor:
+
+```toml
+# ~/.config/jj/config.toml
+[ui]
+diff-editor = "jj-diff"
+diff-instructions = false
+```
+
+Then jj will use jj-diff for interactive commands like `jj split`, `jj diffedit`, etc.
 
 ## Keybindings
 
@@ -114,6 +132,14 @@ make build
   - `j/k` - Navigate revisions
   - `Enter` - Select destination
   - `Esc` - Cancel
+
+### Diff-Editor Mode Only
+- `Space` - Toggle current hunk selection (select changes to keep)
+- `v` - Enter visual mode for line-level selection
+- `j/k` in visual mode - Extend/contract line selection range
+- `Space` in visual mode - Confirm line selection and exit visual mode
+- `Esc` - Exit visual mode without applying
+- `a` - Apply selections and exit (writes changes to right directory)
 
 ### Visual Indicators
 - `>` - Current hunk or line (cursor position)
