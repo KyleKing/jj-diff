@@ -1,0 +1,103 @@
+// Install with `hk install --mise` to ensure local tools are available
+// Update hk_version when upgrading hk in the template
+
+local hk_version = "1.32.0"
+
+amends "package://github.com/jdx/hk/releases/download/v\(hk_version)/hk@\(hk_version)#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v\(hk_version)/hk@\(hk_version)#/Builtins.pkl"
+
+min_hk_version = hk_version
+
+local file_list = List("**/*.{gitignore,go,md,pkl,toml,yaml,yml}")
+
+local linters = new Mapping<String, Step> {
+    ["actionlint"] = Builtins.actionlint
+    ["ls-lint"] {
+        check = "ls-lint"
+    }
+    ["pkl"] {
+        glob = List("*.pkl")
+        check = "pkl eval {{files}} >/dev/null"
+    }
+    ["pch-check-added-large-files"] {
+        glob = file_list
+        check = "check-added-large-files {{ files }}"
+    }
+    ["pch-check-merge-conflict"] {
+        glob = file_list
+        check = "check-merge-conflict {{ files }}"
+    }
+    ["pch-check-symlinks"] {
+        glob = file_list
+        check = "check-symlinks {{ files }}"
+    }
+    ["pch-check-vcs-permalinks"] {
+        glob = file_list
+        check = "check-vcs-permalinks {{ files }}"
+    }
+    ["pch-check-yaml"] {
+        glob = List("**/*.{yml,yaml}")
+        check = "check-yaml {{ files }}"
+    }
+    ["pch-end-of-file-fixer"] {
+        glob = file_list
+        check_first = false
+        fix = "end-of-file-fixer {{ files }}"
+    }
+    ["pch-mixed-line-ending"] {
+        glob = file_list
+        check_first = false
+        fix = "mixed-line-ending {{ files }}"
+    }
+    ["pch-trailing-whitespace-fixer"] {
+        glob = file_list
+        check_first = false
+        fix = "trailing-whitespace-fixer {{ files }}"
+    }
+    ["toml-sort"] {
+        glob = List("**/*.toml")
+        check = "toml-sort --check {{ files }}"
+        fix = "toml-sort --in-place {{ files }}"
+    }
+}
+
+local commit_msg_checks = new Mapping<String, Step> {
+    ["commitizen"] {
+        check = "cz check --allow-abort --commit-msg-file={{commit_msg_file}}"
+    }
+}
+local pre_push_checks = new Mapping<String, Step> {
+    ["ci"] {
+        check = "mise run ci"
+    }
+    ["commitizen-branch"] {
+        check = "cz check --rev-range origin/HEAD..HEAD"
+    }
+}
+
+hooks = new {
+    ["pre-commit"] {
+        fix = true
+        stash = "patch-file"
+        steps = linters
+    }
+    ["pre-push"] {
+        steps = new {
+            ...pre_push_checks
+            ...linters
+        }
+    }
+    ["commit-msg"] {
+        steps = commit_msg_checks
+    }
+    ["fix"] {
+        fix = true
+        steps = linters
+    }
+    ["check"] {
+        steps = new {
+            ...pre_push_checks
+            ...linters
+        }
+    }
+}

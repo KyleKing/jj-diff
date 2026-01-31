@@ -1,1 +1,56 @@
+# Built binary (from copier project_name)
 jj-diff
+
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage
+*.test
+*.out
+coverage.out
+coverage.html
+*.cover
+*.coverprofile
+
+# Delve debugger
+__debug_bin*
+
+# Build artifacts
+dist/
+bin/
+build/
+
+# Go workspace files (local only)
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# Air (live reload) temporary directory
+tmp/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+
+# OS-specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
