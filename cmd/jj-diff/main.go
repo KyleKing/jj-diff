@@ -14,7 +14,11 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-const version = "0.1.0"
+var (
+	version = "dev"     //nolint:gochecknoglobals // set by goreleaser ldflags
+	commit  = "none"    //nolint:gochecknoglobals // set by goreleaser ldflags
+	date    = "unknown" //nolint:gochecknoglobals // set by goreleaser ldflags
+)
 
 type flags struct {
 	version        bool
@@ -69,7 +73,7 @@ func main() {
 	f := parseFlags()
 
 	if f.version {
-		fmt.Printf("jj-diff %s\n", version)
+		fmt.Printf("jj-diff %s (commit: %s, built: %s)\n", version, commit, date)
 		return
 	}
 

@@ -7,7 +7,8 @@ before:
     - go test ./...
 
 builds:
-  - env:
+  - main: ./cmd/jj-diff
+    env:
       - CGO_ENABLED=0
     ldflags:
       - -s -w

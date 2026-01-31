@@ -15,11 +15,11 @@ echo "Then update Formula/jj-diff.rb with the SHA256 values and version."
 
 [tasks.build]
 description = "Build binary"
-run = "go build -v ./..."
+run = "go build -v -o jj-diff ./cmd/jj-diff"
 
 [tasks.ci]
 description = "Run all checks (used in GitHub Actions)"
-run = ["go test -v ./...", "go build -v ./..."]
+run = ["go test -v ./...", "go build -v -o jj-diff ./cmd/jj-diff"]
 
 [tasks.clean]
 description = "Clean build artifacts"

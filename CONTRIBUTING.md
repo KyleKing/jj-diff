@@ -61,17 +61,20 @@ jj-diff/
 ### Building
 
 ```bash
-# Install dependencies
-make deps
+# Install tools
+mise install && hk install --mise
 
 # Build binary
-make build
+mise run build
 
 # Run tests
-make test
+mise run test
+
+# Run all checks
+mise run ci
 
 # Clean build artifacts
-make clean
+mise run clean
 ```
 
 ### Running Locally
@@ -230,12 +233,10 @@ func (m Model) View(width, height int) string { /* render */ }
 
 ## Release Process
 
-1. Update version in `cmd/jj-diff/main.go`
-2. Run full test suite: `go test ./...`
-3. Run manual tests: `./scripts/interactive-test.sh`
-4. Build binary: `make build`
-5. Tag release: `git tag v0.x.0`
-6. Create GitHub release with notes
+1. Run full test suite: `mise run ci`
+2. Run manual tests: `./scripts/interactive-test.sh`
+3. Tag release (goreleaser sets version from tag)
+4. Create GitHub release with notes
 
 ## Common Tasks
 

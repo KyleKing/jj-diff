@@ -17,8 +17,8 @@ A fast, keyboard-driven TUI for viewing and manipulating diffs in Jujutsu (jj). 
 
 ```bash
 # Build from source
-make deps
-make build
+mise install && hk install --mise
+mise run build
 
 # Or install with go
 go install github.com/kyleking/jj-diff/cmd/jj-diff@latest
