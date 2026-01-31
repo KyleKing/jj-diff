@@ -1,8 +1,15 @@
+# Project-specific tasks belong in separate mise.*.toml files (e.g., mise.project.toml)
+# This file contains shared tasks managed by the copier template
+
 [env]
 MISE_ENV = "hk"
 
 [settings]
 experimental = true
+
+[tasks.bench]
+description = "Run benchmarks"
+run = "go test -bench=. -benchmem -run=^$ ./..."
 
 [tasks."brew:sha"]
 description = "Print SHA256 for Homebrew formula (run after release)"
@@ -19,11 +26,15 @@ run = "go build -v -o jj-diff ./cmd/jj-diff"
 
 [tasks.ci]
 description = "Run all checks (used in GitHub Actions)"
-run = ["go test -v ./...", "go build -v -o jj-diff ./cmd/jj-diff"]
+run = ["go test -v -coverprofile=coverage.out ./...", "go build -v -o jj-diff ./cmd/jj-diff"]
 
 [tasks.clean]
 description = "Clean build artifacts"
 run = "rm -f coverage.out"
+
+[tasks.demo]
+description = "Generate VHS demo recordings"
+run = 'find . -name "*.tape" -not -path "./.git/*" -exec vhs {} +'
 
 [tasks.format]
 description = "Format code with golangci-lint and golines"

@@ -8,16 +8,13 @@ This document provides guidelines for AI coding assistants working on this Go pr
 
 ```
 jj-diff/
-├── cmd/jj-diff/      # CLI entry point
+
+├── cmd/jj-diff/  # CLI entry point
+
 ├── internal/         # Private packages (not importable by other modules)
-│   ├── model/        # Core TEA model (orchestrator)
-│   ├── jj/           # jj CLI integration
-│   ├── diff/         # Parser and patch generator
-│   ├── search/       # Search functionality
-│   ├── fuzzy/        # Fuzzy matching
-│   ├── components/   # UI components
-│   ├── config/       # Configuration
-│   └── theme/        # Catppuccin themes
+│   ├── app/          # Application logic
+│   └── ...
+
 └── go.mod
 ```
 
@@ -130,3 +127,8 @@ func TestAdd(t *testing.T) {
 
 - Do not stage, commit, or push without explicit instruction
 - Use conventional commits (commitizen enforced)
+
+## Project-Specific Guidelines
+
+<!-- Add project-specific patterns, architecture notes, and domain context below.
+     This section is preserved across template updates (_skip_if_exists). -->
