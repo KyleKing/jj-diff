@@ -8,13 +8,16 @@ This document provides guidelines for AI coding assistants working on this Go pr
 
 ```
 jj-diff/
-
-├── cmd/jj-diff/  # CLI entry point
-
-├── internal/         # Private packages (not importable by other modules)
-│   ├── app/          # Application logic
-│   └── ...
-
+├── cmd/jj-diff/      # CLI entry point
+├── internal/
+│   ├── model/        # Core TEA model (orchestrator)
+│   ├── jj/           # jj CLI integration
+│   ├── diff/         # Parser and patch generator
+│   ├── search/       # Search functionality
+│   ├── fuzzy/        # Fuzzy matching
+│   ├── components/   # UI components
+│   ├── config/       # Configuration
+│   └── theme/        # Catppuccin themes
 └── go.mod
 ```
 

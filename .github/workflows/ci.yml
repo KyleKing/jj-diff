@@ -26,7 +26,6 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-
           go-version-file: 'go.mod'
 
       - run: mise run ci
@@ -46,7 +45,6 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-
           go-version-file: 'go.mod'
 
       - uses: golangci/golangci-lint-action@v7
@@ -61,7 +59,6 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-
           go-version-file: 'go.mod'
 
       - name: Run benchmarks
