@@ -1,3 +1,7 @@
+# Project-specific tasks. Files in conf.d are loaded alphabetically and the last
+# definition wins, so this must sort after template.toml to override it. Do not
+# rename it to anything sorting before "template".
+
 [tasks.build]
 description = "Build the jj-diff binary"
 run = "go build -o jj-diff ./cmd/jj-diff"
