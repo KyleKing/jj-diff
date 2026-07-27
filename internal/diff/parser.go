@@ -193,22 +193,38 @@ func parseFileChange(section string) *FileChange {
 	return file
 }
 
+func atoiOrDefault(value string, fallback int) (int, error) {
+	if value == "" {
+		return fallback, nil
+	}
+
+	return strconv.Atoi(value)
+}
+
 func parseHunkHeader(header string) *Hunk {
 	match := hunkHeaderRE.FindStringSubmatch(header)
 	if len(match) < 5 {
 		return nil
 	}
 
-	oldStart, _ := strconv.Atoi(match[1])
-	oldLines := 1
-	if match[2] != "" {
-		oldLines, _ = strconv.Atoi(match[2])
+	oldStart, err := strconv.Atoi(match[1])
+	if err != nil {
+		return nil
 	}
 
-	newStart, _ := strconv.Atoi(match[3])
-	newLines := 1
-	if match[4] != "" {
-		newLines, _ = strconv.Atoi(match[4])
+	oldLines, err := atoiOrDefault(match[2], 1)
+	if err != nil {
+		return nil
+	}
+
+	newStart, err := strconv.Atoi(match[3])
+	if err != nil {
+		return nil
+	}
+
+	newLines, err := atoiOrDefault(match[4], 1)
+	if err != nil {
+		return nil
 	}
 
 	return &Hunk{
