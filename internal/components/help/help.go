@@ -146,16 +146,31 @@ func keyBinding(key, description string, width int) string {
 		Foreground(theme.Text)
 
 	keyWidth := 20
-	descWidth := width - keyWidth - 2
+	descWidth := width - keyWidth - 3
 
 	keyText := keyStyle.Render(padRight(key, keyWidth))
-	descText := descStyle.Render(description)
-
-	if len(descText) > descWidth {
-		descText = descText[:descWidth-3] + "..."
-	}
+	descText := descStyle.Render(truncate(description, descWidth))
 
 	return "  " + keyText + " " + descText
+}
+
+// truncate shortens text to width display columns, measured before any styling
+// is applied so ANSI escapes are never counted or sliced through.
+func truncate(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+
+	runes := []rune(text)
+	if width <= 3 {
+		return string(runes[:width])
+	}
+
+	return string(runes[:width-3]) + "..."
 }
 
 func wrapText(text string, width int) string {
@@ -167,11 +182,12 @@ func wrapText(text string, width int) string {
 }
 
 func padRight(text string, width int) string {
-	if len(text) >= width {
-		return text[:width]
+	visible := lipgloss.Width(text)
+	if visible >= width {
+		return truncate(text, width)
 	}
 
-	return text + strings.Repeat(" ", width-len(text))
+	return text + strings.Repeat(" ", width-visible)
 }
 
 func renderModal(content string, termWidth, termHeight int) string {
