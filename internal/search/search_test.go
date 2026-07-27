@@ -118,7 +118,7 @@ func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
 			Hunks: []diff.Hunk{
 				{
 					Lines: []diff.Line{
-						{Content: "test test test"},
+						{Content: "test "},
 					},
 				},
 			},
