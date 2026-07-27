@@ -98,7 +98,7 @@ Press `?` for help overlay with all keybindings.
 | `Tab` | Switch focus between file list and diff |
 | `n/p` | Next/previous hunk |
 | `/` | Search files and content |
-| `f` | Fuzzy file finder |
+| `f` | Filter files (type to search) |
 | `?` | Show help |
 | `q` | Quit |
 
