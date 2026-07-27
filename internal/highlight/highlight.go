@@ -131,13 +131,12 @@ func (h *Highlighter) styleToken(token chroma.Token) string {
 		// Keywords: accent color (but not too bright)
 		style = style.Foreground(theme.Accent).Bold(true)
 
-	case tokenType == chroma.String,
-		tokenType == chroma.LiteralString,
+	case tokenType == chroma.LiteralString,
 		tokenType == chroma.LiteralStringDouble:
 		// Strings: subtle green (different from diff additions)
 		style = style.Foreground(lipgloss.Color("#a6e3a1"))
 
-	case tokenType == chroma.Number, tokenType == chroma.LiteralNumber:
+	case tokenType == chroma.LiteralNumber:
 		// Numbers: subtle orange
 		style = style.Foreground(lipgloss.Color("#fab387"))
 
