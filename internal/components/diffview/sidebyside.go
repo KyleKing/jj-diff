@@ -57,7 +57,7 @@ func (v *SideBySideView) Render(file *diff.FileChange, ctx RenderContext) string
 	}
 
 	for len(lines) < ctx.Height {
-		lines = append(lines, strings.Repeat(" ", ctx.Width))
+		lines = append(lines, strings.Repeat(" ", max(ctx.Width, 0)))
 	}
 
 	return strings.Join(lines, "\n")
@@ -134,7 +134,7 @@ func (v *SideBySideView) renderSinglePane(
 	isRight bool,
 ) string {
 	if line == nil {
-		return strings.Repeat(" ", paneWidth)
+		return strings.Repeat(" ", max(paneWidth, 0))
 	}
 
 	lineNumStr := ""

@@ -309,7 +309,7 @@ func (m Model) renderUnified(width, height int, focused bool) string {
 
 	if m.lineIndex == nil || len(m.fileChange.Hunks) == 0 {
 		for len(lines) < height {
-			lines = append(lines, strings.Repeat(" ", width))
+			lines = append(lines, strings.Repeat(" ", max(width, 0)))
 		}
 
 		return strings.Join(lines, "\n")
@@ -348,7 +348,7 @@ func (m Model) renderUnified(width, height int, focused bool) string {
 	}
 
 	for len(lines) < height {
-		lines = append(lines, strings.Repeat(" ", width))
+		lines = append(lines, strings.Repeat(" ", max(width, 0)))
 	}
 
 	return strings.Join(lines, "\n")
@@ -558,18 +558,22 @@ func (m Model) renderHunkHeader(
 }
 
 func truncateOrPad(text string, width int) string {
-	visibleLen := lipgloss.Width(text)
-	if visibleLen > width {
-		return text[:width]
+	if width <= 0 {
+		return ""
 	}
 
-	return text + strings.Repeat(" ", width-visibleLen)
+	visibleLen := lipgloss.Width(text)
+	if visibleLen > width {
+		return text[:min(width, len(text))]
+	}
+
+	return text + strings.Repeat(" ", max(width-visibleLen, 0))
 }
 
 func padToSize(text string, width, height int) string {
 	lines := []string{text}
 	for len(lines) < height {
-		lines = append(lines, strings.Repeat(" ", width))
+		lines = append(lines, strings.Repeat(" ", max(width, 0)))
 	}
 
 	return strings.Join(lines, "\n")

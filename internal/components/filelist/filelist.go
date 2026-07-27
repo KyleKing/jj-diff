@@ -184,7 +184,7 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 	// Table header
 	typeColWidth := 4
 	statsColWidth := 12
-	pathColWidth := width - typeColWidth - statsColWidth - 4
+	pathColWidth := max(width-typeColWidth-statsColWidth-4, len(ellipsis)+1)
 
 	headerLine := fmt.Sprintf("%-*s  %-*s  %*s",
 		typeColWidth, "Type",
@@ -279,13 +279,13 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 					Background(theme.ModalBg).
 					Foreground(theme.Primary).
 					Render(line)
-				lines = append(lines, styledLine+strings.Repeat(" ", width-len(line)))
+				lines = append(lines, styledLine+strings.Repeat(" ", max(width-len(line), 0)))
 			} else {
 				styledLine := lipgloss.NewStyle().
 					Background(theme.MutedBg).
 					Foreground(theme.Text).
 					Render(line)
-				lines = append(lines, styledLine+strings.Repeat(" ", width-len(line)))
+				lines = append(lines, styledLine+strings.Repeat(" ", max(width-len(line), 0)))
 			}
 		} else {
 			lines = append(lines, truncateOrPad(line, width))
@@ -298,7 +298,7 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 		targetHeight -= 2 // Leave space for filter input
 	}
 	for len(lines) < targetHeight {
-		lines = append(lines, strings.Repeat(" ", width))
+		lines = append(lines, strings.Repeat(" ", max(width, 0)))
 	}
 
 	// Add filter input at bottom if in filter mode
@@ -321,18 +321,30 @@ func styleHeader(text string, width int) string {
 	return style.Render(truncateOrPad(text, width))
 }
 
+// truncateOrPad fits text to width. Width below the ellipsis length leaves no
+// room for a truncation marker, so the text is cut without one.
+const ellipsis = "..."
+
 func truncateOrPad(text string, width int) string {
-	if len(text) > width {
-		return text[:width-3] + "..."
+	if width <= 0 {
+		return ""
 	}
 
-	return text + strings.Repeat(" ", width-len(text))
+	if len(text) > width {
+		if width <= len(ellipsis) {
+			return text[:width]
+		}
+
+		return text[:width-len(ellipsis)] + ellipsis
+	}
+
+	return text + strings.Repeat(" ", max(width-len(text), 0))
 }
 
 func padToSize(text string, width, height int) string {
 	lines := []string{text}
 	for len(lines) < height {
-		lines = append(lines, strings.Repeat(" ", width))
+		lines = append(lines, strings.Repeat(" ", max(width, 0)))
 	}
 
 	return strings.Join(lines, "\n")
