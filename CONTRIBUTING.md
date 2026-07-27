@@ -72,21 +72,18 @@ brew install --formula https://github.com/kyleking/jj-diff/raw/main/Formula/jj-d
 
 ## Releases
 
-Automated via goreleaser on tag push. **Note:** For GH CLI extensions, the first release is required before users can run `gh extension install kyleking/jj-diff`.
+Automated by the Bump Version workflow. **Note:** For GH CLI extensions, the first release is required before users can run `gh extension install kyleking/jj-diff`.
 
 ### Creating a Release
 
-1. Tag and push:
-
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
+1. Land a `fix:` or `feat:` commit on `main`. Commit types commitizen does not bump (`docs:`, `build(deps):`) cut no tag and publish nothing.
 
 2. GitHub Actions will automatically:
-   - Run tests and build
-   - Create release with binaries for Linux, macOS, Windows, and FreeBSD (amd64/arm64)
-   - Publish to GitHub Releases
+   - Bump the version, update CHANGELOG.md, and push a `bump:` commit
+   - Tag the new version
+   - Run goreleaser to build binaries for Linux, macOS, Windows, and FreeBSD (amd64/arm64) and publish the release
+
+   goreleaser runs inside that same workflow because a tag pushed with `GITHUB_TOKEN` does not trigger any other workflow.
 
 3. Verify the release has properly named binaries:
    - `jj-diff-linux-amd64`
