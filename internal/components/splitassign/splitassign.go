@@ -195,7 +195,7 @@ func (m Model) renderSplitView(leftWidth, rightWidth, maxHeight int) string {
 	}
 
 	var combined []string
-	for i := 0; i < maxLines; i++ {
+	for i := range maxLines {
 		combined = append(combined, fmt.Sprintf("%s │ %s", tagLines[i], revLines[i]))
 	}
 

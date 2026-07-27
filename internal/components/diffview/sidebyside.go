@@ -100,7 +100,7 @@ func (v *SideBySideView) pairLines(lines []diff.Line) []linePair {
 				maxCount = addCount
 			}
 
-			for j := 0; j < maxCount; j++ {
+			for j := range maxCount {
 				pair := linePair{}
 				if delStart+j < delEnd {
 					pair.Left = &lines[delStart+j]

@@ -15,9 +15,9 @@ func testConfig() config.Config {
 // generateHunks creates n hunks with linesPerHunk lines each.
 func generateHunks(n, linesPerHunk int) []diff.Hunk {
 	hunks := make([]diff.Hunk, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		lines := make([]diff.Line, linesPerHunk)
-		for j := 0; j < linesPerHunk; j++ {
+		for j := range linesPerHunk {
 			lineType := diff.LineContext
 			if j%3 == 0 {
 				lineType = diff.LineAddition
@@ -63,7 +63,7 @@ func BenchmarkDiffViewRender_SmallDiff(b *testing.B) {
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(80, 40, false)
 	}
 }
@@ -80,7 +80,7 @@ func BenchmarkDiffViewRender_MediumDiff(b *testing.B) {
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(80, 40, false)
 	}
 }
@@ -97,7 +97,7 @@ func BenchmarkDiffViewRender_LargeDiff(b *testing.B) {
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(80, 40, false)
 	}
 }
@@ -114,7 +114,7 @@ func BenchmarkDiffViewRender_HugeDiff(b *testing.B) {
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(80, 40, false)
 	}
 }
@@ -134,7 +134,7 @@ func BenchmarkDiffViewRender_WithSelection(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(80, 40, false)
 	}
 }
@@ -155,7 +155,7 @@ func BenchmarkDiffViewRender_WithSearchMatches(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(80, 40, false)
 	}
 }
@@ -172,8 +172,8 @@ func BenchmarkDiffViewScroll(b *testing.B) {
 	m.SetFileChange(fileChange)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		for offset := 0; offset < 100; offset++ {
+	for range b.N {
+		for range 100 {
 			m.Scroll(1)
 			_ = m.View(80, 40, false)
 		}

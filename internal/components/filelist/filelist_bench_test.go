@@ -10,7 +10,7 @@ import (
 // generateFiles creates n mock file changes for benchmarking.
 func generateFiles(n int) []diff.FileChange {
 	files := make([]diff.FileChange, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		files[i] = diff.FileChange{
 			Path:       fmt.Sprintf("src/components/file%d.go", i),
 			ChangeType: diff.ChangeTypeModified,
@@ -28,7 +28,7 @@ func BenchmarkFileListRender_10Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(40, 30, false)
 	}
 }
@@ -40,7 +40,7 @@ func BenchmarkFileListRender_100Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(40, 30, false)
 	}
 }
@@ -52,7 +52,7 @@ func BenchmarkFileListRender_500Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(40, 30, false)
 	}
 }
@@ -64,7 +64,7 @@ func BenchmarkFileListRender_1000Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(40, 30, false)
 	}
 }
@@ -76,7 +76,7 @@ func BenchmarkFileListRender_5000Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(40, 30, false)
 	}
 }
@@ -97,7 +97,7 @@ func BenchmarkFileListRenderWithSearch_1000Files(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = m.View(40, 30, false)
 	}
 }

@@ -109,7 +109,7 @@ func FindLinePairs(hunk *Hunk) []LinePair {
 				maxPairs = addCount
 			}
 
-			for j := 0; j < maxPairs; j++ {
+			for j := range maxPairs {
 				pairs = append(pairs, LinePair{
 					OldLineIdx: delStart + j,
 					NewLineIdx: addStart + j,

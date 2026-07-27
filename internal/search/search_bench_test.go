@@ -11,13 +11,13 @@ import (
 func generateSearchTestFiles(fileCount, hunksPerFile, linesPerHunk int) []diff.FileChange {
 	files := make([]diff.FileChange, fileCount)
 
-	for i := 0; i < fileCount; i++ {
+	for i := range fileCount {
 		hunks := make([]diff.Hunk, hunksPerFile)
 
-		for j := 0; j < hunksPerFile; j++ {
+		for j := range hunksPerFile {
 			lines := make([]diff.Line, linesPerHunk)
 
-			for k := 0; k < linesPerHunk; k++ {
+			for k := range linesPerHunk {
 				lineType := diff.LineContext
 				if k%3 == 0 {
 					lineType = diff.LineAddition
@@ -68,7 +68,7 @@ func BenchmarkSearch_SmallDiff(b *testing.B) {
 	s.Query = "function"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		s.ExecuteSearch(files)
 	}
 }
@@ -80,7 +80,7 @@ func BenchmarkSearch_MediumDiff(b *testing.B) {
 	s.Query = "function"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		s.ExecuteSearch(files)
 	}
 }
@@ -92,7 +92,7 @@ func BenchmarkSearch_LargeDiff(b *testing.B) {
 	s.Query = "function"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		s.ExecuteSearch(files)
 	}
 }
@@ -104,7 +104,7 @@ func BenchmarkSearch_CommonTerm(b *testing.B) {
 	s.Query = "line" // Appears in every line
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		s.ExecuteSearch(files)
 	}
 }
@@ -116,7 +116,7 @@ func BenchmarkSearch_RareTerm(b *testing.B) {
 	s.Query = "processData"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		s.ExecuteSearch(files)
 	}
 }
@@ -128,7 +128,7 @@ func BenchmarkSearch_LongQuery(b *testing.B) {
 	s.Query = "function processData(input, config)"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		s.ExecuteSearch(files)
 	}
 }
@@ -141,8 +141,8 @@ func BenchmarkSearchNavigation(b *testing.B) {
 	s.ExecuteSearch(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < len(s.Matches); j++ {
+	for range b.N {
+		for range len(s.Matches) {
 			_ = s.NextMatch()
 		}
 	}
@@ -154,7 +154,7 @@ func BenchmarkSearch_IncrementalTyping(b *testing.B) {
 	queries := []string{"f", "fu", "fun", "func", "funct", "functi", "functio", "function"}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		for _, query := range queries {
 			s := NewSearchState()
 			s.Query = query

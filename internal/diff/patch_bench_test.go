@@ -9,13 +9,13 @@ import (
 func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileChange {
 	files := make([]FileChange, fileCount)
 
-	for i := 0; i < fileCount; i++ {
+	for i := range fileCount {
 		hunks := make([]Hunk, hunksPerFile)
 
-		for j := 0; j < hunksPerFile; j++ {
+		for j := range hunksPerFile {
 			lines := make([]Line, linesPerHunk)
 
-			for k := 0; k < linesPerHunk; k++ {
+			for k := range linesPerHunk {
 				lineType := LineContext
 				if k%3 == 0 {
 					lineType = LineAddition
@@ -122,7 +122,7 @@ func BenchmarkPatchGeneration_SmallDiff(b *testing.B) {
 	selection := createFullSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }
@@ -133,7 +133,7 @@ func BenchmarkPatchGeneration_MediumDiff(b *testing.B) {
 	selection := createFullSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }
@@ -144,7 +144,7 @@ func BenchmarkPatchGeneration_LargeDiff(b *testing.B) {
 	selection := createFullSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }
@@ -155,7 +155,7 @@ func BenchmarkPatchGeneration_PartialSelection(b *testing.B) {
 	selection := createPartialSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }
@@ -166,7 +166,7 @@ func BenchmarkPatchGeneration_LineLevel(b *testing.B) {
 	selection := createLineSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }
@@ -177,7 +177,7 @@ func BenchmarkPatchGeneration_SingleFile(b *testing.B) {
 	selection := createFullSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }
@@ -188,7 +188,7 @@ func BenchmarkPatchGeneration_ManySmallHunks(b *testing.B) {
 	selection := createFullSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }
@@ -199,7 +199,7 @@ func BenchmarkPatchGeneration_FewLargeHunks(b *testing.B) {
 	selection := createFullSelection(files)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = GeneratePatch(files, selection)
 	}
 }

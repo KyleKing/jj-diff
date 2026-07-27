@@ -114,7 +114,7 @@ func (m Model) View(width, height int) string {
 			lines = append(lines, styleHint("No matches", modalWidth))
 		}
 	} else {
-		for i := 0; i < resultCount; i++ {
+		for i := range resultCount {
 			match := m.matches[i]
 			isSelected := i == m.selectedIdx
 			lines = append(lines, m.renderMatch(match, isSelected, modalWidth))

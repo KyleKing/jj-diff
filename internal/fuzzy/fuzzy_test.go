@@ -125,7 +125,7 @@ func TestFilter_SortsByScore(t *testing.T) {
 	}
 
 	// Verify sorted by score descending
-	for i := 0; i < len(matches)-1; i++ {
+	for i := range len(matches) - 1 {
 		if matches[i].Score < matches[i+1].Score {
 			t.Errorf("Matches not sorted: match[%d].Score=%d < match[%d].Score=%d",
 				i, matches[i].Score, i+1, matches[i+1].Score)

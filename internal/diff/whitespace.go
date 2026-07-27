@@ -33,12 +33,12 @@ func (r *WhitespaceRenderer) Render(content string) string {
 	trailing := content[len(trimmed):]
 
 	var result strings.Builder
-	for i := 0; i < len(trimmed); i++ {
+	for i := range len(trimmed) {
 		switch trimmed[i] {
 		case '\t':
 			result.WriteRune(TabChar)
 			padding := r.tabWidth - 1
-			for j := 0; j < padding; j++ {
+			for range padding {
 				result.WriteRune(' ')
 			}
 		case ' ':
@@ -58,12 +58,12 @@ func (r *WhitespaceRenderer) Render(content string) string {
 
 func (r *WhitespaceRenderer) renderTrailingWhitespace(trailing string) string {
 	var result strings.Builder
-	for i := 0; i < len(trailing); i++ {
+	for i := range len(trailing) {
 		switch trailing[i] {
 		case '\t':
 			result.WriteRune(TabChar)
 			padding := r.tabWidth - 1
-			for j := 0; j < padding; j++ {
+			for range padding {
 				result.WriteRune(' ')
 			}
 		case ' ':
@@ -80,12 +80,12 @@ func RenderWhitespaceSimple(content string, tabWidth int) string {
 	}
 
 	var result strings.Builder
-	for i := 0; i < len(content); i++ {
+	for i := range len(content) {
 		switch content[i] {
 		case '\t':
 			result.WriteRune(TabChar)
 			padding := tabWidth - 1
-			for j := 0; j < padding; j++ {
+			for range padding {
 				result.WriteRune(' ')
 			}
 		case ' ':
