@@ -36,9 +36,34 @@ func (a *Applier) ApplySelections(files []FileChange, selection SelectionState) 
 	return nil
 }
 
+// containedPath joins a diff path onto a base directory and rejects any result
+// that escapes it, so a crafted diff cannot write outside the directories jj
+// hands the diff editor.
+func containedPath(baseDir, relPath string) (string, error) {
+	joined := filepath.Join(baseDir, relPath)
+
+	rel, err := filepath.Rel(baseDir, joined)
+	if err != nil {
+		return "", fmt.Errorf("resolving %q under %q: %w", relPath, baseDir, err)
+	}
+
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q escapes %q", relPath, baseDir)
+	}
+
+	return joined, nil
+}
+
 func (a *Applier) applyFileSelections(file FileChange, selection SelectionState) error {
-	leftPath := filepath.Join(a.LeftDir, file.Path)
-	rightPath := filepath.Join(a.RightDir, file.Path)
+	leftPath, err := containedPath(a.LeftDir, file.Path)
+	if err != nil {
+		return err
+	}
+
+	rightPath, err := containedPath(a.RightDir, file.Path)
+	if err != nil {
+		return err
+	}
 
 	hasAnySelection := false
 	for hunkIdx := range file.Hunks {
@@ -71,6 +96,7 @@ func (a *Applier) handleAddedFile(
 		return os.Remove(rightPath)
 	}
 
+	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	rightContent, err := os.ReadFile(rightPath)
 	if err != nil {
 		return err
@@ -88,6 +114,7 @@ func (a *Applier) handleDeletedFile(
 	hasSelection bool,
 ) error {
 	if !hasSelection {
+		//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 		leftContent, err := os.ReadFile(leftPath)
 		if err != nil {
 			return err
@@ -96,6 +123,7 @@ func (a *Applier) handleDeletedFile(
 		return a.writeFile(rightPath, string(leftContent))
 	}
 
+	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	leftContent, err := os.ReadFile(leftPath)
 	if err != nil {
 		return err
@@ -114,11 +142,13 @@ func (a *Applier) handleModifiedFile(
 	leftPath, rightPath string,
 	selection SelectionState,
 ) error {
+	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	leftContent, err := os.ReadFile(leftPath)
 	if err != nil {
 		return err
 	}
 
+	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	rightContent, err := os.ReadFile(rightPath)
 	if err != nil {
 		return err
@@ -283,7 +313,7 @@ func (a *Applier) reconstructModifiedFile(
 
 func (a *Applier) writeFile(path, content string) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
@@ -291,7 +321,8 @@ func (a *Applier) writeFile(path, content string) error {
 		content += "\n"
 	}
 
-	return os.WriteFile(path, []byte(content), 0o644)
+	//nolint:gosec // G703: callers resolve path through containedPath first.
+	return os.WriteFile(path, []byte(content), 0o600)
 }
 
 // SelectAll selects all hunks in all files.
