@@ -31,9 +31,10 @@ func writeTree(t *testing.T, dir, name, content string) {
 
 const (
 	leftMain  = "package main\n\nfunc main() {\n\tprintln(\"hello\")\n}\n"
-	rightMain = "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello, world\")\n\tfmt.Println(\"second line\")\n}\n"
-	leftDoc   = "# Notes\n\nline one\nline two\nline three\n"
-	rightDoc  = "# Notes\n\nline one\nline TWO changed\nline three\nline four added\n"
+	rightMain = "package main\n\nimport \"fmt\"\n\nfunc main() {\n" +
+		"\tfmt.Println(\"hello, world\")\n\tfmt.Println(\"second line\")\n}\n"
+	leftDoc  = "# Notes\n\nline one\nline two\nline three\n"
+	rightDoc = "# Notes\n\nline one\nline TWO changed\nline three\nline four added\n"
 )
 
 // TestApplySelections_RoundTrip is the contract the jj diff editor depends on:
@@ -73,6 +74,7 @@ func TestApplySelections_RoundTrip(t *testing.T) {
 			}
 
 			for name, want := range map[string]string{"main.go": wantMain, "NOTES.md": wantDoc} {
+				//nolint:gosec // G304: the path is built from the test's own temp directory.
 				got, err := os.ReadFile(filepath.Join(right, name))
 				if err != nil {
 					t.Fatalf("reading %s: %v", name, err)
@@ -111,7 +113,7 @@ func TestCompareDirectories_LineGranularity(t *testing.T) {
 		wantRight.WriteString(line)
 
 		if i%50 == 0 {
-			wantRight.WriteString(fmt.Sprintf("ADD%d\n", i))
+			fmt.Fprintf(&wantRight, "ADD%d\n", i)
 		}
 	}
 
