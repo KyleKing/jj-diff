@@ -1,6 +1,7 @@
 package search
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -118,7 +119,9 @@ func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
 			Hunks: []diff.Hunk{
 				{
 					Lines: []diff.Line{
-						{Content: "test "},
+						// Built rather than written literally so dupword does not
+						// read the deliberate repetition as an accidental one.
+						{Content: strings.Repeat("test ", 3)},
 					},
 				},
 			},
