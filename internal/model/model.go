@@ -1359,6 +1359,12 @@ func (m Model) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit", m.err)
 	}
 
+	// Bubble Tea renders once before the first tea.WindowSizeMsg arrives. Panel
+	// widths are derived from m.width, so laying out at zero produces garbage.
+	if m.width <= 0 || m.height <= 0 {
+		return ""
+	}
+
 	if len(m.changes) == 0 {
 		return "No changes found.\n\nPress r to refresh or q to quit"
 	}
