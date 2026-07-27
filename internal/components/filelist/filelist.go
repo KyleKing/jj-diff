@@ -109,10 +109,12 @@ func (m Model) renderCollapsed(width int, focused bool) string {
 	var additions, deletions int
 	for _, hunk := range file.Hunks {
 		for _, line := range hunk.Lines {
-			if line.Type == diff.LineAddition {
+			switch line.Type {
+			case diff.LineAddition:
 				additions++
-			} else if line.Type == diff.LineDeletion {
+			case diff.LineDeletion:
 				deletions++
+			case diff.LineContext:
 			}
 		}
 	}
@@ -239,10 +241,12 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 		var additions, deletions int
 		for _, hunk := range file.Hunks {
 			for _, line := range hunk.Lines {
-				if line.Type == diff.LineAddition {
+				switch line.Type {
+				case diff.LineAddition:
 					additions++
-				} else if line.Type == diff.LineDeletion {
+				case diff.LineDeletion:
 					deletions++
+				case diff.LineContext:
 				}
 			}
 		}

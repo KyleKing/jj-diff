@@ -97,10 +97,9 @@ func Score(text, query string) (int, []int) {
 
 func containsAllChars(text, query string) bool {
 	textRunes := []rune(text)
-	queryRunes := []rune(query)
 
 	textIdx := 0
-	for _, qChar := range queryRunes {
+	for _, qChar := range query {
 		found := false
 		for textIdx < len(textRunes) {
 			if textRunes[textIdx] == qChar {

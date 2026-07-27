@@ -36,20 +36,20 @@ func GeneratePatch(files []FileChange, selection SelectionState) string {
 		}
 
 		// Write file headers
-		patch.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", file.Path, file.Path))
+		fmt.Fprintf(&patch, "diff --git a/%s b/%s\n", file.Path, file.Path)
 
 		switch file.ChangeType {
 		case ChangeTypeAdded:
 			patch.WriteString("new file mode 100644\n")
 			patch.WriteString("--- /dev/null\n")
-			patch.WriteString(fmt.Sprintf("+++ b/%s\n", file.Path))
+			fmt.Fprintf(&patch, "+++ b/%s\n", file.Path)
 		case ChangeTypeDeleted:
 			patch.WriteString("deleted file mode 100644\n")
-			patch.WriteString(fmt.Sprintf("--- a/%s\n", file.Path))
+			fmt.Fprintf(&patch, "--- a/%s\n", file.Path)
 			patch.WriteString("+++ /dev/null\n")
 		default:
-			patch.WriteString(fmt.Sprintf("--- a/%s\n", file.Path))
-			patch.WriteString(fmt.Sprintf("+++ b/%s\n", file.Path))
+			fmt.Fprintf(&patch, "--- a/%s\n", file.Path)
+			fmt.Fprintf(&patch, "+++ b/%s\n", file.Path)
 		}
 
 		// Write hunks

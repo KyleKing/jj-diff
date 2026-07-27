@@ -124,12 +124,12 @@ func readFileContent(path string) (string, error) {
 func generateUnifiedDiff(path, leftContent, rightContent string, inLeft, inRight bool) string {
 	var builder strings.Builder
 
-	builder.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", path, path))
+	fmt.Fprintf(&builder, "diff --git a/%s b/%s\n", path, path)
 
 	if !inLeft {
 		builder.WriteString("new file mode 100644\n")
 		builder.WriteString("--- /dev/null\n")
-		builder.WriteString(fmt.Sprintf("+++ b/%s\n", path))
+		fmt.Fprintf(&builder, "+++ b/%s\n", path)
 		builder.WriteString(generateAddedFileHunks(rightContent))
 
 		return builder.String()
@@ -137,15 +137,15 @@ func generateUnifiedDiff(path, leftContent, rightContent string, inLeft, inRight
 
 	if !inRight {
 		builder.WriteString("deleted file mode 100644\n")
-		builder.WriteString(fmt.Sprintf("--- a/%s\n", path))
+		fmt.Fprintf(&builder, "--- a/%s\n", path)
 		builder.WriteString("+++ /dev/null\n")
 		builder.WriteString(generateDeletedFileHunks(leftContent))
 
 		return builder.String()
 	}
 
-	builder.WriteString(fmt.Sprintf("--- a/%s\n", path))
-	builder.WriteString(fmt.Sprintf("+++ b/%s\n", path))
+	fmt.Fprintf(&builder, "--- a/%s\n", path)
+	fmt.Fprintf(&builder, "+++ b/%s\n", path)
 	builder.WriteString(generateModifiedFileHunks(leftContent, rightContent))
 
 	return builder.String()
@@ -158,7 +158,7 @@ func generateAddedFileHunks(content string) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("@@ -0,0 +1,%d @@\n", len(lines)))
+	fmt.Fprintf(&builder, "@@ -0,0 +1,%d @@\n", len(lines))
 	for _, line := range lines {
 		builder.WriteString("+")
 		builder.WriteString(line)
@@ -175,7 +175,7 @@ func generateDeletedFileHunks(content string) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("@@ -1,%d +0,0 @@\n", len(lines)))
+	fmt.Fprintf(&builder, "@@ -1,%d +0,0 @@\n", len(lines))
 	for _, line := range lines {
 		builder.WriteString("-")
 		builder.WriteString(line)
@@ -364,9 +364,7 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 			}
 		}
 
-		builder.WriteString(
-			fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount),
-		)
+		fmt.Fprintf(&builder, "@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount)
 		for _, line := range hunkLines {
 			builder.WriteRune(line.lineType)
 			builder.WriteString(line.content)

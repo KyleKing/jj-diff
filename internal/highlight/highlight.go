@@ -118,37 +118,32 @@ func (h *Highlighter) styleToken(token chroma.Token) string {
 	// Use subtle colors that don't conflict with diff colors
 	style := lipgloss.NewStyle()
 
-	switch {
-	case tokenType == chroma.Comment,
-		tokenType == chroma.CommentSingle,
-		tokenType == chroma.CommentMultiline:
+	switch tokenType {
+	case chroma.Comment, chroma.CommentSingle, chroma.CommentMultiline:
 		// Comments: muted/soft color
 		style = style.Foreground(theme.SoftMutedBg)
 
-	case tokenType == chroma.Keyword,
-		tokenType == chroma.KeywordNamespace,
-		tokenType == chroma.KeywordType:
+	case chroma.Keyword, chroma.KeywordNamespace, chroma.KeywordType:
 		// Keywords: accent color (but not too bright)
 		style = style.Foreground(theme.Accent).Bold(true)
 
-	case tokenType == chroma.LiteralString,
-		tokenType == chroma.LiteralStringDouble:
+	case chroma.LiteralString, chroma.LiteralStringDouble:
 		// Strings: subtle green (different from diff additions)
 		style = style.Foreground(lipgloss.Color("#a6e3a1"))
 
-	case tokenType == chroma.LiteralNumber:
+	case chroma.LiteralNumber:
 		// Numbers: subtle orange
 		style = style.Foreground(lipgloss.Color("#fab387"))
 
-	case tokenType == chroma.Name, tokenType == chroma.NameFunction:
+	case chroma.Name, chroma.NameFunction:
 		// Function names: subtle blue
 		style = style.Foreground(lipgloss.Color("#89b4fa"))
 
-	case tokenType == chroma.NameClass, tokenType == chroma.NameBuiltin:
+	case chroma.NameClass, chroma.NameBuiltin:
 		// Class names: subtle yellow
 		style = style.Foreground(lipgloss.Color("#f9e2af"))
 
-	case tokenType == chroma.Operator:
+	case chroma.Operator:
 		// Operators: text color
 		style = style.Foreground(theme.Text)
 
