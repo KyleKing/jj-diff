@@ -190,13 +190,14 @@ func generateModifiedFileHunks(leftContent, rightContent string) string {
 	leftLines := splitLines(leftContent)
 	rightLines := splitLines(rightContent)
 
+	// Line mode, not DiffMain's checklines heuristic. computeHunks splits every
+	// segment on newlines, so a character-level diff hands it fragments such as
+	// "p" / "fmt.P" / "rintln(" and the reconstructed file comes out corrupt.
 	dmp := godiff.New()
-	diffs := dmp.DiffMain(leftContent, rightContent, true)
-	diffs = dmp.DiffCleanupSemantic(diffs)
+	leftRunes, rightRunes, lineArray := dmp.DiffLinesToRunes(leftContent, rightContent)
+	diffs := dmp.DiffCharsToLines(dmp.DiffMainRunes(leftRunes, rightRunes, false), lineArray)
 
-	hunks := computeHunks(leftLines, rightLines, diffs)
-
-	return hunks
+	return computeHunks(leftLines, rightLines, diffs)
 }
 
 func splitLines(content string) []string {
