@@ -519,17 +519,6 @@ func (m Model) applyWordDiffHighlight(
 	return result.String()
 }
 
-func styleHeader(text string, width int, focused bool) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary)
-	if focused {
-		style = style.Background(theme.MutedBg)
-	}
-
-	return style.Render(truncateOrPad(text, width))
-}
-
 func (m Model) renderHunkHeader(
 	text string,
 	width, hunkIdx int,
@@ -566,25 +555,6 @@ func (m Model) renderHunkHeader(
 	}
 
 	return style.Render(truncateOrPad(displayText, width))
-}
-
-func styleHunkHeader(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.Accent)
-
-	return style.Render(truncateOrPad(text, width))
-}
-
-func styleAddition(text string) string {
-	return lipgloss.NewStyle().
-		Foreground(theme.AddedLine).
-		Render(text)
-}
-
-func styleDeletion(text string) string {
-	return lipgloss.NewStyle().
-		Foreground(theme.DeletedLine).
-		Render(text)
 }
 
 func truncateOrPad(text string, width int) string {

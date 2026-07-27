@@ -1276,20 +1276,6 @@ func (m Model) getLineContentMatches(filePath string, hunkIdx, lineIdx int) []di
 	return ranges
 }
 
-func (m Model) enterFileFinderMode() (tea.Model, tea.Cmd) {
-	// Build list of file paths and indices
-	paths := make([]string, len(m.changes))
-	indices := make([]interface{}, len(m.changes))
-	for i, change := range m.changes {
-		paths[i] = change.Path
-		indices[i] = i
-	}
-
-	m.fileFinder.Show(paths, indices)
-
-	return m, nil
-}
-
 func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
