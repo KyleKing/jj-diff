@@ -31,7 +31,6 @@ builds:
       - goos: windows
         goarch: arm64
     binary: jj-diff
-    no_unique_dist_dir: true
 
 archives:
   - id: jj-diff
