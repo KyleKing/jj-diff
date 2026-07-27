@@ -195,10 +195,12 @@ func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 		limit = 20
 	}
 
-	template := `separate("\\n",` +
+	// jj emits one record per revision with no separator between them, so the
+	// template has to terminate each record itself for the parser to find the
+	// three-line boundaries.
+	template := `separate("\n",` +
 		`change_id.shortest(),` +
-		`if(description, description.first_line(), "(no description)"),` +
-		`"---")`
+		`if(description, description.first_line(), "(no description)")) ++ "\n---\n"`
 
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", "log",
