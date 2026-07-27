@@ -805,7 +805,9 @@ func (m Model) applySelection() tea.Cmd {
 			return errMsg{fmt.Errorf("failed to move changes: %w", err)}
 		}
 
-		return m.loadDiff()
+		// Inside a tea.Cmd the caller expects a tea.Msg, so the reload command has
+		// to be run rather than handed back as a message Update cannot match.
+		return m.loadDiff()()
 	}
 }
 
@@ -1036,7 +1038,9 @@ func (m Model) applySplit() tea.Cmd {
 		m.multiSplitState = NewMultiSplitState()
 		m.splitPreview.Hide()
 
-		return m.loadDiff()
+		// Inside a tea.Cmd the caller expects a tea.Msg, so the reload command has
+		// to be run rather than handed back as a message Update cannot match.
+		return m.loadDiff()()
 	}
 }
 
