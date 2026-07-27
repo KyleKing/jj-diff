@@ -2,6 +2,7 @@ package jj
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -81,12 +82,16 @@ func (c *Client) Undo() error {
 	return nil
 }
 
-func (c *Client) MoveChanges(patch, source, destination string) error {
+func (c *Client) MoveChanges(patch, source, destination string) (err error) {
 	tmpDir, err := os.MkdirTemp("", "jj-diff-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if rmErr := os.RemoveAll(tmpDir); rmErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to remove temp dir %s: %w", tmpDir, rmErr))
+		}
+	}()
 
 	patchFile := filepath.Join(tmpDir, "changes.patch")
 	if err := os.WriteFile(patchFile, []byte(patch), 0o644); err != nil {
@@ -96,14 +101,28 @@ func (c *Client) MoveChanges(patch, source, destination string) error {
 	return c.moveChangesWithPatch(patchFile, destination)
 }
 
-func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
+// moveChangesWithPatch restores the original working copy before returning, so
+// the returned error may carry a second, joined error from that restore.
+func (c *Client) moveChangesWithPatch(patchFile, destination string) (err error) {
 	currentWC, err := c.getCurrentWorkingCopy()
 	if err != nil {
 		return fmt.Errorf("failed to get current working copy: %w", err)
 	}
 
 	defer func() {
-		_ = c.restoreWorkingCopy(currentWC)
+		// On the success path the squash consumes the working copy commit, so
+		// currentWC no longer resolves and there is nothing to restore. Only a
+		// bail-out leaves the caller sitting somewhere it did not start.
+		if err == nil {
+			return
+		}
+
+		if restoreErr := c.restoreWorkingCopy(currentWC); restoreErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf("failed to restore working copy %s: %w", currentWC, restoreErr),
+			)
+		}
 	}()
 
 	if _, err := c.executeJJ("new", destination, "--no-edit"); err != nil {
@@ -112,20 +131,17 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
 
 	// Restore working copy to destination state so patch applies cleanly
 	if _, err := c.executeJJ("restore", "--from", destination); err != nil {
-		c.Undo()
-		return fmt.Errorf("failed to restore working copy: %w", err)
+		return c.undoAfter(fmt.Errorf("failed to restore working copy: %w", err))
 	}
 
 	cmd := exec.Command("git", "apply", patchFile)
 	cmd.Dir = c.baseDir
 	if output, err := cmd.CombinedOutput(); err != nil {
-		c.Undo()
-		return fmt.Errorf("failed to apply patch: %w: %s", err, output)
+		return c.undoAfter(fmt.Errorf("failed to apply patch: %w: %s", err, output))
 	}
 
 	if _, err := c.executeJJ("squash", "--into", destination); err != nil {
-		c.Undo()
-		return fmt.Errorf("failed to squash changes: %w", err)
+		return c.undoAfter(fmt.Errorf("failed to squash changes: %w", err))
 	}
 
 	return nil
@@ -143,6 +159,32 @@ func (c *Client) getCurrentWorkingCopy() (string, error) {
 func (c *Client) restoreWorkingCopy(changeID string) error {
 	_, err := c.executeJJ("edit", changeID)
 	return err
+}
+
+// undoAfter reports cause, and additionally reports when the rollback itself
+// failed and the repository is therefore left modified.
+func (c *Client) undoAfter(cause error) error {
+	if undoErr := c.Undo(); undoErr != nil {
+		return errors.Join(
+			cause,
+			fmt.Errorf("rollback failed, repository may be left modified: %w", undoErr),
+		)
+	}
+
+	return cause
+}
+
+// restoreOperationAfter reports cause, and additionally reports when restoring
+// opID failed and the repository is therefore left modified.
+func (c *Client) restoreOperationAfter(opID string, cause error) error {
+	if restoreErr := c.restoreOperation(opID); restoreErr != nil {
+		return errors.Join(
+			cause,
+			fmt.Errorf("rollback to operation %s failed, repository may be left modified: %w", opID, restoreErr),
+		)
+	}
+
+	return cause
 }
 
 func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
@@ -367,8 +409,7 @@ func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 		if plan.Destination.Type == SplitDestNewCommit {
 			changeID, err := c.createNewCommit(plan.Destination.Description)
 			if err != nil {
-				c.restoreOperation(opID)
-				return fmt.Errorf("failed to create new commit for tag %c: %w", plan.Tag, err)
+				return c.restoreOperationAfter(opID, fmt.Errorf("failed to create new commit for tag %c: %w", plan.Tag, err))
 			}
 			destChangeID = changeID
 		} else {
@@ -376,8 +417,7 @@ func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 		}
 
 		if err := c.MoveChanges(plan.Patch, source, destChangeID); err != nil {
-			c.restoreOperation(opID)
-			return fmt.Errorf("failed to apply patch for tag %c (plan %d): %w", plan.Tag, i+1, err)
+			return c.restoreOperationAfter(opID, fmt.Errorf("failed to apply patch for tag %c (plan %d): %w", plan.Tag, i+1, err))
 		}
 	}
 
