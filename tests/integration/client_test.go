@@ -150,3 +150,45 @@ func TestMoveChanges_WorkingCopyPreservation(t *testing.T) {
 		t.Errorf("Repository appears corrupted: %s", statusOutput)
 	}
 }
+
+// TestGetRevisions_ParsesRealLogOutput guards the jj log template: an escaped
+// backslash there produces one unbroken line and silently yields no revisions,
+// which empties the destination picker without any error surfacing.
+func TestGetRevisions_ParsesRealLogOutput(t *testing.T) {
+	repo := NewTestRepo(t)
+
+	repo.WriteFile("file1.txt", "line 1\n")
+	repo.Commit("feat: first")
+	repo.WriteFile("file2.txt", "line 2\n")
+	repo.Commit("feat: second")
+
+	client := jj.NewClient(repo.Dir)
+
+	revisions, err := client.GetRevisions(20)
+	if err != nil {
+		t.Fatalf("GetRevisions failed: %v", err)
+	}
+
+	if len(revisions) < 2 {
+		t.Fatalf("Expected at least 2 revisions, got %d: %+v", len(revisions), revisions)
+	}
+
+	var found bool
+	for _, rev := range revisions {
+		if rev.ChangeID == "" {
+			t.Errorf("Revision has empty change ID: %+v", rev)
+		}
+
+		if strings.Contains(rev.ChangeID, "\\n") || strings.Contains(rev.Description, "\\n") {
+			t.Errorf("Revision carries a literal \\n escape: %+v", rev)
+		}
+
+		if rev.Description == "feat: second" {
+			found = true
+		}
+	}
+
+	if !found {
+		t.Errorf("Expected a revision described %q, got %+v", "feat: second", revisions)
+	}
+}
