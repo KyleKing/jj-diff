@@ -152,12 +152,15 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 		}
 
 		matches := fuzzy.FilterWithData(m.filterQuery, filePaths, fileData)
-		displayFiles = make([]diff.FileChange, len(matches))
-		displayIndices = make([]int, len(matches))
-		for i, match := range matches {
-			idx := match.Original.(int)
-			displayFiles[i] = m.files[idx]
-			displayIndices[i] = idx
+		displayFiles = make([]diff.FileChange, 0, len(matches))
+		displayIndices = make([]int, 0, len(matches))
+		for _, match := range matches {
+			idx, ok := match.Original.(int)
+			if !ok || idx < 0 || idx >= len(m.files) {
+				continue
+			}
+			displayFiles = append(displayFiles, m.files[idx])
+			displayIndices = append(displayIndices, idx)
 		}
 	} else {
 		displayFiles = m.files

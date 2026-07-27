@@ -1312,8 +1312,7 @@ func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		if selected := m.fileFinder.GetSelected(); selected != nil {
-			fileIdx := selected.(int)
+		if fileIdx, ok := m.fileFinder.GetSelected().(int); ok {
 			m.selectedFile = fileIdx
 			m.selectedHunk = 0
 			m.lineCursor = 0
