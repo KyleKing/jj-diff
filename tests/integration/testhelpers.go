@@ -10,8 +10,8 @@ import (
 
 // TestRepo represents a temporary jj repository for testing.
 type TestRepo struct {
-	Dir string
 	t   *testing.T
+	Dir string
 }
 
 // NewTestRepo creates a new temporary jj repository.
@@ -21,6 +21,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 	tmpDir := t.TempDir()
 
 	// Initialize jj repo
+	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
 	cmd := exec.Command("jj", "git", "init", tmpDir)
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to init jj repo: %v", err)
@@ -47,11 +48,11 @@ func (r *TestRepo) WriteFile(path, content string) {
 	r.t.Helper()
 	fullPath := filepath.Join(r.Dir, path)
 
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o750); err != nil {
 		r.t.Fatalf("Failed to create directories: %v", err)
 	}
 
-	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
 		r.t.Fatalf("Failed to write file %s: %v", path, err)
 	}
 }
@@ -60,6 +61,7 @@ func (r *TestRepo) WriteFile(path, content string) {
 func (r *TestRepo) ReadFile(path string) string {
 	r.t.Helper()
 	fullPath := filepath.Join(r.Dir, path)
+	//nolint:gosec // G304: the path is built from the test's own temp directory.
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		r.t.Fatalf("Failed to read file %s: %v", path, err)
@@ -72,6 +74,7 @@ func (r *TestRepo) ReadFile(path string) string {
 func (r *TestRepo) Commit(message string) {
 	r.t.Helper()
 
+	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
 	cmd := exec.Command("jj", "commit", "-m", message)
 	cmd.Dir = r.Dir
 	if err := cmd.Run(); err != nil {
@@ -82,6 +85,7 @@ func (r *TestRepo) Commit(message string) {
 // Run executes a jj command in the repository.
 func (r *TestRepo) Run(args ...string) (string, error) {
 	r.t.Helper()
+	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
 	cmd := exec.Command("jj", args...)
 	cmd.Dir = r.Dir
 	output, err := cmd.CombinedOutput()

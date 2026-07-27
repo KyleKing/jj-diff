@@ -465,46 +465,46 @@ func TestModelViewOptionToggles(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
 	tests := []struct {
+		checkFn  func(m Model) bool
 		name     string
 		key      rune
-		checkFn  func(m Model) bool
 		expected bool
 	}{
 		{
-			"toggle whitespace on",
-			'w',
-			func(m Model) bool { return m.diffView.ShowWhitespace() },
-			true,
+			checkFn:  func(m Model) bool { return m.diffView.ShowWhitespace() },
+			name:     "toggle whitespace on",
+			key:      'w',
+			expected: true,
 		},
 		{
-			"toggle whitespace off",
-			'w',
-			func(m Model) bool { return m.diffView.ShowWhitespace() },
-			false,
+			checkFn:  func(m Model) bool { return m.diffView.ShowWhitespace() },
+			name:     "toggle whitespace off",
+			key:      'w',
+			expected: false,
 		},
 		{
-			"toggle word diff on",
-			'W',
-			func(m Model) bool { return m.diffView.WordLevelDiff() },
-			true,
+			checkFn:  func(m Model) bool { return m.diffView.WordLevelDiff() },
+			name:     "toggle word diff on",
+			key:      'W',
+			expected: true,
 		},
 		{
-			"toggle word diff off",
-			'W',
-			func(m Model) bool { return m.diffView.WordLevelDiff() },
-			false,
+			checkFn:  func(m Model) bool { return m.diffView.WordLevelDiff() },
+			name:     "toggle word diff off",
+			key:      'W',
+			expected: false,
 		},
 		{
-			"toggle line numbers off",
-			'l',
-			func(m Model) bool { return m.diffView.ShowLineNumbers() },
-			false,
+			checkFn:  func(m Model) bool { return m.diffView.ShowLineNumbers() },
+			name:     "toggle line numbers off",
+			key:      'l',
+			expected: false,
 		},
 		{
-			"toggle line numbers on",
-			'l',
-			func(m Model) bool { return m.diffView.ShowLineNumbers() },
-			true,
+			checkFn:  func(m Model) bool { return m.diffView.ShowLineNumbers() },
+			name:     "toggle line numbers on",
+			key:      'l',
+			expected: true,
 		},
 	}
 

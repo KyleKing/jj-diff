@@ -1,12 +1,17 @@
 package diff
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
+
+// ErrPathEscapesBase reports a diff path that resolves outside the directory it
+// was joined to.
+var ErrPathEscapesBase = errors.New("path escapes its base directory")
 
 // Applier handles writing user selections back to the right directory.
 // For diff-editor mode, jj expects the right directory to contain
@@ -48,7 +53,7 @@ func containedPath(baseDir, relPath string) (string, error) {
 	}
 
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q escapes %q", relPath, baseDir)
+		return "", fmt.Errorf("%w: %q under %q", ErrPathEscapesBase, relPath, baseDir)
 	}
 
 	return joined, nil
@@ -236,9 +241,9 @@ func (a *Applier) reconstructModifiedFile(
 	rightLines := strings.Split(rightContent, "\n")
 
 	type lineAction struct {
-		lineNum  int
 		action   string
 		content  string
+		lineNum  int
 		selected bool
 	}
 

@@ -193,12 +193,14 @@ func parseFileChange(section string) *FileChange {
 	return file
 }
 
-func atoiOrDefault(value string, fallback int) (int, error) {
+func atoiOrDefault(value string, fallback int) (int, bool) {
 	if value == "" {
-		return fallback, nil
+		return fallback, true
 	}
 
-	return strconv.Atoi(value)
+	parsed, err := strconv.Atoi(value)
+
+	return parsed, err == nil
 }
 
 func parseHunkHeader(header string) *Hunk {
@@ -212,8 +214,8 @@ func parseHunkHeader(header string) *Hunk {
 		return nil
 	}
 
-	oldLines, err := atoiOrDefault(match[2], 1)
-	if err != nil {
+	oldLines, ok := atoiOrDefault(match[2], 1)
+	if !ok {
 		return nil
 	}
 
@@ -222,8 +224,8 @@ func parseHunkHeader(header string) *Hunk {
 		return nil
 	}
 
-	newLines, err := atoiOrDefault(match[4], 1)
-	if err != nil {
+	newLines, ok := atoiOrDefault(match[4], 1)
+	if !ok {
 		return nil
 	}
 

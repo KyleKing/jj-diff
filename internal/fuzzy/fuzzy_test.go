@@ -162,8 +162,8 @@ func TestScore_RealWorldExamples(t *testing.T) {
 	testCases := []struct {
 		text          string
 		query         string
-		shouldMatch   bool
 		betterMatches []string
+		shouldMatch   bool
 	}{
 		{
 			text:        "internal/model/model.go",

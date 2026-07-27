@@ -26,9 +26,9 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestLoadConfigFromEnv(t *testing.T) {
 	tests := []struct {
-		name     string
 		envVars  map[string]string
 		checkFn  func(Config) bool
+		name     string
 		expected bool
 	}{
 		{

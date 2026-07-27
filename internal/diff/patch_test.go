@@ -416,11 +416,11 @@ func TestGeneratePatch_PartialHunk(t *testing.T) {
 // TestExpandWithContext tests context expansion algorithm.
 func TestExpandWithContext(t *testing.T) {
 	tests := []struct {
-		name         string
 		selected     map[int]bool
+		expected     map[int]bool
+		name         string
 		totalLines   int
 		contextLines int
-		expected     map[int]bool
 	}{
 		{
 			name:         "single line with context",
@@ -473,8 +473,8 @@ func TestExpandWithContext(t *testing.T) {
 func TestRecalculateHunkHeader(t *testing.T) {
 	tests := []struct {
 		name     string
-		lines    []Line
 		expected string
+		lines    []Line
 	}{
 		{
 			name: "only additions",

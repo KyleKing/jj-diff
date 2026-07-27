@@ -22,16 +22,16 @@ var (
 )
 
 type flags struct {
-	version        bool
 	revision       string
-	browse         bool
-	interactive    bool
 	scmInput       string
 	destination    string
+	tabWidth       int
+	version        bool
+	browse         bool
+	interactive    bool
 	showWhitespace bool
 	sideBySide     bool
 	wordDiff       bool
-	tabWidth       int
 }
 
 func parseFlags() flags {

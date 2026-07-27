@@ -216,10 +216,10 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 	const contextLines = 3
 
 	type diffLine struct {
-		lineType rune
 		content  string
 		oldNum   int
 		newNum   int
+		lineType rune
 	}
 
 	var allLines []diffLine

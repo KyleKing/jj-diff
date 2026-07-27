@@ -9,8 +9,8 @@ func TestRenderWhitespaceSimple(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		tabWidth int
 		contains []string
+		tabWidth int
 	}{
 		{
 			name:     "spaces become dots",
