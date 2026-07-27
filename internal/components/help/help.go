@@ -62,6 +62,12 @@ func (m Model) View(width, height int) string {
 	lines = append(lines, keyBinding("r", "Refresh diff from jj", modalWidth))
 	lines = append(lines, keyBinding("/", "Search in files and diff content", modalWidth))
 	lines = append(lines, keyBinding("f", "Filter files (type to search)", modalWidth))
+
+	if m.mode == "Diff-Editor" {
+		lines = append(lines, keyBinding("Space", "Keep or drop the current hunk", modalWidth))
+		lines = append(lines, keyBinding("a", "Apply and return to jj", modalWidth))
+	}
+
 	lines = append(lines, "")
 
 	lines = append(lines, styleSection("View Options", modalWidth))

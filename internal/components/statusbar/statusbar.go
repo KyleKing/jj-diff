@@ -63,21 +63,33 @@ func (m Model) getContextHints(ctx Context) string {
 		return "j/k:select | Space:confirm | Esc:cancel"
 	}
 
+	if ctx.Mode == "Diff-Editor" {
+		if ctx.FocusedPanel == "files" {
+			return "j/k:nav | Tab:diff | a:apply | ?:help"
+		}
+
+		return "j/k:scroll | Space:keep/drop | a:apply | ?:help"
+	}
+
 	if ctx.FocusedPanel == "files" {
 		return "j/k:nav | Tab:diff | /:search | f:find | ?:help"
 	}
 
 	if ctx.Mode == "Interactive" {
-		return "j/k:scroll | Space:select | w/s/l:view | ?:help"
+		return "j/k:scroll | Space:select | a:apply | w/s/l:view | ?:help"
 	}
 
 	return "j/k:scroll | Ctrl-d/u:page | w:ws | s:sbs | ?:help"
 }
 
 func truncateOrPad(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
 	if len(text) > width {
 		return text[:width]
 	}
 
-	return text + strings.Repeat(" ", width-len(text))
+	return text + strings.Repeat(" ", max(width-len(text), 0))
 }

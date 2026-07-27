@@ -439,8 +439,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.closeAllModals()
 		modeText := "Browse"
-		if m.mode == ModeInteractive {
+		switch m.mode {
+		case ModeInteractive:
 			modeText = "Interactive"
+		case ModeDiffEditor:
+			modeText = "Diff-Editor"
+		case ModeBrowse:
 		}
 		m.help.Show(modeText)
 
