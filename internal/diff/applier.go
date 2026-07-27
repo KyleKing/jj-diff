@@ -153,16 +153,9 @@ func (a *Applier) handleModifiedFile(
 		return err
 	}
 
-	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
-	rightContent, err := os.ReadFile(rightPath)
-	if err != nil {
-		return err
-	}
-
 	reconstructed := a.reconstructModifiedFile(
 		file,
 		string(leftContent),
-		string(rightContent),
 		selection,
 	)
 
@@ -232,85 +225,53 @@ func (a *Applier) reconstructDeletedFile(
 	return strings.Join(result, "\n")
 }
 
+// reconstructModifiedFile replays the hunks over the left content, keeping a
+// change only where it is selected. Unselected deletions stay, unselected
+// additions are dropped, so an empty selection reproduces the left file exactly
+// and a full selection reproduces the right file exactly.
 func (a *Applier) reconstructModifiedFile(
 	file FileChange,
-	leftContent, rightContent string,
+	leftContent string,
 	selection SelectionState,
 ) string {
 	leftLines := strings.Split(leftContent, "\n")
-	rightLines := strings.Split(rightContent, "\n")
-
-	type lineAction struct {
-		action   string
-		content  string
-		lineNum  int
-		selected bool
-	}
-
-	var actions []lineAction
+	result := make([]string, 0, len(leftLines))
+	oldIdx := 0
 
 	for hunkIdx, hunk := range file.Hunks {
 		isSelected := selection.IsHunkSelected(file.Path, hunkIdx)
 		hasPartial := selection.HasPartialSelection(file.Path, hunkIdx)
+
+		for oldIdx < hunk.OldStart-1 && oldIdx < len(leftLines) {
+			result = append(result, leftLines[oldIdx])
+			oldIdx++
+		}
 
 		for lineIdx, line := range hunk.Lines {
 			selected := isSelected ||
 				(hasPartial && selection.IsLineSelected(file.Path, hunkIdx, lineIdx))
 
 			switch line.Type {
+			case LineContext:
+				result = append(result, line.Content)
+				oldIdx++
 			case LineDeletion:
-				actions = append(actions, lineAction{
-					lineNum:  line.OldLineNum,
-					action:   "delete",
-					content:  line.Content,
-					selected: selected,
-				})
+				if !selected {
+					result = append(result, line.Content)
+				}
+
+				oldIdx++
 			case LineAddition:
-				actions = append(actions, lineAction{
-					lineNum:  line.NewLineNum,
-					action:   "add",
-					content:  line.Content,
-					selected: selected,
-				})
+				if selected {
+					result = append(result, line.Content)
+				}
 			}
 		}
 	}
 
-	deletions := make(map[int]bool)
-	additions := make(map[int][]string)
-
-	for _, act := range actions {
-		if act.action == "delete" && act.selected {
-			deletions[act.lineNum] = true
-		} else if act.action == "add" && act.selected {
-			additions[act.lineNum] = append(additions[act.lineNum], act.content)
-		}
-	}
-
-	result := make([]string, 0, len(leftLines))
-	rightIdx := 0
-
-	for i, line := range leftLines {
-		oldLineNum := i + 1
-
-		if deletions[oldLineNum] {
-			rightIdx++
-			continue
-		}
-
-		newLineNum := rightIdx + 1
-		if adds, ok := additions[newLineNum]; ok {
-			result = append(result, adds...)
-			rightIdx += len(adds)
-		}
-
-		result = append(result, line)
-		rightIdx++
-	}
-
-	finalLineNum := len(rightLines)
-	if adds, ok := additions[finalLineNum]; ok {
-		result = append(result, adds...)
+	for oldIdx < len(leftLines) {
+		result = append(result, leftLines[oldIdx])
+		oldIdx++
 	}
 
 	return strings.Join(result, "\n")
