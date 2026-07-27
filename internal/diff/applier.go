@@ -32,6 +32,7 @@ func (a *Applier) ApplySelections(files []FileChange, selection SelectionState) 
 			return fmt.Errorf("applying selections for %s: %w", file.Path, err)
 		}
 	}
+
 	return nil
 }
 
@@ -76,6 +77,7 @@ func (a *Applier) handleAddedFile(
 	}
 
 	reconstructed := a.reconstructAddedFile(file, string(rightContent), selection)
+
 	return a.writeFile(rightPath, reconstructed)
 }
 
@@ -90,6 +92,7 @@ func (a *Applier) handleDeletedFile(
 		if err != nil {
 			return err
 		}
+
 		return a.writeFile(rightPath, string(leftContent))
 	}
 
@@ -102,6 +105,7 @@ func (a *Applier) handleDeletedFile(
 	if reconstructed == "" {
 		return os.Remove(rightPath)
 	}
+
 	return a.writeFile(rightPath, reconstructed)
 }
 
@@ -126,6 +130,7 @@ func (a *Applier) handleModifiedFile(
 		string(rightContent),
 		selection,
 	)
+
 	return a.writeFile(rightPath, reconstructed)
 }
 
@@ -320,5 +325,6 @@ func GetUnselectedFiles(files []FileChange, selection SelectionState) []string {
 		}
 	}
 	sort.Strings(unselected)
+
 	return unselected
 }

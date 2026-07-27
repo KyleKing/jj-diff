@@ -221,6 +221,7 @@ func TestScrolling(t *testing.T) {
 							NewLineNum: i + 1,
 						}
 					}
+
 					return lines
 				}(),
 			},

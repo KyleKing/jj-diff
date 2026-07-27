@@ -74,6 +74,7 @@ func (m Model) GetSelected() interface{} {
 	if m.selectedIdx >= 0 && m.selectedIdx < len(m.matches) {
 		return m.matches[m.selectedIdx].Original
 	}
+
 	return nil
 }
 
@@ -199,6 +200,7 @@ func styleTitle(text string, width int) string {
 		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -206,6 +208,7 @@ func styleInput(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Foreground(theme.Text).
 		Width(width)
+
 	return style.Render(text)
 }
 
@@ -214,6 +217,7 @@ func styleHint(text string, width int) string {
 		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -222,6 +226,7 @@ func styleFooter(text string, width int) string {
 		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 

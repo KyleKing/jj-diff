@@ -173,5 +173,6 @@ func (v *SideBySideView) renderSideBySideHunkHeader(text string, width int, isCu
 	if isCurrent {
 		style = style.Background(theme.MutedBg)
 	}
+
 	return style.Render(truncateOrPad(text, width))
 }

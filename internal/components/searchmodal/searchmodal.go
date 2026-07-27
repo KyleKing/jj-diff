@@ -97,6 +97,7 @@ func styleTitle(text string, width int) string {
 		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -104,6 +105,7 @@ func styleInput(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Foreground(theme.Text).
 		Width(width)
+
 	return style.Render(text)
 }
 
@@ -113,6 +115,7 @@ func styleStatus(text string, width int) string {
 		Bold(true).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -121,6 +124,7 @@ func styleFooter(text string, width int) string {
 		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 

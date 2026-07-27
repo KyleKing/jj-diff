@@ -125,6 +125,7 @@ func (s *SearchState) NextMatch() *MatchLocation {
 	}
 
 	s.CurrentIdx = (s.CurrentIdx + 1) % len(s.Matches)
+
 	return &s.Matches[s.CurrentIdx]
 }
 
@@ -137,6 +138,7 @@ func (s *SearchState) PrevMatch() *MatchLocation {
 	if s.CurrentIdx < 0 {
 		s.CurrentIdx = len(s.Matches) - 1
 	}
+
 	return &s.Matches[s.CurrentIdx]
 }
 
@@ -144,6 +146,7 @@ func (s *SearchState) GetCurrentMatch() *MatchLocation {
 	if s.CurrentIdx >= 0 && s.CurrentIdx < len(s.Matches) {
 		return &s.Matches[s.CurrentIdx]
 	}
+
 	return nil
 }
 
@@ -157,6 +160,7 @@ func (s *SearchState) IsLineMatch(fileIdx, hunkIdx, lineIdx int) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -165,6 +169,7 @@ func (s *SearchState) IsCurrentMatch(fileIdx, hunkIdx, lineIdx int) bool {
 		return false
 	}
 	match := s.Matches[s.CurrentIdx]
+
 	return match.FileIdx == fileIdx && match.HunkIdx == hunkIdx && match.LineIdx == lineIdx
 }
 
@@ -175,5 +180,6 @@ func (s *SearchState) GetMatchesForLine(fileIdx, hunkIdx, lineIdx int) []MatchLo
 			matches = append(matches, match)
 		}
 	}
+
 	return matches
 }

@@ -83,12 +83,14 @@ func (m Model) View(width, height int, focused bool) string {
 		if m.expanded {
 			return padToSize("No files", width, height)
 		}
+
 		return padToSize("No files", width, 1)
 	}
 
 	if m.expanded {
 		return m.renderExpanded(width, height, focused)
 	}
+
 	return m.renderCollapsed(width, focused)
 }
 
@@ -313,6 +315,7 @@ func (m Model) renderFileLine(file diff.FileChange, selected, focused bool) stri
 		if focused {
 			return styleSelectedFocused(line)
 		}
+
 		return styleSelected(line)
 	}
 
@@ -340,8 +343,10 @@ func (m Model) renderFileLineWithMatches(
 			if focused {
 				return styleSelectedFocused(line)
 			}
+
 			return styleSelected(line)
 		}
+
 		return styleNormal(line)
 	}
 
@@ -381,6 +386,7 @@ func (m Model) renderFileLineWithMatches(
 		if focused {
 			return styleSelectedFocused(line)
 		}
+
 		return styleSelected(line)
 	}
 
@@ -391,6 +397,7 @@ func styleHeader(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(theme.Primary)
+
 	return style.Render(truncateOrPad(text, width))
 }
 
@@ -415,6 +422,7 @@ func truncateOrPad(text string, width int) string {
 	if len(text) > width {
 		return text[:width-3] + "..."
 	}
+
 	return text + strings.Repeat(" ", width-len(text))
 }
 
@@ -423,5 +431,6 @@ func padToSize(text string, width, height int) string {
 	for len(lines) < height {
 		lines = append(lines, strings.Repeat(" ", width))
 	}
+
 	return strings.Join(lines, "\n")
 }

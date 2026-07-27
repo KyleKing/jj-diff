@@ -29,6 +29,7 @@ func (c *Client) CheckInstalled() error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("jj command not found: %w", err)
 	}
+
 	return nil
 }
 
@@ -135,6 +136,7 @@ func (c *Client) getCurrentWorkingCopy() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return strings.TrimSpace(output), nil
 }
 
@@ -324,6 +326,7 @@ func (c *Client) getCurrentOperationID() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get current operation ID: %w", err)
 	}
+
 	return strings.TrimSpace(output), nil
 }
 
@@ -336,6 +339,7 @@ func (c *Client) createNewCommit(description string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get new commit ID: %w", err)
 	}
+
 	return changeID, nil
 }
 
@@ -343,6 +347,7 @@ func (c *Client) restoreOperation(opID string) error {
 	if _, err := c.executeJJ("op", "restore", opID); err != nil {
 		return fmt.Errorf("failed to restore operation: %w", err)
 	}
+
 	return nil
 }
 

@@ -16,6 +16,7 @@ func (m *mockSelectionState) IsHunkSelected(filePath string, hunkIdx int) bool {
 	if fileHunks, ok := m.selections[filePath]; ok {
 		return fileHunks[hunkIdx]
 	}
+
 	return false
 }
 
@@ -23,6 +24,7 @@ func (m *mockSelectionState) HasPartialSelection(filePath string, hunkIdx int) b
 	if filePartials, ok := m.partialHunks[filePath]; ok {
 		return filePartials[hunkIdx]
 	}
+
 	return false
 }
 
@@ -32,6 +34,7 @@ func (m *mockSelectionState) IsLineSelected(filePath string, hunkIdx, lineIdx in
 			return hunkLines[lineIdx]
 		}
 	}
+
 	return false
 }
 

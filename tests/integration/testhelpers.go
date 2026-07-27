@@ -51,6 +51,7 @@ email = "test@example.com"
 	}
 
 	t.Cleanup(repo.cleanup)
+
 	return repo
 }
 
@@ -76,6 +77,7 @@ func (r *TestRepo) ReadFile(path string) string {
 	if err != nil {
 		r.t.Fatalf("Failed to read file %s: %v", path, err)
 	}
+
 	return string(content)
 }
 
@@ -96,6 +98,7 @@ func (r *TestRepo) Run(args ...string) (string, error) {
 	cmd := exec.Command("jj", args...)
 	cmd.Dir = r.Dir
 	output, err := cmd.CombinedOutput()
+
 	return string(output), err
 }
 
@@ -106,6 +109,7 @@ func (r *TestRepo) MustRun(args ...string) string {
 	if err != nil {
 		r.t.Fatalf("Command 'jj %v' failed: %v\nOutput: %s", args, err, output)
 	}
+
 	return output
 }
 
@@ -119,6 +123,7 @@ func (r *TestRepo) GetDiff(revision string) string {
 func (r *TestRepo) GetChangeID(revision string) string {
 	r.t.Helper()
 	output := r.MustRun("log", "-r", revision, "--no-graph", "-T", "change_id")
+
 	return strings.TrimSpace(output)
 }
 

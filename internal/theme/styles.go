@@ -120,5 +120,6 @@ func PaneStyle(width, height int, focused bool) lipgloss.Style {
 	if focused {
 		return style.BorderForeground(Primary)
 	}
+
 	return style.BorderForeground(MutedBg)
 }

@@ -83,6 +83,7 @@ func parseFlags() flags {
 	}
 
 	flag.Parse()
+
 	return f
 }
 
@@ -156,6 +157,7 @@ func initRevisionMode(f flags, cfg config.Config) (tea.Model, error) {
 	}
 
 	source := diff.NewRevisionSource(client, f.revision)
+
 	return model.NewModelWithSource(source, client, f.destination, mode, cfg)
 }
 
@@ -168,5 +170,6 @@ func initDiffEditorMode(leftDir, rightDir string, cfg config.Config) (tea.Model,
 	}
 
 	source := diff.NewDirectorySource(leftDir, rightDir)
+
 	return model.NewModelWithSource(source, nil, "", model.ModeDiffEditor, cfg)
 }

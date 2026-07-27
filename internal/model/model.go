@@ -95,6 +95,7 @@ func (s *SelectionState) IsHunkSelected(filePath string, hunkIdx int) bool {
 			return hunkSelection.WholeHunk
 		}
 	}
+
 	return false
 }
 
@@ -104,9 +105,11 @@ func (s *SelectionState) IsLineSelected(filePath string, hunkIdx, lineIdx int) b
 			if hunkSelection.WholeHunk {
 				return true
 			}
+
 			return hunkSelection.SelectedLines[lineIdx]
 		}
 	}
+
 	return false
 }
 
@@ -185,6 +188,7 @@ func (s *SelectionState) HasPartialSelection(filePath string, hunkIdx int) bool 
 			return !hunkSelection.WholeHunk && len(hunkSelection.SelectedLines) > 0
 		}
 	}
+
 	return false
 }
 
@@ -306,6 +310,7 @@ func (m Model) loadDiff() tea.Cmd {
 		}
 
 		changes := diff.Parse(diffText)
+
 		return diffLoadedMsg{changes}
 	}
 }
@@ -329,6 +334,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
 		return m, nil
 
 	case diffLoadedMsg:
@@ -337,6 +343,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.changes) > 0 {
 			m.diffView.SetFileChange(m.changes[0])
 		}
+
 		return m, nil
 
 	case errMsg:
@@ -347,11 +354,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.closeAllModals()
 		m.destPicker.SetRevisions(msg.revisions)
 		m.destPicker.Show()
+
 		return m, nil
 
 	case destinationSelectedMsg:
 		m.destination = msg.changeID
 		m.destPicker.Hide()
+
 		return m, m.loadDiff()
 
 	case diffEditorAppliedMsg:
@@ -394,6 +403,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.searchModal.Hide()
 			m.searchState.IsActive = false
+
 			return m, nil
 		}
 		if m.fileFinder.IsVisible() {
@@ -407,8 +417,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.isVisualMode {
 			m.isVisualMode = false
 			m.visualAnchor = 0
+
 			return m, nil
 		}
+
 		return m, nil
 	}
 
@@ -423,6 +435,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			modeText = "Interactive"
 		}
 		m.help.Show(modeText)
+
 		return m, nil
 	}
 
@@ -431,6 +444,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "q":
 			m.help.Hide()
 		}
+
 		return m, nil
 	}
 
@@ -470,6 +484,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == ModeInteractive && m.diffSource.SupportsRevisions() {
 			return m, m.loadRevisions()
 		}
+
 		return m, nil
 
 	case "/":
@@ -480,6 +495,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.closeAllModals()
 		m.focusedPanel = PanelFileList
 		m.fileList.SetFilterMode(true)
+
 		return m, nil
 
 	case "v":
@@ -493,6 +509,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
 		return m, nil
 
 	case "tab":
@@ -501,6 +518,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.focusedPanel = PanelFileList
 		}
+
 		return m, nil
 
 	case "[":
@@ -514,6 +532,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.diffView.SetFileChange(m.changes[m.selectedFile])
 			}
 		}
+
 		return m, nil
 
 	case "]":
@@ -527,18 +546,21 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.diffView.SetFileChange(m.changes[m.selectedFile])
 			}
 		}
+
 		return m, nil
 
 	case "j", "down":
 		if m.isVisualMode {
 			return m.handleVisualNavigation(1)
 		}
+
 		return m.handleNavigation(1)
 
 	case "k", "up":
 		if m.isVisualMode {
 			return m.handleVisualNavigation(-1)
 		}
+
 		return m.handleNavigation(-1)
 
 	case "ctrl+d":
@@ -546,6 +568,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			contentHeight := m.height - 2
 			m.diffView.ScrollHalfPageDown(contentHeight)
 		}
+
 		return m, nil
 
 	case "ctrl+u":
@@ -553,6 +576,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			contentHeight := m.height - 2
 			m.diffView.ScrollHalfPageUp(contentHeight)
 		}
+
 		return m, nil
 
 	case "ctrl+f":
@@ -560,6 +584,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			contentHeight := m.height - 2
 			m.diffView.ScrollFullPageDown(contentHeight)
 		}
+
 		return m, nil
 
 	case "ctrl+b":
@@ -567,6 +592,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			contentHeight := m.height - 2
 			m.diffView.ScrollFullPageUp(contentHeight)
 		}
+
 		return m, nil
 
 	case "g":
@@ -577,6 +603,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.changes) > 0 {
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
 		}
+
 		return m, nil
 
 	case "G":
@@ -587,6 +614,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.changes) > 0 {
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
 		}
+
 		return m, nil
 
 	case "r":
@@ -607,6 +635,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
 		return m, nil
 
 	case "n":
@@ -624,6 +653,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.lineCursor = 0
 			}
 		}
+
 		return m, nil
 
 	case "N":
@@ -641,6 +671,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.lineCursor = 0
 			}
 		}
+
 		return m, nil
 
 	case "p":
@@ -655,6 +686,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.lineCursor = 0
 			}
 		}
+
 		return m, nil
 
 	case "w":
@@ -680,6 +712,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == ModeDiffEditor {
 			return m, m.applyDiffEditorSelection()
 		}
+
 		return m, nil
 
 	case "S":
@@ -689,6 +722,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.multiSplitState.CurrentTag = 'A'
 			}
 		}
+
 		return m, nil
 
 	case "D":
@@ -702,6 +736,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, m.loadRevisionsForSplitAssign()
 			}
 		}
+
 		return m, nil
 
 	case "P":
@@ -713,6 +748,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.splitPreview.Show()
 			}
 		}
+
 		return m, nil
 
 	default:
@@ -724,6 +760,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					if r >= 'a' && r <= 'z' {
 						r = r - 'a' + 'A'
 					}
+
 					return m.toggleTagSelection(SplitTag(r))
 				}
 			}
@@ -802,6 +839,7 @@ func (m Model) handleDestPickerKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return destinationSelectedMsg{changeID: selected.ChangeID}
 			}
 		}
+
 		return m, nil
 	}
 
@@ -834,6 +872,7 @@ func (m Model) handleSplitAssignKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commitMsg.SetTag(commitmsg.SplitTag(m.multiSplitState.CurrentTag))
 		m.splitAssign.Hide()
 		m.commitMsg.Show()
+
 		return m, nil
 	}
 
@@ -862,6 +901,7 @@ func (m Model) handleCommitMsgKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		m.commitMsg.Hide()
 		m.splitAssign.Show()
+
 		return m, nil
 
 	case "enter":
@@ -872,6 +912,7 @@ func (m Model) handleCommitMsgKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.commitMsg.Hide()
 		m.splitAssign.Show()
+
 		return m, nil
 
 	case "backspace":
@@ -882,6 +923,7 @@ func (m Model) handleCommitMsgKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(msg.String()) == 1 {
 			m.commitMsg.AppendChar(rune(msg.String()[0]))
 		}
+
 		return m, nil
 	}
 }
@@ -895,6 +937,7 @@ func (m Model) loadRevisionsForSplitAssign() tea.Cmd {
 		m.closeAllModals()
 		m.splitAssign.SetRevisions(revisions)
 		m.splitAssign.Show()
+
 		return nil
 	}
 }
@@ -984,6 +1027,7 @@ func (m Model) applySplit() tea.Cmd {
 
 		m.multiSplitState = NewMultiSplitState()
 		m.splitPreview.Hide()
+
 		return m.loadDiff()
 	}
 }
@@ -1074,6 +1118,7 @@ func (m Model) toggleTagSelection(tag SplitTag) (tea.Model, tea.Cmd) {
 	}
 
 	m.multiSplitState.CurrentTag = tag
+
 	return m, nil
 }
 
@@ -1089,6 +1134,7 @@ func (m Model) getHunkTags(filePath string, hunkIdx int) []SplitTag {
 			tags = append(tags, tag)
 		}
 	}
+
 	return tags
 }
 
@@ -1100,6 +1146,7 @@ func (m Model) enterSearchMode() (tea.Model, tea.Cmd) {
 		FocusedPanel:   int(m.focusedPanel),
 	})
 	m.searchModal.Show()
+
 	return m, nil
 }
 
@@ -1119,16 +1166,20 @@ func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.searchState.Query) > 0 {
 			m.searchState.Query = m.searchState.Query[:len(m.searchState.Query)-1]
 			m.searchModal.SetQuery(m.searchState.Query)
+
 			return m.executeSearch()
 		}
+
 		return m, nil
 
 	default:
 		if len(msg.String()) == 1 {
 			m.searchState.Query += msg.String()
 			m.searchModal.SetQuery(m.searchState.Query)
+
 			return m.executeSearch()
 		}
+
 		return m, nil
 	}
 }
@@ -1166,6 +1217,7 @@ func (m Model) nextSearchMatch() (tea.Model, tea.Cmd) {
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
 		}
 	}
+
 	return m, nil
 }
 
@@ -1182,6 +1234,7 @@ func (m Model) prevSearchMatch() (tea.Model, tea.Cmd) {
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
 		}
 	}
+
 	return m, nil
 }
 
@@ -1200,6 +1253,7 @@ func (m Model) getFilePathMatches(fileIdx int) []filelist.MatchRange {
 			})
 		}
 	}
+
 	return ranges
 }
 
@@ -1218,6 +1272,7 @@ func (m Model) getLineContentMatches(filePath string, hunkIdx, lineIdx int) []di
 			})
 		}
 	}
+
 	return ranges
 }
 
@@ -1231,6 +1286,7 @@ func (m Model) enterFileFinderMode() (tea.Model, tea.Cmd) {
 	}
 
 	m.fileFinder.Show(paths, indices)
+
 	return m, nil
 }
 
@@ -1244,6 +1300,7 @@ func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		// Exit filter mode and focus diff view
 		m.fileList.SetFilterMode(false)
 		m.focusedPanel = PanelDiffView
+
 		return m, nil
 
 	case "backspace":
@@ -1252,6 +1309,7 @@ func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			query = query[:len(query)-1]
 			m.fileList.SetFilterQuery(query)
 		}
+
 		return m, nil
 
 	default:
@@ -1260,6 +1318,7 @@ func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			query += msg.String()
 			m.fileList.SetFilterQuery(query)
 		}
+
 		return m, nil
 	}
 }
@@ -1279,6 +1338,7 @@ func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.focusedPanel = PanelDiffView
 			m.fileFinder.Hide()
 		}
+
 		return m, nil
 
 	case "up", "ctrl+p":
@@ -1295,6 +1355,7 @@ func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			query = query[:len(query)-1]
 			m.fileFinder.SetQuery(query)
 		}
+
 		return m, nil
 
 	default:
@@ -1303,6 +1364,7 @@ func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			query += msg.String()
 			m.fileFinder.SetQuery(query)
 		}
+
 		return m, nil
 	}
 }
@@ -1392,6 +1454,7 @@ func (m Model) View() string {
 			for _, tag := range tags {
 				diffviewTags = append(diffviewTags, diffview.SplitTag(tag))
 			}
+
 			return diffviewTags
 		})
 	}

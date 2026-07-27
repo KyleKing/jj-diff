@@ -115,6 +115,7 @@ func styleHeader(text string, width int) string {
 		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -123,6 +124,7 @@ func styleSection(text string, width int) string {
 		Bold(true).
 		Foreground(theme.Secondary).
 		Width(width)
+
 	return style.Render(text)
 }
 
@@ -131,6 +133,7 @@ func styleFooter(text string, width int) string {
 		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -159,6 +162,7 @@ func wrapText(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Foreground(theme.Text).
 		Width(width - 4)
+
 	return "  " + style.Render(text)
 }
 
@@ -166,6 +170,7 @@ func padRight(text string, width int) string {
 	if len(text) >= width {
 		return text[:width]
 	}
+
 	return text + strings.Repeat(" ", width-len(text))
 }
 

@@ -73,5 +73,6 @@ func Detect() Theme {
 	if lipgloss.HasDarkBackground() {
 		return Macchiato()
 	}
+
 	return Latte()
 }

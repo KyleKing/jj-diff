@@ -63,6 +63,7 @@ func walkDirectory(dir string) (map[string]bool, error) {
 		}
 
 		files[relPath] = true
+
 		return nil
 	})
 
@@ -82,6 +83,7 @@ func mergeFilePaths(left, right map[string]bool) []string {
 	for path := range seen {
 		paths = append(paths, path)
 	}
+
 	return paths
 }
 
@@ -115,6 +117,7 @@ func readFileContent(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(content), nil
 }
 
@@ -128,6 +131,7 @@ func generateUnifiedDiff(path, leftContent, rightContent string, inLeft, inRight
 		builder.WriteString("--- /dev/null\n")
 		builder.WriteString(fmt.Sprintf("+++ b/%s\n", path))
 		builder.WriteString(generateAddedFileHunks(rightContent))
+
 		return builder.String()
 	}
 
@@ -136,12 +140,14 @@ func generateUnifiedDiff(path, leftContent, rightContent string, inLeft, inRight
 		builder.WriteString(fmt.Sprintf("--- a/%s\n", path))
 		builder.WriteString("+++ /dev/null\n")
 		builder.WriteString(generateDeletedFileHunks(leftContent))
+
 		return builder.String()
 	}
 
 	builder.WriteString(fmt.Sprintf("--- a/%s\n", path))
 	builder.WriteString(fmt.Sprintf("+++ b/%s\n", path))
 	builder.WriteString(generateModifiedFileHunks(leftContent, rightContent))
+
 	return builder.String()
 }
 
@@ -158,6 +164,7 @@ func generateAddedFileHunks(content string) string {
 		builder.WriteString(line)
 		builder.WriteString("\n")
 	}
+
 	return builder.String()
 }
 
@@ -174,6 +181,7 @@ func generateDeletedFileHunks(content string) string {
 		builder.WriteString(line)
 		builder.WriteString("\n")
 	}
+
 	return builder.String()
 }
 
@@ -186,6 +194,7 @@ func generateModifiedFileHunks(leftContent, rightContent string) string {
 	diffs = dmp.DiffCleanupSemantic(diffs)
 
 	hunks := computeHunks(leftLines, rightLines, diffs)
+
 	return hunks
 }
 
@@ -197,6 +206,7 @@ func splitLines(content string) []string {
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
+
 	return lines
 }
 

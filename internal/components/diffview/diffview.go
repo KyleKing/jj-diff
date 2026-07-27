@@ -58,6 +58,7 @@ func (idx *LineIndex) FindHunkForOffset(offset int) (hunkIdx, lineInHunk int) {
 
 	hunkIdx = left
 	lineInHunk = offset - idx.HunkOffsets[hunkIdx]
+
 	return hunkIdx, lineInHunk
 }
 
@@ -90,6 +91,7 @@ func New(cfg config.Config) Model {
 	if cfg.ViewMode == config.ViewModeSideBySide {
 		viewMode = ViewModeSideBySide
 	}
+
 	return Model{
 		offset:          0,
 		highlighter:     highlight.New(),
@@ -266,6 +268,7 @@ func (m Model) calculateTotalLines() int {
 		total++
 		total += len(hunk.Lines)
 	}
+
 	return total
 }
 
@@ -294,6 +297,7 @@ func (m Model) View(width, height int, focused bool) string {
 			Focused:         focused,
 		}
 		sbs := NewSideBySideView()
+
 		return sbs.Render(m.fileChange, ctx)
 	}
 
@@ -307,6 +311,7 @@ func (m Model) renderUnified(width, height int, focused bool) string {
 		for len(lines) < height {
 			lines = append(lines, strings.Repeat(" ", width))
 		}
+
 		return strings.Join(lines, "\n")
 	}
 
@@ -435,6 +440,7 @@ func (m Model) isLineInVisualRange(lineIdx int) bool {
 	if start > end {
 		start, end = end, start
 	}
+
 	return lineIdx >= start && lineIdx <= end
 }
 
@@ -520,6 +526,7 @@ func styleHeader(text string, width int, focused bool) string {
 	if focused {
 		style = style.Background(theme.MutedBg)
 	}
+
 	return style.Render(truncateOrPad(text, width))
 }
 
@@ -564,6 +571,7 @@ func (m Model) renderHunkHeader(
 func styleHunkHeader(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Foreground(theme.Accent)
+
 	return style.Render(truncateOrPad(text, width))
 }
 
@@ -584,6 +592,7 @@ func truncateOrPad(text string, width int) string {
 	if visibleLen > width {
 		return text[:width]
 	}
+
 	return text + strings.Repeat(" ", width-visibleLen)
 }
 
@@ -592,5 +601,6 @@ func padToSize(text string, width, height int) string {
 	for len(lines) < height {
 		lines = append(lines, strings.Repeat(" ", width))
 	}
+
 	return strings.Join(lines, "\n")
 }

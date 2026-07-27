@@ -47,6 +47,7 @@ func generateHunks(n, linesPerHunk int) []diff.Hunk {
 			Lines: lines,
 		}
 	}
+
 	return hunks
 }
 

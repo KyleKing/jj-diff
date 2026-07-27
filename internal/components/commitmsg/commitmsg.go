@@ -87,6 +87,7 @@ func (m Model) View(width, height int) string {
 	lines = append(lines, styleFooter("Enter: Confirm | Esc: Cancel | Type to edit", modalWidth))
 
 	content := strings.Join(lines, "\n")
+
 	return renderModal(content, width, height)
 }
 
@@ -96,6 +97,7 @@ func styleHeader(text string, width int) string {
 		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -104,6 +106,7 @@ func styleFooter(text string, width int) string {
 		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 

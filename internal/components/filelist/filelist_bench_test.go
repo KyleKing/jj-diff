@@ -17,6 +17,7 @@ func generateFiles(n int) []diff.FileChange {
 			Hunks:      []diff.Hunk{},
 		}
 	}
+
 	return files
 }
 
@@ -91,6 +92,7 @@ func BenchmarkFileListRenderWithSearch_1000Files(b *testing.B) {
 		if fileIdx%10 == 0 {
 			return []MatchRange{{Start: 0, End: 3}}
 		}
+
 		return nil
 	})
 

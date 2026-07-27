@@ -70,6 +70,7 @@ func (r *WhitespaceRenderer) renderTrailingWhitespace(trailing string) string {
 			result.WriteString(TrailingSpaceStr)
 		}
 	}
+
 	return r.trailingHighlight.Render(result.String())
 }
 
@@ -93,6 +94,7 @@ func RenderWhitespaceSimple(content string, tabWidth int) string {
 			result.WriteByte(content[i])
 		}
 	}
+
 	return result.String()
 }
 
@@ -101,6 +103,7 @@ func HasTrailingWhitespace(content string) bool {
 		return false
 	}
 	last := content[len(content)-1]
+
 	return last == ' ' || last == '\t'
 }
 
@@ -113,6 +116,7 @@ func CountTrailingWhitespace(content string) int {
 			break
 		}
 	}
+
 	return count
 }
 
@@ -128,6 +132,7 @@ func GetLeadingWhitespace(content string) string {
 			return content[:i]
 		}
 	}
+
 	return content
 }
 
@@ -153,6 +158,7 @@ func ProcessHunkHideWhitespace(lines []Line) []Line {
 					NewLineNum: nextLine.NewLineNum,
 				})
 				i++ // Skip the addition line
+
 				continue
 			} else {
 				// Content changed - use new indentation for both lines

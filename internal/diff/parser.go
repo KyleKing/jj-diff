@@ -134,6 +134,7 @@ func parseFileChange(section string) *FileChange {
 				oldLineNum = currentHunk.OldStart
 				newLineNum = currentHunk.NewStart
 			}
+
 			continue
 		}
 
@@ -230,6 +231,7 @@ func determineChangeType(section string) ChangeType {
 	if strings.Contains(section, "rename from") {
 		return ChangeTypeRenamed
 	}
+
 	return ChangeTypeModified
 }
 
@@ -238,6 +240,7 @@ func (fc *FileChange) TotalLines() int {
 	for _, hunk := range fc.Hunks {
 		total += len(hunk.Lines)
 	}
+
 	return total
 }
 
@@ -250,6 +253,7 @@ func (fc *FileChange) AddedLines() int {
 			}
 		}
 	}
+
 	return count
 }
 
@@ -262,5 +266,6 @@ func (fc *FileChange) DeletedLines() int {
 			}
 		}
 	}
+
 	return count
 }

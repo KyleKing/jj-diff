@@ -174,6 +174,7 @@ func (m Model) View(width, height int) string {
 	)
 
 	content := strings.Join(lines, "\n")
+
 	return renderModal(content, width, height)
 }
 
@@ -268,6 +269,7 @@ func styleHeader(text string, width int) string {
 		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -276,6 +278,7 @@ func styleFooter(text string, width int) string {
 		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -291,8 +294,10 @@ func truncate(text string, width int) string {
 		if width > 3 {
 			return text[:width-3] + "..."
 		}
+
 		return text[:width]
 	}
+
 	return text
 }
 
@@ -301,8 +306,10 @@ func truncateOrPad(text string, width int) string {
 		if width > 3 {
 			return text[:width-3] + "..."
 		}
+
 		return text[:width]
 	}
+
 	return text + strings.Repeat(" ", width-len(text))
 }
 

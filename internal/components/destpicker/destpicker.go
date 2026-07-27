@@ -59,6 +59,7 @@ func (m Model) GetSelected() *jj.RevisionEntry {
 	if m.selected >= 0 && m.selected < len(m.revisions) {
 		return &m.revisions[m.selected]
 	}
+
 	return nil
 }
 
@@ -141,6 +142,7 @@ func styleHeader(text string, width int) string {
 		Foreground(theme.Primary).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -149,6 +151,7 @@ func styleFooter(text string, width int) string {
 		Foreground(theme.SoftMutedBg).
 		Width(width).
 		Align(lipgloss.Center)
+
 	return style.Render(text)
 }
 
@@ -163,6 +166,7 @@ func truncateOrPad(text string, width int) string {
 	if len(text) > width {
 		return text[:width-3] + "..."
 	}
+
 	return text + strings.Repeat(" ", width-len(text))
 }
 

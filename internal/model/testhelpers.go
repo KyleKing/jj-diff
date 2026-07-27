@@ -32,6 +32,7 @@ func (m Model) WithChanges(changes []diff.FileChange) Model {
 	if len(m.changes) > 0 {
 		m.diffView.SetFileChange(changes[0])
 	}
+
 	return m
 }
 
@@ -55,6 +56,7 @@ func SpecialKey(keyType tea.KeyType) tea.KeyMsg {
 func Update(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
 	newModel, _ := m.Update(msg)
+
 	return newModel.(Model)
 }
 
@@ -92,6 +94,7 @@ func (a *ModelAssertion) HasSelectedFile(idx int) *ModelAssertion {
 	if a.m.selectedFile != idx {
 		a.t.Errorf("Expected selectedFile=%d, got %d", idx, a.m.selectedFile)
 	}
+
 	return a
 }
 
@@ -100,6 +103,7 @@ func (a *ModelAssertion) HasSelectedHunk(idx int) *ModelAssertion {
 	if a.m.selectedHunk != idx {
 		a.t.Errorf("Expected selectedHunk=%d, got %d", idx, a.m.selectedHunk)
 	}
+
 	return a
 }
 
@@ -108,6 +112,7 @@ func (a *ModelAssertion) HasHunkSelected(filePath string, hunkIdx int) *ModelAss
 	if !a.m.selection.IsHunkSelected(filePath, hunkIdx) {
 		a.t.Errorf("Expected hunk %d in file %s to be selected", hunkIdx, filePath)
 	}
+
 	return a
 }
 
@@ -116,6 +121,7 @@ func (a *ModelAssertion) HasHunkNotSelected(filePath string, hunkIdx int) *Model
 	if a.m.selection.IsHunkSelected(filePath, hunkIdx) {
 		a.t.Errorf("Expected hunk %d in file %s to NOT be selected", hunkIdx, filePath)
 	}
+
 	return a
 }
 
@@ -124,6 +130,7 @@ func (a *ModelAssertion) FocusedPanelIs(panel FocusedPanel) *ModelAssertion {
 	if a.m.focusedPanel != panel {
 		a.t.Errorf("Expected focusedPanel=%v, got %v", panel, a.m.focusedPanel)
 	}
+
 	return a
 }
 
@@ -132,6 +139,7 @@ func (a *ModelAssertion) ModeIs(mode OperatingMode) *ModelAssertion {
 	if a.m.mode != mode {
 		a.t.Errorf("Expected mode=%v, got %v", mode, a.m.mode)
 	}
+
 	return a
 }
 
@@ -140,6 +148,7 @@ func (a *ModelAssertion) HasDestination(dest string) *ModelAssertion {
 	if a.m.destination != dest {
 		a.t.Errorf("Expected destination=%s, got %s", dest, a.m.destination)
 	}
+
 	return a
 }
 
@@ -148,6 +157,7 @@ func (a *ModelAssertion) HasError() *ModelAssertion {
 	if a.m.err == nil {
 		a.t.Error("Expected error, got nil")
 	}
+
 	return a
 }
 
@@ -156,6 +166,7 @@ func (a *ModelAssertion) HasNoError() *ModelAssertion {
 	if a.m.err != nil {
 		a.t.Errorf("Expected no error, got %v", a.m.err)
 	}
+
 	return a
 }
 
@@ -164,6 +175,7 @@ func (a *ModelAssertion) HasChanges(count int) *ModelAssertion {
 	if len(a.m.changes) != count {
 		a.t.Errorf("Expected %d changes, got %d", count, len(a.m.changes))
 	}
+
 	return a
 }
 
@@ -172,6 +184,7 @@ func (a *ModelAssertion) IsInVisualMode() *ModelAssertion {
 	if !a.m.isVisualMode {
 		a.t.Error("Expected model to be in visual mode")
 	}
+
 	return a
 }
 
@@ -180,6 +193,7 @@ func (a *ModelAssertion) IsNotInVisualMode() *ModelAssertion {
 	if a.m.isVisualMode {
 		a.t.Error("Expected model to NOT be in visual mode")
 	}
+
 	return a
 }
 
@@ -188,6 +202,7 @@ func (a *ModelAssertion) HasLineCursor(position int) *ModelAssertion {
 	if a.m.lineCursor != position {
 		a.t.Errorf("Expected lineCursor=%d, got %d", position, a.m.lineCursor)
 	}
+
 	return a
 }
 
@@ -196,6 +211,7 @@ func (a *ModelAssertion) HelpIsVisible() *ModelAssertion {
 	if !a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to be visible")
 	}
+
 	return a
 }
 
@@ -204,6 +220,7 @@ func (a *ModelAssertion) HelpIsNotVisible() *ModelAssertion {
 	if a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to NOT be visible")
 	}
+
 	return a
 }
 
@@ -212,6 +229,7 @@ func (a *ModelAssertion) SearchIsVisible() *ModelAssertion {
 	if !a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to be visible")
 	}
+
 	return a
 }
 
@@ -220,6 +238,7 @@ func (a *ModelAssertion) SearchIsNotVisible() *ModelAssertion {
 	if a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to NOT be visible")
 	}
+
 	return a
 }
 
@@ -228,6 +247,7 @@ func (a *ModelAssertion) FileFinderIsVisible() *ModelAssertion {
 	if !a.m.fileFinder.IsVisible() {
 		a.t.Error("Expected file finder modal to be visible")
 	}
+
 	return a
 }
 
@@ -236,6 +256,7 @@ func (a *ModelAssertion) FileFinderIsNotVisible() *ModelAssertion {
 	if a.m.fileFinder.IsVisible() {
 		a.t.Error("Expected file finder modal to NOT be visible")
 	}
+
 	return a
 }
 
@@ -244,6 +265,7 @@ func (a *ModelAssertion) FileListFilterModeEnabled() *ModelAssertion {
 	if !a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to be enabled")
 	}
+
 	return a
 }
 
@@ -252,6 +274,7 @@ func (a *ModelAssertion) FileListFilterModeDisabled() *ModelAssertion {
 	if a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to be disabled")
 	}
+
 	return a
 }
 
@@ -260,6 +283,7 @@ func (a *ModelAssertion) DestPickerIsVisible() *ModelAssertion {
 	if !a.m.destPicker.IsVisible() {
 		a.t.Error("Expected dest picker modal to be visible")
 	}
+
 	return a
 }
 
@@ -268,6 +292,7 @@ func (a *ModelAssertion) DestPickerIsNotVisible() *ModelAssertion {
 	if a.m.destPicker.IsVisible() {
 		a.t.Error("Expected dest picker modal to NOT be visible")
 	}
+
 	return a
 }
 
@@ -288,6 +313,7 @@ func (a *ModelAssertion) NoModalsVisible() *ModelAssertion {
 	if a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to NOT be enabled")
 	}
+
 	return a
 }
 

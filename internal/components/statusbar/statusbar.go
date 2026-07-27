@@ -70,6 +70,7 @@ func (m Model) getContextHints(ctx Context) string {
 	if ctx.Mode == "Interactive" {
 		return "j/k:scroll | Space:select | w/s/l:view | ?:help"
 	}
+
 	return "j/k:scroll | Ctrl-d/u:page | w:ws | s:sbs | ?:help"
 }
 
@@ -77,5 +78,6 @@ func truncateOrPad(text string, width int) string {
 	if len(text) > width {
 		return text[:width]
 	}
+
 	return text + strings.Repeat(" ", width-len(text))
 }

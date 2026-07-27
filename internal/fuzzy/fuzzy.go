@@ -81,6 +81,7 @@ func Score(text, query string) (int, []int) {
 
 				score += baseScore
 				textIdx++
+
 				break
 			}
 			textIdx++
@@ -105,6 +106,7 @@ func containsAllChars(text, query string) bool {
 			if textRunes[textIdx] == qChar {
 				found = true
 				textIdx++
+
 				break
 			}
 			textIdx++
@@ -113,6 +115,7 @@ func containsAllChars(text, query string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -128,6 +131,7 @@ func Filter(query string, items []string) []Match {
 				Original: item,
 			}
 		}
+
 		return matches
 	}
 
@@ -173,6 +177,7 @@ func FilterWithData(query string, items []string, data []interface{}) []Match {
 				Original: data[i],
 			}
 		}
+
 		return matches
 	}
 
