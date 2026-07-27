@@ -1,3 +1,9 @@
+## v0.1.1 (2026-07-27)
+
+### Fix
+
+- **ci**: skip the jj integration tests when no jj binary is installed
+
 ## v0.1.0 (2026-07-27)
 
 ### Feat
