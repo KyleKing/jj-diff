@@ -133,5 +133,4 @@ func TestAdd(t *testing.T) {
 
 ## Project-Specific Guidelines
 
-<!-- Add project-specific patterns, architecture notes, and domain context below.
-     This section is preserved across template updates (_skip_if_exists). -->
+See [DESIGN.md](DESIGN.md) for project-specific architecture, patterns, and domain context.

@@ -188,11 +188,7 @@ Tested on large repositories with excellent responsiveness.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-- Architecture overview
-- Development setup
-- Testing guide
-- Code style guidelines
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, tasks, and the git workflow, and [DESIGN.md](DESIGN.md) for the architecture overview, patterns, and testing guide.
 
 ## Troubleshooting
 

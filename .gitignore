@@ -1,5 +1,5 @@
 # Built binary (from copier project_name)
-jj-diff
+/jj-diff
 
 # Go binaries
 *.exe
