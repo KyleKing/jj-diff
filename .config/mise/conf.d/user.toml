@@ -4,6 +4,12 @@
 #
 # build, test, and clean come from template.toml.
 
+# tests/integration drives a real jj binary and skips itself when one is absent.
+# This pin makes `mise install` provide it. It does not reach the ci job, which
+# sets MISE_TASK_RUN_AUTO_INSTALL=false.
+[tools]
+jj = "latest"
+
 [tasks.deps]
 description = "Download and tidy Go modules"
 run = "go mod download && go mod tidy"

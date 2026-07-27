@@ -218,5 +218,13 @@ obvious first batch if the goal is a green gate.
 - `internal/diff/applier.go` writes files `0600` and creates directories `0750`. That is
   right for a temp directory, but an executable file handed to the editor would lose its bit.
   Worth checking how jj restores modes after the editor returns
+- CI never runs the jj integration tests. `tests/integration` needs a real `jj` binary and
+  the GitHub runners have none, so the suite failed on every push until it was changed to
+  skip when jj is absent. That also unblocked releases, because goreleaser's `before` hook
+  runs `go test ./...` and aborted the release job on the same failure. The real fix is to
+  install jj in `.github/workflows/ci.yml`, which is template-managed, so it belongs
+  upstream in my_go_template rather than as a local edit that conflicts on every update.
+  Until then the integration tests are local-only, and they are the tests that caught the
+  applier corruption in this pass
 - `tests/integration` sits at 56.9% coverage and `mise run test:coverage-min` asserts 70%,
   but `mise run ci` runs only `go test` and `go build`, so the threshold is never enforced

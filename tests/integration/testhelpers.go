@@ -14,9 +14,15 @@ type TestRepo struct {
 	Dir string
 }
 
-// NewTestRepo creates a new temporary jj repository.
+// NewTestRepo creates a new temporary jj repository, skipping the test when no
+// jj binary is installed. Every test in this package drives the real CLI, so
+// without one there is nothing to assert rather than something to fail.
 func NewTestRepo(t *testing.T) *TestRepo {
 	t.Helper()
+
+	if _, err := exec.LookPath("jj"); err != nil {
+		t.Skip("jj is not installed; skipping the integration suite")
+	}
 
 	tmpDir := t.TempDir()
 
