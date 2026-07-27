@@ -132,7 +132,8 @@ func TestViewWithWhitespaceHiding(t *testing.T) {
 	lines := strings.Split(output, "\n")
 	hasWhitespaceOnlyChange := false
 	for _, line := range lines {
-		if strings.Contains(line, "hello") && !strings.HasPrefix(strings.TrimSpace(line), "-") && !strings.HasPrefix(strings.TrimSpace(line), "+") {
+		if strings.Contains(line, "hello") && !strings.HasPrefix(strings.TrimSpace(line), "-") &&
+			!strings.HasPrefix(strings.TrimSpace(line), "+") {
 			hasWhitespaceOnlyChange = true
 			break
 		}
@@ -213,7 +214,12 @@ func TestScrolling(t *testing.T) {
 				Lines: func() []diff.Line {
 					lines := make([]diff.Line, 50)
 					for i := range lines {
-						lines[i] = diff.Line{Type: diff.LineContext, Content: "line", OldLineNum: i + 1, NewLineNum: i + 1}
+						lines[i] = diff.Line{
+							Type:       diff.LineContext,
+							Content:    "line",
+							OldLineNum: i + 1,
+							NewLineNum: i + 1,
+						}
 					}
 					return lines
 				}(),

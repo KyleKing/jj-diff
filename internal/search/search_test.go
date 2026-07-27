@@ -67,7 +67,11 @@ func TestExecuteSearch_FilePathMatch(t *testing.T) {
 		t.Error("Expected HunkIdx to be -1 for file path match")
 	}
 	if s.Matches[0].StartCol != 4 || s.Matches[0].EndCol != 8 {
-		t.Errorf("Expected match at columns 4-8, got %d-%d", s.Matches[0].StartCol, s.Matches[0].EndCol)
+		t.Errorf(
+			"Expected match at columns 4-8, got %d-%d",
+			s.Matches[0].StartCol,
+			s.Matches[0].EndCol,
+		)
 	}
 }
 

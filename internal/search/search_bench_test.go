@@ -26,7 +26,10 @@ func generateSearchTestFiles(fileCount, hunksPerFile, linesPerHunk int) []diff.F
 				}
 
 				// Create realistic content with searchable terms
-				content := fmt.Sprintf("function processData(input, config) { return result; } // line %d", k)
+				content := fmt.Sprintf(
+					"function processData(input, config) { return result; } // line %d",
+					k,
+				)
 
 				lines[k] = diff.Line{
 					Type:       lineType,
@@ -37,8 +40,14 @@ func generateSearchTestFiles(fileCount, hunksPerFile, linesPerHunk int) []diff.F
 			}
 
 			hunks[j] = diff.Hunk{
-				Header: fmt.Sprintf("@@ -%d,%d +%d,%d @@", j*linesPerHunk+1, linesPerHunk, j*linesPerHunk+1, linesPerHunk),
-				Lines:  lines,
+				Header: fmt.Sprintf(
+					"@@ -%d,%d +%d,%d @@",
+					j*linesPerHunk+1,
+					linesPerHunk,
+					j*linesPerHunk+1,
+					linesPerHunk,
+				),
+				Lines: lines,
 			}
 		}
 

@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/components/commitmsg"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
 	"github.com/kyleking/jj-diff/internal/components/diffview"
@@ -39,7 +40,7 @@ const (
 )
 
 type HunkSelection struct {
-	WholeHunk    bool
+	WholeHunk     bool
 	SelectedLines map[int]bool
 }
 
@@ -245,12 +246,23 @@ type destinationSelectedMsg struct {
 	changeID string
 }
 
-func NewModel(client *jj.Client, source, destination string, mode OperatingMode, cfg config.Config) (Model, error) {
+func NewModel(
+	client *jj.Client,
+	source, destination string,
+	mode OperatingMode,
+	cfg config.Config,
+) (Model, error) {
 	revSource := diff.NewRevisionSource(client, source)
 	return NewModelWithSource(revSource, client, destination, mode, cfg)
 }
 
-func NewModelWithSource(source diff.DiffSource, client *jj.Client, destination string, mode OperatingMode, cfg config.Config) (Model, error) {
+func NewModelWithSource(
+	source diff.DiffSource,
+	client *jj.Client,
+	destination string,
+	mode OperatingMode,
+	cfg config.Config,
+) (Model, error) {
 	m := Model{
 		client:          client,
 		diffSource:      source,
@@ -471,7 +483,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "v":
-		if (m.mode == ModeInteractive || m.mode == ModeDiffEditor) && m.focusedPanel == PanelDiffView {
+		if (m.mode == ModeInteractive || m.mode == ModeDiffEditor) &&
+			m.focusedPanel == PanelDiffView {
 			if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
 				file := m.changes[m.selectedFile]
 				if m.selectedHunk >= 0 && m.selectedHunk < len(file.Hunks) {
@@ -580,7 +593,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.loadDiff()
 
 	case " ":
-		if (m.mode == ModeInteractive || m.mode == ModeDiffEditor) && m.focusedPanel == PanelDiffView {
+		if (m.mode == ModeInteractive || m.mode == ModeDiffEditor) &&
+			m.focusedPanel == PanelDiffView {
 			if m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
 				file := m.changes[m.selectedFile]
 				if m.selectedHunk >= 0 && m.selectedHunk < len(file.Hunks) {
@@ -599,7 +613,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.searchState != nil && m.searchState.IsActive && len(m.searchState.Matches) > 0 {
 			return m.nextSearchMatch()
 		}
-		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 &&
+			m.selectedFile < len(m.changes) {
 			file := m.changes[m.selectedFile]
 			if len(file.Hunks) > 0 {
 				m.selectedHunk++
@@ -615,7 +630,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.searchState != nil && m.searchState.IsActive && len(m.searchState.Matches) > 0 {
 			return m.prevSearchMatch()
 		}
-		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 &&
+			m.selectedFile < len(m.changes) {
 			file := m.changes[m.selectedFile]
 			if len(file.Hunks) > 0 {
 				m.selectedHunk--
@@ -628,7 +644,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "p":
-		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 && m.selectedFile < len(m.changes) {
+		if m.focusedPanel == PanelDiffView && m.selectedFile >= 0 &&
+			m.selectedFile < len(m.changes) {
 			file := m.changes[m.selectedFile]
 			if len(file.Hunks) > 0 {
 				m.selectedHunk--
@@ -699,7 +716,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		if m.multiSplitState.Active && m.mode == ModeInteractive && m.focusedPanel == PanelDiffView {
+		if m.multiSplitState.Active && m.mode == ModeInteractive &&
+			m.focusedPanel == PanelDiffView {
 			if len(key) == 1 {
 				r := rune(key[0])
 				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
@@ -881,7 +899,9 @@ func (m Model) loadRevisionsForSplitAssign() tea.Cmd {
 	}
 }
 
-func (m Model) buildSplitSummaries(destinations map[splitassign.SplitTag]*splitassign.DestinationSpec) []splitpreview.SplitSummary {
+func (m Model) buildSplitSummaries(
+	destinations map[splitassign.SplitTag]*splitassign.DestinationSpec,
+) []splitpreview.SplitSummary {
 	var summaries []splitpreview.SplitSummary
 
 	for tag, dest := range destinations {
@@ -895,7 +915,8 @@ func (m Model) buildSplitSummaries(destinations map[splitassign.SplitTag]*splita
 		for _, file := range m.changes {
 			fileHasSelection := false
 			for hunkIdx := range file.Hunks {
-				if tagSelection.IsHunkSelected(file.Path, hunkIdx) || tagSelection.HasPartialSelection(file.Path, hunkIdx) {
+				if tagSelection.IsHunkSelected(file.Path, hunkIdx) ||
+					tagSelection.HasPartialSelection(file.Path, hunkIdx) {
 					hunkCount++
 					fileHasSelection = true
 				}
@@ -1063,7 +1084,8 @@ func (m Model) getHunkTags(filePath string, hunkIdx int) []SplitTag {
 
 	var tags []SplitTag
 	for tag, selection := range m.multiSplitState.Selections {
-		if selection.IsHunkSelected(filePath, hunkIdx) || selection.HasPartialSelection(filePath, hunkIdx) {
+		if selection.IsHunkSelected(filePath, hunkIdx) ||
+			selection.HasPartialSelection(filePath, hunkIdx) {
 			tags = append(tags, tag)
 		}
 	}

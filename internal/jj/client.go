@@ -88,7 +88,7 @@ func (c *Client) MoveChanges(patch, source, destination string) error {
 	defer os.RemoveAll(tmpDir)
 
 	patchFile := filepath.Join(tmpDir, "changes.patch")
-	if err := os.WriteFile(patchFile, []byte(patch), 0644); err != nil {
+	if err := os.WriteFile(patchFile, []byte(patch), 0o644); err != nil {
 		return fmt.Errorf("failed to write patch: %w", err)
 	}
 
@@ -233,7 +233,8 @@ func parseStatus(output string) []FileStatus {
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "Working copy") || strings.HasPrefix(line, "Parent commit") {
+		if line == "" || strings.HasPrefix(line, "Working copy") ||
+			strings.HasPrefix(line, "Parent commit") {
 			continue
 		}
 

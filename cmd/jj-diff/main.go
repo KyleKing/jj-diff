@@ -7,6 +7,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
@@ -43,18 +44,31 @@ func parseFlags() flags {
 	flag.BoolVar(&f.browse, "browse", false, "Force browse mode (read-only)")
 	flag.BoolVar(&f.interactive, "interactive", false, "Force interactive mode")
 	flag.BoolVar(&f.interactive, "i", false, "Force interactive mode (shorthand)")
-	flag.StringVar(&f.scmInput, "scm-input", "", "Path to scm-record input file (compatibility mode)")
+	flag.StringVar(
+		&f.scmInput,
+		"scm-input",
+		"",
+		"Path to scm-record input file (compatibility mode)",
+	)
 	flag.StringVar(&f.destination, "destination", "", "Pre-set destination revision")
 	flag.StringVar(&f.destination, "d", "", "Pre-set destination revision (shorthand)")
 	flag.BoolVar(&f.showWhitespace, "show-whitespace", false, "Visualize whitespace characters")
 	flag.BoolVar(&f.sideBySide, "side-by-side", false, "Side-by-side diff view")
 	flag.BoolVar(&f.sideBySide, "s", false, "Side-by-side diff view (shorthand)")
 	flag.BoolVar(&f.wordDiff, "word-diff", false, "Enable word-level highlighting")
-	flag.IntVar(&f.tabWidth, "tab-width", 0, "Tab display width (default: 4, 0 uses config/default)")
+	flag.IntVar(
+		&f.tabWidth,
+		"tab-width",
+		0,
+		"Tab display width (default: 4, 0 uses config/default)",
+	)
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] [LEFT RIGHT]\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "A TUI for interactive diff viewing and manipulation in Jujutsu (jj)\n\n")
+		fmt.Fprintf(
+			os.Stderr,
+			"A TUI for interactive diff viewing and manipulation in Jujutsu (jj)\n\n",
+		)
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
@@ -62,7 +76,10 @@ func parseFlags() flags {
 		fmt.Fprintf(os.Stderr, "  jj-diff -r @-        # Browse parent's changes\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -i           # Interactive mode (move changes)\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -i -d @-     # Move changes to parent\n")
-		fmt.Fprintf(os.Stderr, "  jj-diff LEFT RIGHT   # Diff-editor mode (for jj split, diffedit)\n")
+		fmt.Fprintf(
+			os.Stderr,
+			"  jj-diff LEFT RIGHT   # Diff-editor mode (for jj split, diffedit)\n",
+		)
 	}
 
 	flag.Parse()
@@ -102,7 +119,9 @@ func main() {
 	} else if len(args) == 0 {
 		initialModel, err = initRevisionMode(f, cfg)
 	} else {
-		log.Fatalf("Invalid arguments. Use 'jj-diff' for revision mode or 'jj-diff LEFT RIGHT' for diff-editor mode.")
+		log.Fatalf(
+			"Invalid arguments. Use 'jj-diff' for revision mode or 'jj-diff LEFT RIGHT' for diff-editor mode.",
+		)
 	}
 
 	if err != nil {

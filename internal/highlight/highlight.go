@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -118,15 +119,21 @@ func (h *Highlighter) styleToken(token chroma.Token) string {
 	style := lipgloss.NewStyle()
 
 	switch {
-	case tokenType == chroma.Comment, tokenType == chroma.CommentSingle, tokenType == chroma.CommentMultiline:
+	case tokenType == chroma.Comment,
+		tokenType == chroma.CommentSingle,
+		tokenType == chroma.CommentMultiline:
 		// Comments: muted/soft color
 		style = style.Foreground(theme.SoftMutedBg)
 
-	case tokenType == chroma.Keyword, tokenType == chroma.KeywordNamespace, tokenType == chroma.KeywordType:
+	case tokenType == chroma.Keyword,
+		tokenType == chroma.KeywordNamespace,
+		tokenType == chroma.KeywordType:
 		// Keywords: accent color (but not too bright)
 		style = style.Foreground(theme.Accent).Bold(true)
 
-	case tokenType == chroma.String, tokenType == chroma.LiteralString, tokenType == chroma.LiteralStringDouble:
+	case tokenType == chroma.String,
+		tokenType == chroma.LiteralString,
+		tokenType == chroma.LiteralStringDouble:
 		// Strings: subtle green (different from diff additions)
 		style = style.Foreground(lipgloss.Color("#a6e3a1"))
 

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
@@ -316,7 +317,12 @@ func TestChanges() []diff.FileChange {
 					OldStart: 10, OldLines: 2,
 					NewStart: 11, NewLines: 3,
 					Lines: []diff.Line{
-						{Type: diff.LineContext, Content: "line 10", OldLineNum: 10, NewLineNum: 11},
+						{
+							Type:       diff.LineContext,
+							Content:    "line 10",
+							OldLineNum: 10,
+							NewLineNum: 11,
+						},
 						{Type: diff.LineAddition, Content: "another line", NewLineNum: 12},
 					},
 				},

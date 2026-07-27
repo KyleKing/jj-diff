@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -26,13 +27,13 @@ type DestinationSpec struct {
 }
 
 type Model struct {
-	tags          []SplitTag
-	revisions     []jj.RevisionEntry
-	selectedTag   int
-	selectedRev   int
-	destinations  map[SplitTag]*DestinationSpec
-	visible       bool
-	focusOnTags   bool
+	tags         []SplitTag
+	revisions    []jj.RevisionEntry
+	selectedTag  int
+	selectedRev  int
+	destinations map[SplitTag]*DestinationSpec
+	visible      bool
+	focusOnTags  bool
 }
 
 func New() Model {
@@ -167,7 +168,10 @@ func (m Model) View(width, height int) string {
 	lines = append(lines, m.renderSplitView(leftWidth, rightWidth, maxHeight))
 
 	lines = append(lines, "")
-	lines = append(lines, styleFooter("Tab: Switch Panel | Enter: Assign | N: New Commit | Esc: Cancel", modalWidth))
+	lines = append(
+		lines,
+		styleFooter("Tab: Switch Panel | Enter: Assign | N: New Commit | Esc: Cancel", modalWidth),
+	)
 
 	content := strings.Join(lines, "\n")
 	return renderModal(content, width, height)
@@ -212,7 +216,11 @@ func (m Model) renderTagList(width, maxHeight int) []string {
 		var line string
 		if dest != nil {
 			if dest.Type == DestNewCommit {
-				line = fmt.Sprintf("[%s] → NEW: %s", string(tag), truncate(dest.Description, width-15))
+				line = fmt.Sprintf(
+					"[%s] → NEW: %s",
+					string(tag),
+					truncate(dest.Description, width-15),
+				)
 			} else {
 				line = fmt.Sprintf("[%s] → %s", string(tag), truncate(dest.ChangeID, width-10))
 			}

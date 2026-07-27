@@ -24,16 +24,25 @@ func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileCha
 				}
 
 				lines[k] = Line{
-					Type:       lineType,
-					Content:    fmt.Sprintf("This is line %d with realistic content for benchmarking", k),
+					Type: lineType,
+					Content: fmt.Sprintf(
+						"This is line %d with realistic content for benchmarking",
+						k,
+					),
 					OldLineNum: k + 1,
 					NewLineNum: k + 1,
 				}
 			}
 
 			hunks[j] = Hunk{
-				Header: fmt.Sprintf("@@ -%d,%d +%d,%d @@", j*linesPerHunk+1, linesPerHunk, j*linesPerHunk+1, linesPerHunk),
-				Lines:  lines,
+				Header: fmt.Sprintf(
+					"@@ -%d,%d +%d,%d @@",
+					j*linesPerHunk+1,
+					linesPerHunk,
+					j*linesPerHunk+1,
+					linesPerHunk,
+				),
+				Lines: lines,
 			}
 		}
 

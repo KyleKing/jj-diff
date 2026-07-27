@@ -60,7 +60,12 @@ func (a *Applier) applyFileSelections(file FileChange, selection SelectionState)
 	return nil
 }
 
-func (a *Applier) handleAddedFile(file FileChange, rightPath string, selection SelectionState, hasSelection bool) error {
+func (a *Applier) handleAddedFile(
+	file FileChange,
+	rightPath string,
+	selection SelectionState,
+	hasSelection bool,
+) error {
 	if !hasSelection {
 		return os.Remove(rightPath)
 	}
@@ -74,7 +79,12 @@ func (a *Applier) handleAddedFile(file FileChange, rightPath string, selection S
 	return a.writeFile(rightPath, reconstructed)
 }
 
-func (a *Applier) handleDeletedFile(file FileChange, leftPath, rightPath string, selection SelectionState, hasSelection bool) error {
+func (a *Applier) handleDeletedFile(
+	file FileChange,
+	leftPath, rightPath string,
+	selection SelectionState,
+	hasSelection bool,
+) error {
 	if !hasSelection {
 		leftContent, err := os.ReadFile(leftPath)
 		if err != nil {
@@ -95,7 +105,11 @@ func (a *Applier) handleDeletedFile(file FileChange, leftPath, rightPath string,
 	return a.writeFile(rightPath, reconstructed)
 }
 
-func (a *Applier) handleModifiedFile(file FileChange, leftPath, rightPath string, selection SelectionState) error {
+func (a *Applier) handleModifiedFile(
+	file FileChange,
+	leftPath, rightPath string,
+	selection SelectionState,
+) error {
 	leftContent, err := os.ReadFile(leftPath)
 	if err != nil {
 		return err
@@ -106,11 +120,20 @@ func (a *Applier) handleModifiedFile(file FileChange, leftPath, rightPath string
 		return err
 	}
 
-	reconstructed := a.reconstructModifiedFile(file, string(leftContent), string(rightContent), selection)
+	reconstructed := a.reconstructModifiedFile(
+		file,
+		string(leftContent),
+		string(rightContent),
+		selection,
+	)
 	return a.writeFile(rightPath, reconstructed)
 }
 
-func (a *Applier) reconstructAddedFile(file FileChange, rightContent string, selection SelectionState) string {
+func (a *Applier) reconstructAddedFile(
+	file FileChange,
+	rightContent string,
+	selection SelectionState,
+) string {
 	rightLines := strings.Split(rightContent, "\n")
 	result := make([]string, 0)
 
@@ -120,7 +143,8 @@ func (a *Applier) reconstructAddedFile(file FileChange, rightContent string, sel
 
 		for lineIdx, line := range hunk.Lines {
 			if line.Type == LineAddition {
-				keep := isSelected || (hasPartial && selection.IsLineSelected(file.Path, hunkIdx, lineIdx))
+				keep := isSelected ||
+					(hasPartial && selection.IsLineSelected(file.Path, hunkIdx, lineIdx))
 				if keep {
 					lineNum := line.NewLineNum - 1
 					if lineNum >= 0 && lineNum < len(rightLines) {
@@ -134,7 +158,11 @@ func (a *Applier) reconstructAddedFile(file FileChange, rightContent string, sel
 	return strings.Join(result, "\n")
 }
 
-func (a *Applier) reconstructDeletedFile(file FileChange, leftContent string, selection SelectionState) string {
+func (a *Applier) reconstructDeletedFile(
+	file FileChange,
+	leftContent string,
+	selection SelectionState,
+) string {
 	leftLines := strings.Split(leftContent, "\n")
 	deletedLineNums := make(map[int]bool)
 
@@ -144,7 +172,8 @@ func (a *Applier) reconstructDeletedFile(file FileChange, leftContent string, se
 
 		for lineIdx, line := range hunk.Lines {
 			if line.Type == LineDeletion {
-				keep := isSelected || (hasPartial && selection.IsLineSelected(file.Path, hunkIdx, lineIdx))
+				keep := isSelected ||
+					(hasPartial && selection.IsLineSelected(file.Path, hunkIdx, lineIdx))
 				if keep {
 					deletedLineNums[line.OldLineNum] = true
 				}
@@ -163,7 +192,11 @@ func (a *Applier) reconstructDeletedFile(file FileChange, leftContent string, se
 	return strings.Join(result, "\n")
 }
 
-func (a *Applier) reconstructModifiedFile(file FileChange, leftContent, rightContent string, selection SelectionState) string {
+func (a *Applier) reconstructModifiedFile(
+	file FileChange,
+	leftContent, rightContent string,
+	selection SelectionState,
+) string {
 	leftLines := strings.Split(leftContent, "\n")
 	rightLines := strings.Split(rightContent, "\n")
 
@@ -181,7 +214,8 @@ func (a *Applier) reconstructModifiedFile(file FileChange, leftContent, rightCon
 		hasPartial := selection.HasPartialSelection(file.Path, hunkIdx)
 
 		for lineIdx, line := range hunk.Lines {
-			selected := isSelected || (hasPartial && selection.IsLineSelected(file.Path, hunkIdx, lineIdx))
+			selected := isSelected ||
+				(hasPartial && selection.IsLineSelected(file.Path, hunkIdx, lineIdx))
 
 			switch line.Type {
 			case LineDeletion:
@@ -244,7 +278,7 @@ func (a *Applier) reconstructModifiedFile(file FileChange, leftContent, rightCon
 
 func (a *Applier) writeFile(path, content string) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
@@ -252,14 +286,15 @@ func (a *Applier) writeFile(path, content string) error {
 		content += "\n"
 	}
 
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 // SelectAll selects all hunks in all files.
 // Used when user wants to keep all changes (default behavior).
 func SelectAll(files []FileChange, selection interface {
 	ToggleHunk(filePath string, hunkIdx int)
-}) {
+},
+) {
 	for _, file := range files {
 		for hunkIdx := range file.Hunks {
 			selection.ToggleHunk(file.Path, hunkIdx)

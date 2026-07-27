@@ -46,7 +46,11 @@ func TestScore_ConsecutiveBonus(t *testing.T) {
 	score2, _ := Score("hxexlxlxo", "hel")
 
 	if score1 <= score2 {
-		t.Errorf("Expected consecutive match (%d) to score higher than non-consecutive (%d)", score1, score2)
+		t.Errorf(
+			"Expected consecutive match (%d) to score higher than non-consecutive (%d)",
+			score1,
+			score2,
+		)
 	}
 }
 
@@ -56,7 +60,11 @@ func TestScore_WordBoundaryBonus(t *testing.T) {
 	score2, _ := Score("performance", "fc")
 
 	if score1 <= score2 {
-		t.Errorf("Expected word boundary match (%d) to score higher than middle match (%d)", score1, score2)
+		t.Errorf(
+			"Expected word boundary match (%d) to score higher than middle match (%d)",
+			score1,
+			score2,
+		)
 	}
 }
 
@@ -80,7 +88,11 @@ func TestScore_PathMatching(t *testing.T) {
 	score2, _ := Score(paths[0], "cmd")
 
 	if score1 <= score2 {
-		t.Errorf("Expected 'cmd' to match cmd/main.go (%d) better than model path (%d)", score1, score2)
+		t.Errorf(
+			"Expected 'cmd' to match cmd/main.go (%d) better than model path (%d)",
+			score1,
+			score2,
+		)
 	}
 }
 

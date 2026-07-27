@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/highlight"
@@ -159,14 +160,22 @@ func (m *Model) SetSelection(selectedHunk int, isSelected func(hunkIdx int) bool
 	m.isSelected = isSelected
 }
 
-func (m *Model) SetVisualState(lineCursor int, isVisualMode bool, visualAnchor int, isLineSelected func(hunkIdx, lineIdx int) bool) {
+func (m *Model) SetVisualState(
+	lineCursor int,
+	isVisualMode bool,
+	visualAnchor int,
+	isLineSelected func(hunkIdx, lineIdx int) bool,
+) {
 	m.lineCursor = lineCursor
 	m.isVisualMode = isVisualMode
 	m.visualAnchor = visualAnchor
 	m.isLineSelected = isLineSelected
 }
 
-func (m *Model) SetSearchState(isSearching bool, getMatches func(hunkIdx, lineIdx int) []MatchRange) {
+func (m *Model) SetSearchState(
+	isSearching bool,
+	getMatches func(hunkIdx, lineIdx int) []MatchRange,
+) {
 	m.isSearching = isSearching
 	m.getMatches = getMatches
 }
@@ -309,7 +318,10 @@ func (m Model) renderUnified(width, height int, focused bool) string {
 		if lineInHunk == 0 {
 			isCurrent := hunkIdx == m.selectedHunk
 			isHunkSelected := m.isSelected != nil && m.isSelected(hunkIdx)
-			lines = append(lines, m.renderHunkHeader(hunk.Header, width, hunkIdx, isCurrent, isHunkSelected))
+			lines = append(
+				lines,
+				m.renderHunkHeader(hunk.Header, width, hunkIdx, isCurrent, isHunkSelected),
+			)
 		}
 
 		hunkLines := hunk.Lines
@@ -337,7 +349,7 @@ func (m Model) renderUnified(width, height int, focused bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderLine(line diff.Line, width int, hunkIdx, lineIdx int) string {
+func (m Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
 	lineNumStr := ""
 	if m.showLineNumbers {
 		switch line.Type {
@@ -464,7 +476,11 @@ func (m Model) highlightMatches(content string, matches []MatchRange) string {
 	return strings.Join(segments, "")
 }
 
-func (m Model) applyWordDiffHighlight(content string, lineType diff.LineType, wordDiff diff.WordDiffResult) string {
+func (m Model) applyWordDiffHighlight(
+	content string,
+	lineType diff.LineType,
+	wordDiff diff.WordDiffResult,
+) string {
 	var spans []diff.IntraLineSpan
 	switch lineType {
 	case diff.LineDeletion:
@@ -507,7 +523,11 @@ func styleHeader(text string, width int, focused bool) string {
 	return style.Render(truncateOrPad(text, width))
 }
 
-func (m Model) renderHunkHeader(text string, width, hunkIdx int, isCurrent, isSelected bool) string {
+func (m Model) renderHunkHeader(
+	text string,
+	width, hunkIdx int,
+	isCurrent, isSelected bool,
+) string {
 	prefix := "  "
 	if isCurrent {
 		prefix = "> "

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -73,7 +74,10 @@ func (m Model) View(width, height int) string {
 	}
 
 	var lines []string
-	lines = append(lines, styleHeader(fmt.Sprintf("Commit Message for Tag [%s]", string(m.tag)), modalWidth))
+	lines = append(
+		lines,
+		styleHeader(fmt.Sprintf("Commit Message for Tag [%s]", string(m.tag)), modalWidth),
+	)
 	lines = append(lines, "")
 
 	inputBox := styleInput(m.message, modalWidth-4)

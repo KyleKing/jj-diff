@@ -26,16 +26,25 @@ func generateHunks(n, linesPerHunk int) []diff.Hunk {
 			}
 
 			lines[j] = diff.Line{
-				Type:       lineType,
-				Content:    fmt.Sprintf("This is line %d with some content that makes it realistic", j),
+				Type: lineType,
+				Content: fmt.Sprintf(
+					"This is line %d with some content that makes it realistic",
+					j,
+				),
 				OldLineNum: j + 1,
 				NewLineNum: j + 1,
 			}
 		}
 
 		hunks[i] = diff.Hunk{
-			Header: fmt.Sprintf("@@ -%d,%d +%d,%d @@", i*linesPerHunk+1, linesPerHunk, i*linesPerHunk+1, linesPerHunk),
-			Lines:  lines,
+			Header: fmt.Sprintf(
+				"@@ -%d,%d +%d,%d @@",
+				i*linesPerHunk+1,
+				linesPerHunk,
+				i*linesPerHunk+1,
+				linesPerHunk,
+			),
+			Lines: lines,
 		}
 	}
 	return hunks

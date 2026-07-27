@@ -297,7 +297,10 @@ func TestSelectionState_WholeHunkClearsLines(t *testing.T) {
 	fileSelection := s.Files["file.txt"]
 	hunkSelection := fileSelection.Hunks[0]
 	if len(hunkSelection.SelectedLines) != 0 {
-		t.Errorf("Expected SelectedLines map to be cleared, got %d entries", len(hunkSelection.SelectedLines))
+		t.Errorf(
+			"Expected SelectedLines map to be cleared, got %d entries",
+			len(hunkSelection.SelectedLines),
+		)
 	}
 }
 
@@ -467,12 +470,42 @@ func TestModelViewOptionToggles(t *testing.T) {
 		checkFn  func(m Model) bool
 		expected bool
 	}{
-		{"toggle whitespace on", 'w', func(m Model) bool { return m.diffView.ShowWhitespace() }, true},
-		{"toggle whitespace off", 'w', func(m Model) bool { return m.diffView.ShowWhitespace() }, false},
-		{"toggle word diff on", 'W', func(m Model) bool { return m.diffView.WordLevelDiff() }, true},
-		{"toggle word diff off", 'W', func(m Model) bool { return m.diffView.WordLevelDiff() }, false},
-		{"toggle line numbers off", 'l', func(m Model) bool { return m.diffView.ShowLineNumbers() }, false},
-		{"toggle line numbers on", 'l', func(m Model) bool { return m.diffView.ShowLineNumbers() }, true},
+		{
+			"toggle whitespace on",
+			'w',
+			func(m Model) bool { return m.diffView.ShowWhitespace() },
+			true,
+		},
+		{
+			"toggle whitespace off",
+			'w',
+			func(m Model) bool { return m.diffView.ShowWhitespace() },
+			false,
+		},
+		{
+			"toggle word diff on",
+			'W',
+			func(m Model) bool { return m.diffView.WordLevelDiff() },
+			true,
+		},
+		{
+			"toggle word diff off",
+			'W',
+			func(m Model) bool { return m.diffView.WordLevelDiff() },
+			false,
+		},
+		{
+			"toggle line numbers off",
+			'l',
+			func(m Model) bool { return m.diffView.ShowLineNumbers() },
+			false,
+		},
+		{
+			"toggle line numbers on",
+			'l',
+			func(m Model) bool { return m.diffView.ShowLineNumbers() },
+			true,
+		},
 	}
 
 	for _, tt := range tests {

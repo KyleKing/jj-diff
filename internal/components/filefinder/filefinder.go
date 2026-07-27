@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/fuzzy"
 	"github.com/kyleking/jj-diff/internal/theme"
 )

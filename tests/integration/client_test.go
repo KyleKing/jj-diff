@@ -83,7 +83,11 @@ func TestMoveChanges_RollbackOnError(t *testing.T) {
 	// Verify: Working copy is unchanged
 	currentWC := repo.GetChangeID("@")
 	if currentWC != originalWC {
-		t.Errorf("Working copy changed after failed operation:\nExpected: %s\nActual: %s", originalWC, currentWC)
+		t.Errorf(
+			"Working copy changed after failed operation:\nExpected: %s\nActual: %s",
+			originalWC,
+			currentWC,
+		)
 	}
 
 	// Verify: Destination is unchanged

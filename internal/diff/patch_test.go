@@ -7,9 +7,9 @@ import (
 
 // mockSelectionState implements the selection state interface for testing
 type mockSelectionState struct {
-	selections      map[string]map[int]bool
-	lineSelections  map[string]map[int]map[int]bool
-	partialHunks    map[string]map[int]bool
+	selections     map[string]map[int]bool
+	lineSelections map[string]map[int]map[int]bool
+	partialHunks   map[string]map[int]bool
 }
 
 func (m *mockSelectionState) IsHunkSelected(filePath string, hunkIdx int) bool {
@@ -37,9 +37,9 @@ func (m *mockSelectionState) IsLineSelected(filePath string, hunkIdx, lineIdx in
 
 func newMockSelection(selections map[string]map[int]bool) *mockSelectionState {
 	return &mockSelectionState{
-		selections:      selections,
-		lineSelections:  make(map[string]map[int]map[int]bool),
-		partialHunks:    make(map[string]map[int]bool),
+		selections:     selections,
+		lineSelections: make(map[string]map[int]map[int]bool),
+		partialHunks:   make(map[string]map[int]bool),
 	}
 }
 

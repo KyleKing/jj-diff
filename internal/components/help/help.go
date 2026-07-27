@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -74,7 +75,10 @@ func (m Model) View(width, height int) string {
 		lines = append(lines, keyBinding("d", "Select destination revision", modalWidth))
 		lines = append(lines, keyBinding("Space", "Toggle hunk selection", modalWidth))
 		lines = append(lines, keyBinding("v", "Enter visual mode (line selection)", modalWidth))
-		lines = append(lines, keyBinding("j/k in visual", "Extend/contract line selection", modalWidth))
+		lines = append(
+			lines,
+			keyBinding("j/k in visual", "Extend/contract line selection", modalWidth),
+		)
 		lines = append(lines, keyBinding("Space in visual", "Confirm line selection", modalWidth))
 		lines = append(lines, keyBinding("Esc", "Exit visual mode", modalWidth))
 		lines = append(lines, keyBinding("a", "Apply selected changes to destination", modalWidth))
@@ -88,7 +92,10 @@ func (m Model) View(width, height int) string {
 		lines = append(lines, wrapText("1. Press 'd' to select a destination revision", modalWidth))
 		lines = append(lines, wrapText("2. Navigate to hunks with 'n'/'p'", modalWidth))
 		lines = append(lines, wrapText("3. Press Space to select whole hunks", modalWidth))
-		lines = append(lines, wrapText("4. Press 'v' for line-level selection (visual mode)", modalWidth))
+		lines = append(
+			lines,
+			wrapText("4. Press 'v' for line-level selection (visual mode)", modalWidth),
+		)
 		lines = append(lines, wrapText("   - Use j/k to extend selection range", modalWidth))
 		lines = append(lines, wrapText("   - Press Space to confirm selection", modalWidth))
 		lines = append(lines, wrapText("5. Press 'a' to apply selected hunks/lines", modalWidth))

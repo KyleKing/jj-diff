@@ -37,7 +37,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 name = "Test User"
 email = "test@example.com"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		os.RemoveAll(tmpDir)
 		t.Fatalf("Failed to write config: %v", err)
 	}
@@ -59,11 +59,11 @@ func (r *TestRepo) WriteFile(path, content string) {
 	r.t.Helper()
 	fullPath := filepath.Join(r.Dir, path)
 
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 		r.t.Fatalf("Failed to create directories: %v", err)
 	}
 
-	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 		r.t.Fatalf("Failed to write file %s: %v", path, err)
 	}
 }
@@ -136,7 +136,12 @@ func (r *TestRepo) AssertDiffContains(revision, expected string) {
 	r.t.Helper()
 	diff := r.GetDiff(revision)
 	if !strings.Contains(diff, expected) {
-		r.t.Errorf("Diff for %s missing expected content:\n%s\nFull diff:\n%s", revision, expected, diff)
+		r.t.Errorf(
+			"Diff for %s missing expected content:\n%s\nFull diff:\n%s",
+			revision,
+			expected,
+			diff,
+		)
 	}
 }
 
@@ -145,7 +150,12 @@ func (r *TestRepo) AssertDiffNotContains(revision, unexpected string) {
 	r.t.Helper()
 	diff := r.GetDiff(revision)
 	if strings.Contains(diff, unexpected) {
-		r.t.Errorf("Diff for %s contains unexpected content:\n%s\nFull diff:\n%s", revision, unexpected, diff)
+		r.t.Errorf(
+			"Diff for %s contains unexpected content:\n%s\nFull diff:\n%s",
+			revision,
+			unexpected,
+			diff,
+		)
 	}
 }
 

@@ -66,7 +66,8 @@ func Score(text, query string) (int, []int) {
 				// Bonus for word boundary (after /, _, -, or space)
 				if textIdx > 0 {
 					prevChar := text[textIdx-1]
-					if prevChar == '/' || prevChar == '_' || prevChar == '-' || unicode.IsSpace(rune(prevChar)) {
+					if prevChar == '/' || prevChar == '_' || prevChar == '-' ||
+						unicode.IsSpace(rune(prevChar)) {
 						baseScore += 50
 					}
 				} else {

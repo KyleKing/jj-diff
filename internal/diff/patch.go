@@ -184,7 +184,8 @@ func GeneratePatchForTag(files []FileChange, selection SelectionState) string {
 // GetSelectedHunksMap is deprecated but kept for backward compatibility
 func GetSelectedHunksMap(files []FileChange, selectionState interface {
 	IsHunkSelected(filePath string, hunkIdx int) bool
-}) map[string]map[int]bool {
+},
+) map[string]map[int]bool {
 	result := make(map[string]map[int]bool)
 
 	for _, file := range files {

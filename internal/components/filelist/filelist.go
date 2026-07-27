@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -182,7 +183,10 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 		typeColWidth, "Type",
 		pathColWidth, "Path",
 		statsColWidth, "Stats")
-	lines = append(lines, lipgloss.NewStyle().Foreground(theme.Secondary).Bold(true).Render(headerLine))
+	lines = append(
+		lines,
+		lipgloss.NewStyle().Foreground(theme.Secondary).Bold(true).Render(headerLine),
+	)
 
 	// Calculate visible range
 	visibleHeight := height - 2 // Subtract header rows
@@ -249,7 +253,15 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 
 		stats := fmt.Sprintf("+%-3d -%-3d", additions, deletions)
 
-		line := fmt.Sprintf("%-*s  %-*s  %*s", typeColWidth, changeType, pathColWidth, path, statsColWidth, stats)
+		line := fmt.Sprintf(
+			"%-*s  %-*s  %*s",
+			typeColWidth,
+			changeType,
+			pathColWidth,
+			path,
+			statsColWidth,
+			stats,
+		)
 
 		// Apply selection styling to content only, not padding
 		if isSelected {
@@ -307,7 +319,11 @@ func (m Model) renderFileLine(file diff.FileChange, selected, focused bool) stri
 	return styleNormal(line)
 }
 
-func (m Model) renderFileLineWithMatches(file diff.FileChange, fileIdx int, selected, focused bool) string {
+func (m Model) renderFileLineWithMatches(
+	file diff.FileChange,
+	fileIdx int,
+	selected, focused bool,
+) string {
 	changeIndicator := fmt.Sprintf("[%s]", file.ChangeType.String())
 	prefix := changeIndicator + " "
 

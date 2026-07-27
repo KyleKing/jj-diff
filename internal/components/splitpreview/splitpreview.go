@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -95,7 +96,11 @@ func (m Model) renderSummaryLine(summary SplitSummary, width int) string {
 	if summary.Destination.Type == DestNewCommit {
 		destStr = fmt.Sprintf("NEW: %s", truncate(summary.Destination.Description, 30))
 	} else {
-		destStr = fmt.Sprintf("%s (%s)", summary.Destination.ChangeID, truncate(summary.Destination.Description, 20))
+		destStr = fmt.Sprintf(
+			"%s (%s)",
+			summary.Destination.ChangeID,
+			truncate(summary.Destination.Description, 20),
+		)
 	}
 
 	line := fmt.Sprintf("[%s] → %s | %d files, %d hunks",

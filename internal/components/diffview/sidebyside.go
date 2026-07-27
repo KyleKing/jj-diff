@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -33,7 +34,11 @@ func (v *SideBySideView) Render(file *diff.FileChange, ctx RenderContext) string
 	lines = append(lines, headerStyle.Render(leftHeader)+" │ "+headerStyle.Render(rightHeader))
 
 	for hunkIdx, hunk := range file.Hunks {
-		hunkHeader := v.renderSideBySideHunkHeader(hunk.Header, ctx.Width, hunkIdx == ctx.SelectedHunk)
+		hunkHeader := v.renderSideBySideHunkHeader(
+			hunk.Header,
+			ctx.Width,
+			hunkIdx == ctx.SelectedHunk,
+		)
 		lines = append(lines, hunkHeader)
 
 		// Process hunk lines to hide whitespace changes if enabled
@@ -122,7 +127,12 @@ func (v *SideBySideView) renderPairedLine(pair linePair, paneWidth int, ctx Rend
 	return leftContent + " │ " + rightContent
 }
 
-func (v *SideBySideView) renderSinglePane(line *diff.Line, paneWidth int, ctx RenderContext, isRight bool) string {
+func (v *SideBySideView) renderSinglePane(
+	line *diff.Line,
+	paneWidth int,
+	ctx RenderContext,
+	isRight bool,
+) string {
 	if line == nil {
 		return strings.Repeat(" ", paneWidth)
 	}

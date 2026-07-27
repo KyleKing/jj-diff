@@ -38,7 +38,12 @@ func TestDetectLexer(t *testing.T) {
 		detected := lexer != nil
 
 		if detected != tc.shouldDetect {
-			t.Errorf("File %s: expected detected=%v, got %v", tc.filePath, tc.shouldDetect, detected)
+			t.Errorf(
+				"File %s: expected detected=%v, got %v",
+				tc.filePath,
+				tc.shouldDetect,
+				detected,
+			)
 		}
 	}
 }
@@ -140,7 +145,12 @@ func TestHighlightLine_PreservesContent(t *testing.T) {
 			// Remove any non-alphanumeric characters for comparison
 			cleanWord := strings.Trim(word, "(){}[];,.")
 			if cleanWord != "" && !strings.Contains(result, cleanWord) {
-				t.Errorf("File %s, line %s: result missing word %s", tc.filePath, tc.line, cleanWord)
+				t.Errorf(
+					"File %s, line %s: result missing word %s",
+					tc.filePath,
+					tc.line,
+					cleanWord,
+				)
 			}
 		}
 	}
