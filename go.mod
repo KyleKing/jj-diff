@@ -1,6 +1,6 @@
 module github.com/kyleking/jj-diff
 
-go 1.22
+go 1.23
 
 require (
 	github.com/alecthomas/chroma/v2 v2.23.0

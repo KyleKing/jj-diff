@@ -12,8 +12,13 @@ mise run ci
 
 ## Tasks
 
-Shared tasks live in `.config/mise.template.toml` (managed by the copier template).
-Project-specific tasks go in `.config/mise.project.toml` or other `mise.*.toml` files.
+Shared tasks live in `.config/mise/conf.d/template.toml` (managed by the copier template).
+Project-specific tasks go in additional `.config/mise/conf.d/*.toml` files.
+
+mise loads `conf.d/*.toml` files in alphabetical order, and a task defined in more
+than one file resolves to whichever file loaded last. Name your project file so it
+sorts after `template.toml` (`user.toml` works; `project.toml` does not, since
+`p` < `t`) or a same-named task override will silently do nothing.
 
 | Command | Description |
 |---------|-------------|
@@ -25,6 +30,7 @@ Project-specific tasks go in `.config/mise.project.toml` or other `mise.*.toml` 
 | `mise run format` | Auto-fix lint and formatting |
 | `mise run hooks` | Run git hooks |
 | `mise run lint` | Run linter |
+| `mise dev` | Run from source (`go run`, always reflects current code) |
 | `mise run test` | Run tests with coverage |
 | `mise tasks` | List all available tasks |
 
@@ -47,16 +53,46 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 Git hooks run automatically via hk on commit and push.
 
 
-## Releases
+## Development Install
 
-Automated via goreleaser on tag push:
+Run straight from source with `go run`, which always reflects the current code, so there's no built binary or installed extension to go stale between edits:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+go run ./cmd/jj-diff [args]
 ```
 
-GitHub Actions builds binaries for Linux, macOS, Windows, and FreeBSD (amd64/arm64).
+To test the actual `gh jj-diff ...` extension invocation or a Homebrew install, use the released version rather than installing from this checkout:
+
+```bash
+gh extension install kyleking/jj-diff
+# or
+brew install --formula https://github.com/kyleking/jj-diff/raw/main/Formula/jj-diff.rb
+```
+
+
+## Releases
+
+Automated via goreleaser on tag push. **Note:** For GH CLI extensions, the first release is required before users can run `gh extension install kyleking/jj-diff`.
+
+### Creating a Release
+
+1. Tag and push:
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+2. GitHub Actions will automatically:
+   - Run tests and build
+   - Create release with binaries for Linux, macOS, Windows, and FreeBSD (amd64/arm64)
+   - Publish to GitHub Releases
+
+3. Verify the release has properly named binaries:
+   - `jj-diff-linux-amd64`
+   - `jj-diff-darwin-arm64`
+   - `jj-diff-windows-amd64.exe`
+   - etc.
 
 ### Updating the Homebrew Formula
 

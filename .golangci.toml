@@ -1,18 +1,27 @@
 # Configuration file for golangci-lint
 # For more options, see https://golangci-lint.run/usage/configuration/
 
-version = 2
+version = "2"
+
+[formatters]
+enable = ["gci", "gofmt", "gofumpt", "goimports"]
+
+[formatters.settings.gci]
+sections = ["standard", "default", "prefix(github.com/kyleking/jj-diff)"]
+
+[formatters.settings.gofumpt]
+extra-rules = true
+
+[formatters.settings.goimports]
+local-prefixes = ["github.com/kyleking/jj-diff"]
 
 [linters]
 disable = [
-  "depguard", # requires allowlist/denylist configuration
-  "execinquery", # deprecated in favor of gosec G202
-  "exportloopref", # deprecated, replaced by copyloopvar
-  "forbidigo", # requires custom regex configuration
-  "gochecknoglobals", # BubbleTea/lipgloss styles use package-level vars
-  "goheader", # copyright headers add noise for personal projects
-  "gomnd", # replaced by mnd
-  "wsl" # deprecated, whitespace linting too nitpicky
+  "depguard",  # requires allowlist/denylist configuration
+  "forbidigo",  # requires custom regex configuration
+  "gochecknoglobals",  # BubbleTea/lipgloss styles use package-level vars
+  "goheader",  # copyright headers add noise for personal projects
+  "wsl"  # whitespace linting too nitpicky
 ]
 enable = [
   "asciicheck",
@@ -36,7 +45,6 @@ enable = [
   "fatcontext",
   "forcetypeassert",
   "funlen",
-  "gci",
   "ginkgolinter",
   "gocheckcompilerdirectives",
   "gochecknoinits",
@@ -47,14 +55,9 @@ enable = [
   "gocyclo",
   "godot",
   "godox",
-  "gofmt",
-  "gofumpt",
-  "goimports",
   "gomoddirectives",
-  "gomodguard",
   "goprintffuncname",
   "gosec",
-  "gosimple",
   "gosmopolitan",
   "govet",
   "grouper",
@@ -64,7 +67,7 @@ enable = [
   "ineffassign",
   "interfacebloat",
   "intrange",
-  "ireturn", # revisit: BubbleTea Init/Update methods return interfaces by design
+  "ireturn",  # revisit: BubbleTea Init/Update methods return interfaces by design
   "lll",
   "loggercheck",
   "maintidx",
@@ -95,29 +98,31 @@ enable = [
   "spancheck",
   "sqlclosecheck",
   "staticcheck",
-  "stylecheck",
   "tagalign",
   "tagliatelle",
-  "tenv",
   "testableexamples",
   "testifylint",
   "testpackage",
   "thelper",
   "tparallel",
-  "typecheck",
   "unconvert",
   "unparam",
   "unused",
   "usestdlibvars",
+  "usetesting",
   "wastedassign",
   "whitespace",
   "wrapcheck",
   "zerologlint"
 ]
 
+[[linters.exclusions.rules]]
+# Table-driven tests grow long cases and repeat literals without adding real complexity.
+path = "_test\\.go"
+linters = ["cyclop", "goconst"]
+
 [linters.settings.cyclop]
 max-complexity = 15
-skip-tests = true
 
 [linters.settings.dupl]
 threshold = 100
@@ -134,19 +139,21 @@ lines = 100
 statements = 50
 ignore-comments = true
 
-[linters.settings.gci]
-sections = ["standard", "default", "prefix(github.com/kyleking/jj-diff)"]
-
 [linters.settings.gocognit]
 min-complexity = 20
 
 [linters.settings.goconst]
 min-len = 3
 min-occurrences = 3
-ignore-tests = true
 
 [linters.settings.gocritic]
-enabled-tags = ["diagnostic", "style", "performance", "experimental", "opinionated"]
+enabled-tags = [
+  "diagnostic",
+  "style",
+  "performance",
+  "experimental",
+  "opinionated"
+]
 disabled-checks = ["whyNoLint"]
 
 [linters.settings.gocyclo]
@@ -155,16 +162,6 @@ min-complexity = 15
 [linters.settings.godot]
 scope = "declarations"
 capital = true
-
-[linters.settings.gofumpt]
-extra-rules = true
-lang-version = "1.23"
-
-[linters.settings.goimports]
-local-prefixes = "github.com/kyleking/jj-diff"
-
-[linters.settings.gomodguard]
-blocked.modules = []
 
 [linters.settings.govet]
 enable-all = true
@@ -200,61 +197,56 @@ require-specific = true
 [linters.settings.revive]
 enable-all-rules = false
 rules = [
-  {name = "atomic"},
-  {name = "blank-imports"},
-  {name = "bool-literal-in-expr"},
-  {name = "call-to-gc"},
-  {name = "confusing-naming"},
-  {name = "constant-logical-expr"},
-  {name = "context-as-argument"},
-  {name = "context-keys-type"},
-  {name = "defer"},
-  {name = "dot-imports"},
-  {name = "early-return"},
-  {name = "empty-block"},
-  {name = "empty-lines"},
-  {name = "error-naming"},
-  {name = "error-return"},
-  {name = "error-strings"},
-  {name = "errorf"},
-  {name = "exported"},
-  {name = "if-return"},
-  {name = "import-shadowing"},
-  {name = "increment-decrement"},
-  {name = "indent-error-flow"},
-  {name = "modifies-parameter"},
-  {name = "modifies-value-receiver"},
-  {name = "package-comments"},
-  {name = "range"},
-  {name = "range-val-address"},
-  {name = "range-val-in-closure"},
-  {name = "receiver-naming"},
-  {name = "redefines-builtin-id"},
-  {name = "string-of-int"},
-  {name = "struct-tag"},
-  {name = "superfluous-else"},
-  {name = "time-equal"},
-  {name = "time-naming"},
-  {name = "unexported-naming"},
-  {name = "unexported-return"},
-  {name = "unnecessary-stmt"},
-  {name = "unreachable-code"},
-  {name = "unused-parameter"},
-  {name = "unused-receiver"},
-  {name = "use-any"},
-  {name = "useless-break"},
-  {name = "var-declaration"},
-  {name = "var-naming"},
-  {name = "waitgroup-by-value"}
+  { name = "atomic" },
+  { name = "blank-imports" },
+  { name = "bool-literal-in-expr" },
+  { name = "call-to-gc" },
+  { name = "confusing-naming" },
+  { name = "constant-logical-expr" },
+  { name = "context-as-argument" },
+  { name = "context-keys-type" },
+  { name = "defer" },
+  { name = "dot-imports" },
+  { name = "early-return" },
+  { name = "empty-block" },
+  { name = "empty-lines" },
+  { name = "error-naming" },
+  { name = "error-return" },
+  { name = "error-strings" },
+  { name = "errorf" },
+  { name = "exported" },
+  { name = "if-return" },
+  { name = "import-shadowing" },
+  { name = "increment-decrement" },
+  { name = "indent-error-flow" },
+  { name = "modifies-parameter" },
+  { name = "modifies-value-receiver" },
+  { name = "package-comments" },
+  { name = "range" },
+  { name = "range-val-address" },
+  { name = "range-val-in-closure" },
+  { name = "receiver-naming" },
+  { name = "redefines-builtin-id" },
+  { name = "string-of-int" },
+  { name = "struct-tag" },
+  { name = "superfluous-else" },
+  { name = "time-equal" },
+  { name = "time-naming" },
+  { name = "unexported-naming" },
+  { name = "unexported-return" },
+  { name = "unnecessary-stmt" },
+  { name = "unreachable-code" },
+  { name = "unused-parameter" },
+  { name = "unused-receiver" },
+  { name = "use-any" },
+  { name = "useless-break" },
+  { name = "var-declaration" },
+  { name = "var-naming" },
+  { name = "waitgroup-by-value" }
 ]
 
 [linters.settings.staticcheck]
-checks = ["all"]
-
-[linters.settings.stylecheck]
 checks = ["all", "-ST1000"]
-dot-import-whitelist = []
-http-status-code-whitelist = []
 
 [linters.settings.tagliatelle]
 case.rules.json = "snake"
@@ -267,7 +259,7 @@ enable-all = true
 check-exported = true
 
 [linters.settings.wrapcheck]
-ignoreSigs = [
+ignore-sigs = [
   ".Errorf(",
   "errors.New(",
   "errors.Unwrap(",

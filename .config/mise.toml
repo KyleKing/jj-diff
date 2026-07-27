@@ -1,8 +1,7 @@
-# Shared tasks are in .config/mise.template.toml (managed by copier template)
-# Project-specific tasks belong in separate mise.*.toml files (e.g., mise.project.toml)
-
-[env]
-MISE_ENV = "hk"
+# Copier never updates this file (_skip_if_exists), so it holds only
+# project-owned settings. Template-managed tool pins and tasks live in
+# .config/mise/conf.d/template.toml; project-specific additions belong in
+# other .config/mise/conf.d/*.toml files (always loaded)
 
 [settings]
 experimental = true

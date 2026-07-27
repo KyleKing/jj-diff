@@ -17,7 +17,10 @@ run = "go build -v -o jj-diff ./cmd/jj-diff"
 
 [tasks.ci]
 description = "Run all checks (used in GitHub Actions)"
-run = ["go test -v -coverprofile=coverage.out ./...", "go build -v -o jj-diff ./cmd/jj-diff"]
+run = [
+  "go test -v -coverprofile=coverage.out ./...",
+  "go build -v -o jj-diff ./cmd/jj-diff"
+]
 
 [tasks.clean]
 description = "Clean build artifacts"
@@ -25,11 +28,17 @@ run = "rm -f coverage.out"
 
 [tasks.demo]
 description = "Generate VHS demo recordings"
-run = 'find . -name "*.tape" -not -path "./.git/*" -exec vhs {} +'
+run = 'find . -name "*.tape" -not -path "./.git/*" -exec vhs {} \;'
+depends = ["build"]
+
+[tasks.dev]
+description = "Run from source (always reflects current code, no stale build)"
+run = "go run ./cmd/jj-diff"
+raw_args = true
 
 [tasks.format]
 description = "Format code with golangci-lint and golines"
-run = ["golangci-lint run --fix ./...", "golines -w ."]
+run = ["golangci-lint run --fix ./...", "golines -w -m 120 ."]
 
 [tasks.hooks]
 description = "Run git hooks"
@@ -38,11 +47,36 @@ run = "hk fix --quiet"
 [tasks.lint]
 description = "Run linter"
 run = "golangci-lint run ./..."
+raw_args = true
 
 [tasks.test]
 description = "Run tests with coverage"
 run = "go test -coverprofile=coverage.out ./..."
+raw_args = true
+
+[tasks."test:coverage-min"]
+description = "Verify minimum coverage threshold (70%)"
+run = '''
+go test -coverprofile=coverage.out -coverpkg=./... ./...
+coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+echo "Current coverage: ${coverage}%"
+if (( $(awk "BEGIN {print ($coverage < 70)}") )); then
+    echo "Coverage ${coverage}% is below 70% minimum threshold"
+    exit 1
+fi
+'''
 
 [tasks."test:view-coverage"]
 description = "View coverage report in browser"
 run = "go tool cover -html=coverage.out"
+
+[tools]
+actionlint = "latest"
+go = "latest"
+"go:github.com/golangci/golines" = "0.15.0"
+"golangci-lint" = "2.12.2"
+hk = "1.53.0"
+ls-lint = "latest"
+"pipx:commitizen" = "latest"
+pkl = "latest"
+tombi = "latest"
