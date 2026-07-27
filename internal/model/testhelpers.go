@@ -57,21 +57,32 @@ func Update(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
 	newModel, _ := m.Update(msg)
 
-	return newModel.(Model)
+	return assertModel(t, newModel)
 }
 
 // UpdateWithCmd processes a message and executes any returned command synchronously.
 func UpdateWithCmd(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
 	newModel, cmd := m.Update(msg)
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 
 	if cmd != nil {
 		resultMsg := cmd()
 		if resultMsg != nil {
 			newModel, _ = m.Update(resultMsg)
-			m = newModel.(Model)
+			m = assertModel(t, newModel)
 		}
+	}
+
+	return m
+}
+
+func assertModel(t *testing.T, model tea.Model) Model {
+	t.Helper()
+
+	m, ok := model.(Model)
+	if !ok {
+		t.Fatalf("Update returned %T, want model.Model", model)
 	}
 
 	return m

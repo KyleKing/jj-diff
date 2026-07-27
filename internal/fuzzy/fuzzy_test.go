@@ -152,7 +152,8 @@ func TestFilterWithData_PreservesData(t *testing.T) {
 		t.Fatalf("Expected 1 match, got %d", len(matches))
 	}
 
-	if matches[0].Original.(int) != 42 {
+	original, ok := matches[0].Original.(int)
+	if !ok || original != 42 {
 		t.Errorf("Expected Original to be 42, got %v", matches[0].Original)
 	}
 }

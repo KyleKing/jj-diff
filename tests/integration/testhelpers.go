@@ -10,24 +10,19 @@ import (
 
 // TestRepo represents a temporary jj repository for testing.
 type TestRepo struct {
-	Dir     string
-	t       *testing.T
-	cleanup func()
+	Dir string
+	t   *testing.T
 }
 
 // NewTestRepo creates a new temporary jj repository.
 func NewTestRepo(t *testing.T) *TestRepo {
 	t.Helper()
 
-	tmpDir, err := os.MkdirTemp("", "jj-diff-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
+	tmpDir := t.TempDir()
 
 	// Initialize jj repo
 	cmd := exec.Command("jj", "git", "init", tmpDir)
 	if err := cmd.Run(); err != nil {
-		os.RemoveAll(tmpDir)
 		t.Fatalf("Failed to init jj repo: %v", err)
 	}
 
@@ -37,22 +32,14 @@ func NewTestRepo(t *testing.T) *TestRepo {
 name = "Test User"
 email = "test@example.com"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		os.RemoveAll(tmpDir)
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
 		t.Fatalf("Failed to write config: %v", err)
 	}
 
-	repo := &TestRepo{
+	return &TestRepo{
 		Dir: tmpDir,
 		t:   t,
-		cleanup: func() {
-			os.RemoveAll(tmpDir)
-		},
 	}
-
-	t.Cleanup(repo.cleanup)
-
-	return repo
 }
 
 // WriteFile writes a file to the repository.
