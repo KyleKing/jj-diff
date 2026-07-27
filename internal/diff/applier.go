@@ -25,7 +25,7 @@ func NewApplier(leftDir, rightDir string) *Applier {
 
 // ApplySelections reconstructs files in rightDir based on user selections.
 // - Selected hunks: keep the change (content from right)
-// - Unselected hunks: revert the change (content from left)
+// - Unselected hunks: revert the change (content from left).
 func (a *Applier) ApplySelections(files []FileChange, selection SelectionState) error {
 	for _, file := range files {
 		if err := a.applyFileSelections(file, selection); err != nil {

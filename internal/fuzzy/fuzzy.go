@@ -20,7 +20,7 @@ type Match struct {
 // - Consecutive character matches get bonus points
 // - Case-sensitive matches get bonus points
 // - Matches at word boundaries get bonus points
-// - Earlier matches get higher scores
+// - Earlier matches get higher scores.
 func Score(text, query string) (int, []int) {
 	if query == "" {
 		return 0, nil
@@ -116,7 +116,7 @@ func containsAllChars(text, query string) bool {
 	return true
 }
 
-// Filter returns matches sorted by score (highest first)
+// Filter returns matches sorted by score (highest first).
 func Filter(query string, items []string) []Match {
 	if query == "" {
 		matches := make([]Match, len(items))
@@ -157,7 +157,7 @@ func Filter(query string, items []string) []Match {
 	return matches
 }
 
-// FilterWithData is like Filter but preserves arbitrary data with each item
+// FilterWithData is like Filter but preserves arbitrary data with each item.
 func FilterWithData(query string, items []string, data []interface{}) []Match {
 	if len(items) != len(data) {
 		return nil

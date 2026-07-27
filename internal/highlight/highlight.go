@@ -12,12 +12,12 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// Highlighter provides syntax highlighting for code
+// Highlighter provides syntax highlighting for code.
 type Highlighter struct {
 	style *chroma.Style
 }
 
-// New creates a new syntax highlighter
+// New creates a new syntax highlighter.
 func New() *Highlighter {
 	// Use a minimal style that works well with terminal colors
 	return &Highlighter{
@@ -27,7 +27,7 @@ func New() *Highlighter {
 
 // HighlightLine applies syntax highlighting to a single line of code
 // filePath is used to detect the language
-// Returns the highlighted line with lipgloss styling
+// Returns the highlighted line with lipgloss styling.
 func (h *Highlighter) HighlightLine(filePath, line string) string {
 	if line == "" {
 		return line
@@ -160,7 +160,7 @@ func (h *Highlighter) styleToken(token chroma.Token) string {
 	return style.Render(value)
 }
 
-// IsEnabled returns whether syntax highlighting is available for a file
+// IsEnabled returns whether syntax highlighting is available for a file.
 func (h *Highlighter) IsEnabled(filePath string) bool {
 	return h.detectLexer(filePath) != nil
 }

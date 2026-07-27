@@ -2,7 +2,7 @@ package theme
 
 import "github.com/charmbracelet/lipgloss"
 
-// Exported color variables
+// Exported color variables.
 var (
 	Primary         lipgloss.Color
 	Accent          lipgloss.Color
@@ -18,7 +18,7 @@ var (
 	WordDiffDelBg   lipgloss.Color
 )
 
-// Exported style variables
+// Exported style variables.
 var (
 	HeaderStyle            lipgloss.Style
 	HunkHeaderStyle        lipgloss.Style
@@ -35,13 +35,13 @@ var (
 	WordDiffDeletedStyle   lipgloss.Style
 )
 
-// Init detects the appropriate theme and initializes all colors and styles
+// Init detects the appropriate theme and initializes all colors and styles.
 func Init() {
 	t := Detect()
 	applyTheme(t)
 }
 
-// applyTheme sets color variables and recomputes all styles
+// applyTheme sets color variables and recomputes all styles.
 func applyTheme(t Theme) {
 	Primary = t.Primary
 	Accent = t.Accent
@@ -110,7 +110,7 @@ func applyTheme(t Theme) {
 		Foreground(DeletedLine)
 }
 
-// PaneStyle returns a dynamic border style for panes
+// PaneStyle returns a dynamic border style for panes.
 func PaneStyle(width, height int, focused bool) lipgloss.Style {
 	style := lipgloss.NewStyle().
 		Width(width).

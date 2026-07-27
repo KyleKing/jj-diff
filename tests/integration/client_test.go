@@ -8,7 +8,7 @@ import (
 )
 
 // TestMoveChanges_CoreWorkflow tests the basic MoveChanges workflow
-// This is the primary integration test for the core functionality
+// This is the primary integration test for the core functionality.
 func TestMoveChanges_CoreWorkflow(t *testing.T) {
 	repo := NewTestRepo(t)
 
@@ -50,7 +50,7 @@ func TestMoveChanges_CoreWorkflow(t *testing.T) {
 }
 
 // TestMoveChanges_RollbackOnError tests automatic rollback when patch fails
-// This verifies error handling and state restoration
+// This verifies error handling and state restoration.
 func TestMoveChanges_RollbackOnError(t *testing.T) {
 	repo := NewTestRepo(t)
 
@@ -104,7 +104,7 @@ func TestMoveChanges_RollbackOnError(t *testing.T) {
 }
 
 // TestMoveChanges_WorkingCopyPreservation tests that operations complete successfully
-// This verifies the workflow completes and repository state is consistent
+// This verifies the workflow completes and repository state is consistent.
 func TestMoveChanges_WorkingCopyPreservation(t *testing.T) {
 	repo := NewTestRepo(t)
 

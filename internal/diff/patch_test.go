@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// mockSelectionState implements the selection state interface for testing
+// mockSelectionState implements the selection state interface for testing.
 type mockSelectionState struct {
 	selections     map[string]map[int]bool
 	lineSelections map[string]map[int]map[int]bool
@@ -43,7 +43,7 @@ func newMockSelection(selections map[string]map[int]bool) *mockSelectionState {
 	}
 }
 
-// TestGeneratePatch_SingleHunk tests patch generation with a single selected hunk
+// TestGeneratePatch_SingleHunk tests patch generation with a single selected hunk.
 func TestGeneratePatch_SingleHunk(t *testing.T) {
 	files := []FileChange{
 		{
@@ -89,7 +89,7 @@ func TestGeneratePatch_SingleHunk(t *testing.T) {
 	}
 }
 
-// TestGeneratePatch_MultipleHunks tests selecting multiple hunks from same file
+// TestGeneratePatch_MultipleHunks tests selecting multiple hunks from same file.
 func TestGeneratePatch_MultipleHunks(t *testing.T) {
 	files := []FileChange{
 		{
@@ -126,7 +126,7 @@ func TestGeneratePatch_MultipleHunks(t *testing.T) {
 	}
 }
 
-// TestGeneratePatch_MultipleFiles tests selecting hunks from multiple files
+// TestGeneratePatch_MultipleFiles tests selecting hunks from multiple files.
 func TestGeneratePatch_MultipleFiles(t *testing.T) {
 	files := []FileChange{
 		{
@@ -172,7 +172,7 @@ func TestGeneratePatch_MultipleFiles(t *testing.T) {
 	}
 }
 
-// TestGeneratePatch_NewFile tests patch generation for added files
+// TestGeneratePatch_NewFile tests patch generation for added files.
 func TestGeneratePatch_NewFile(t *testing.T) {
 	files := []FileChange{
 		{
@@ -207,7 +207,7 @@ func TestGeneratePatch_NewFile(t *testing.T) {
 	}
 }
 
-// TestGeneratePatch_DeletedFile tests patch generation for deleted files
+// TestGeneratePatch_DeletedFile tests patch generation for deleted files.
 func TestGeneratePatch_DeletedFile(t *testing.T) {
 	files := []FileChange{
 		{
@@ -241,7 +241,7 @@ func TestGeneratePatch_DeletedFile(t *testing.T) {
 	}
 }
 
-// TestGeneratePatch_NoSelection tests that empty selection produces empty patch
+// TestGeneratePatch_NoSelection tests that empty selection produces empty patch.
 func TestGeneratePatch_NoSelection(t *testing.T) {
 	files := []FileChange{
 		{
@@ -260,7 +260,7 @@ func TestGeneratePatch_NoSelection(t *testing.T) {
 	}
 }
 
-// TestGeneratePatch_PartialSelection tests selecting only some hunks
+// TestGeneratePatch_PartialSelection tests selecting only some hunks.
 func TestGeneratePatch_PartialSelection(t *testing.T) {
 	files := []FileChange{
 		{
@@ -301,7 +301,7 @@ func TestGeneratePatch_PartialSelection(t *testing.T) {
 	}
 }
 
-// TestGetSelectedHunksMap tests conversion from selection state to map
+// TestGetSelectedHunksMap tests conversion from selection state to map.
 func TestGetSelectedHunksMap(t *testing.T) {
 	files := []FileChange{
 		{
@@ -341,7 +341,7 @@ func TestGetSelectedHunksMap(t *testing.T) {
 	}
 }
 
-// TestGetSelectedHunksMap_NoSelections tests with no selections
+// TestGetSelectedHunksMap_NoSelections tests with no selections.
 func TestGetSelectedHunksMap_NoSelections(t *testing.T) {
 	files := []FileChange{
 		{
@@ -359,7 +359,7 @@ func TestGetSelectedHunksMap_NoSelections(t *testing.T) {
 	}
 }
 
-// TestGeneratePatch_PartialHunk tests generating patch with line-level selection
+// TestGeneratePatch_PartialHunk tests generating patch with line-level selection.
 func TestGeneratePatch_PartialHunk(t *testing.T) {
 	files := []FileChange{
 		{
@@ -410,7 +410,7 @@ func TestGeneratePatch_PartialHunk(t *testing.T) {
 	}
 }
 
-// TestExpandWithContext tests context expansion algorithm
+// TestExpandWithContext tests context expansion algorithm.
 func TestExpandWithContext(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -466,7 +466,7 @@ func TestExpandWithContext(t *testing.T) {
 	}
 }
 
-// TestRecalculateHunkHeader tests hunk header recalculation
+// TestRecalculateHunkHeader tests hunk header recalculation.
 func TestRecalculateHunkHeader(t *testing.T) {
 	tests := []struct {
 		name     string

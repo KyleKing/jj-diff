@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// TestModelNavigation tests file and hunk navigation workflows
+// TestModelNavigation tests file and hunk navigation workflows.
 func TestModelNavigation(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
@@ -54,7 +54,7 @@ func TestModelNavigation(t *testing.T) {
 	Assert(t, m).HasSelectedHunk(0)
 }
 
-// TestModelPanelSwitching tests Tab key panel focus switching
+// TestModelPanelSwitching tests Tab key panel focus switching.
 func TestModelPanelSwitching(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse)
 
@@ -67,7 +67,7 @@ func TestModelPanelSwitching(t *testing.T) {
 	Assert(t, m).FocusedPanelIs(PanelFileList)
 }
 
-// TestModelHunkSelection tests interactive mode hunk selection workflow
+// TestModelHunkSelection tests interactive mode hunk selection workflow.
 func TestModelHunkSelection(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).
 		WithChanges(TestChanges()).
@@ -106,7 +106,7 @@ func TestModelHunkSelection(t *testing.T) {
 	Assert(t, m).HasHunkSelected("file2.txt", 0)
 }
 
-// TestModelBrowseMode tests browse mode restrictions
+// TestModelBrowseMode tests browse mode restrictions.
 func TestModelBrowseMode(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 	m.focusedPanel = PanelDiffView
@@ -121,7 +121,7 @@ func TestModelBrowseMode(t *testing.T) {
 	Assert(t, m).HasDestination(initialDestination)
 }
 
-// TestModelInteractiveWorkflow tests the full interactive selection workflow
+// TestModelInteractiveWorkflow tests the full interactive selection workflow.
 func TestModelInteractiveWorkflow(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
 
@@ -155,7 +155,7 @@ func TestModelInteractiveWorkflow(t *testing.T) {
 	}
 }
 
-// TestModelWindowResize tests window size message handling
+// TestModelWindowResize tests window size message handling.
 func TestModelWindowResize(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse)
 
@@ -168,7 +168,7 @@ func TestModelWindowResize(t *testing.T) {
 	}
 }
 
-// TestModelDiffLoaded tests diffLoadedMsg handling
+// TestModelDiffLoaded tests diffLoadedMsg handling.
 func TestModelDiffLoaded(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse)
 
@@ -178,7 +178,7 @@ func TestModelDiffLoaded(t *testing.T) {
 	Assert(t, m).HasChanges(3).HasNoError()
 }
 
-// TestModelErrorHandling tests error message handling
+// TestModelErrorHandling tests error message handling.
 func TestModelErrorHandling(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse)
 
@@ -188,7 +188,7 @@ func TestModelErrorHandling(t *testing.T) {
 	Assert(t, m).HasError()
 }
 
-// TestModelHelpOverlay tests help display toggling
+// TestModelHelpOverlay tests help display toggling.
 func TestModelHelpOverlay(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse)
 
@@ -224,7 +224,7 @@ func TestModelHelpOverlay(t *testing.T) {
 	}
 }
 
-// TestSelectionState_ToggleHunk tests SelectionState hunk toggling
+// TestSelectionState_ToggleHunk tests SelectionState hunk toggling.
 func TestSelectionState_ToggleHunk(t *testing.T) {
 	s := NewSelectionState()
 
@@ -243,7 +243,7 @@ func TestSelectionState_ToggleHunk(t *testing.T) {
 	}
 }
 
-// TestSelectionState_ToggleLine tests SelectionState line toggling
+// TestSelectionState_ToggleLine tests SelectionState line toggling.
 func TestSelectionState_ToggleLine(t *testing.T) {
 	s := NewSelectionState()
 
@@ -267,7 +267,7 @@ func TestSelectionState_ToggleLine(t *testing.T) {
 	}
 }
 
-// TestSelectionState_WholeHunkClearsLines tests that selecting whole hunk clears line selection map
+// TestSelectionState_WholeHunkClearsLines tests that selecting whole hunk clears line selection map.
 func TestSelectionState_WholeHunkClearsLines(t *testing.T) {
 	s := NewSelectionState()
 
@@ -304,7 +304,7 @@ func TestSelectionState_WholeHunkClearsLines(t *testing.T) {
 	}
 }
 
-// TestSelectionState_SelectLineRange tests selecting a range of lines
+// TestSelectionState_SelectLineRange tests selecting a range of lines.
 func TestSelectionState_SelectLineRange(t *testing.T) {
 	s := NewSelectionState()
 
@@ -328,7 +328,7 @@ func TestSelectionState_SelectLineRange(t *testing.T) {
 	}
 }
 
-// TestSelectionState_SelectLineRangeReversed tests selecting line range with reversed bounds
+// TestSelectionState_SelectLineRangeReversed tests selecting line range with reversed bounds.
 func TestSelectionState_SelectLineRangeReversed(t *testing.T) {
 	s := NewSelectionState()
 
@@ -341,7 +341,7 @@ func TestSelectionState_SelectLineRangeReversed(t *testing.T) {
 	}
 }
 
-// TestSelectionState_HasPartialSelection tests partial selection detection
+// TestSelectionState_HasPartialSelection tests partial selection detection.
 func TestSelectionState_HasPartialSelection(t *testing.T) {
 	s := NewSelectionState()
 
@@ -360,7 +360,7 @@ func TestSelectionState_HasPartialSelection(t *testing.T) {
 	}
 }
 
-// TestModelVisualMode tests entering and exiting visual mode
+// TestModelVisualMode tests entering and exiting visual mode.
 func TestModelVisualMode(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).
 		WithChanges(TestChanges())
@@ -376,7 +376,7 @@ func TestModelVisualMode(t *testing.T) {
 	Assert(t, m).IsNotInVisualMode()
 }
 
-// TestModelVisualModeNavigation tests line navigation in visual mode
+// TestModelVisualModeNavigation tests line navigation in visual mode.
 func TestModelVisualModeNavigation(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).
 		WithChanges(TestChanges())
@@ -397,7 +397,7 @@ func TestModelVisualModeNavigation(t *testing.T) {
 	Assert(t, m).HasLineCursor(1)
 }
 
-// TestModelVisualModeSelection tests line range selection in visual mode
+// TestModelVisualModeSelection tests line range selection in visual mode.
 func TestModelVisualModeSelection(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).
 		WithChanges(TestChanges())
@@ -425,7 +425,7 @@ func TestModelVisualModeSelection(t *testing.T) {
 	}
 }
 
-// TestModelLineCursorReset tests that lineCursor resets when switching hunks/files
+// TestModelLineCursorReset tests that lineCursor resets when switching hunks/files.
 func TestModelLineCursorReset(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).
 		WithChanges(TestChanges())
@@ -449,7 +449,7 @@ func TestModelLineCursorReset(t *testing.T) {
 	Assert(t, m).HasLineCursor(0)
 }
 
-// TestModelBrowseModeNoVisual tests that visual mode is disabled in browse mode
+// TestModelBrowseModeNoVisual tests that visual mode is disabled in browse mode.
 func TestModelBrowseModeNoVisual(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).
 		WithChanges(TestChanges())
@@ -460,7 +460,7 @@ func TestModelBrowseModeNoVisual(t *testing.T) {
 	Assert(t, m).IsNotInVisualMode()
 }
 
-// TestModelViewOptionToggles tests the new view option keybindings
+// TestModelViewOptionToggles tests the new view option keybindings.
 func TestModelViewOptionToggles(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
@@ -516,7 +516,7 @@ func TestModelViewOptionToggles(t *testing.T) {
 	}
 }
 
-// TestModelSideBySideToggle tests side-by-side view toggling
+// TestModelSideBySideToggle tests side-by-side view toggling.
 func TestModelSideBySideToggle(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
@@ -535,7 +535,7 @@ func TestModelSideBySideToggle(t *testing.T) {
 	}
 }
 
-// TestModelSideBySideDisablesSelectionInInteractive tests that side-by-side stays when toggled on in interactive
+// TestModelSideBySideDisablesSelectionInInteractive tests that side-by-side stays when toggled on in interactive.
 func TestModelSideBySideInInteractiveMode(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
 
@@ -550,7 +550,7 @@ func TestModelSideBySideInInteractiveMode(t *testing.T) {
 	}
 }
 
-// TestModalMutualExclusivity tests that opening one modal closes others
+// TestModalMutualExclusivity tests that opening one modal closes others.
 func TestModalMutualExclusivity(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
@@ -572,7 +572,7 @@ func TestModalMutualExclusivity(t *testing.T) {
 	Assert(t, m).HelpIsVisible().FileListFilterModeDisabled()
 }
 
-// TestModalEscClosesAny tests that ESC closes any open modal
+// TestModalEscClosesAny tests that ESC closes any open modal.
 func TestModalEscClosesAny(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
@@ -592,7 +592,7 @@ func TestModalEscClosesAny(t *testing.T) {
 	Assert(t, m).NoModalsVisible()
 }
 
-// TestAllModalsOpenAndClose tests each modal can be opened and closed
+// TestAllModalsOpenAndClose tests each modal can be opened and closed.
 func TestAllModalsOpenAndClose(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
@@ -614,7 +614,7 @@ func TestAllModalsOpenAndClose(t *testing.T) {
 	Assert(t, m).FileListFilterModeDisabled()
 }
 
-// TestVimScrolling tests Ctrl-d/u/f/b scrolling
+// TestVimScrolling tests Ctrl-d/u/f/b scrolling.
 func TestVimScrolling(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 	m.height = 24
@@ -635,7 +635,7 @@ func TestVimScrolling(t *testing.T) {
 	_ = initialOffset
 }
 
-// TestScrollingOnlyInDiffPanel tests that scrolling only works when diff panel is focused
+// TestScrollingOnlyInDiffPanel tests that scrolling only works when diff panel is focused.
 func TestScrollingOnlyInDiffPanel(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 	m.height = 24

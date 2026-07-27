@@ -116,12 +116,12 @@ func CountTrailingWhitespace(content string) int {
 	return count
 }
 
-// IsWhitespaceOnlyChange returns true if the two strings differ only in whitespace
+// IsWhitespaceOnlyChange returns true if the two strings differ only in whitespace.
 func IsWhitespaceOnlyChange(oldContent, newContent string) bool {
 	return strings.TrimSpace(oldContent) == strings.TrimSpace(newContent)
 }
 
-// GetLeadingWhitespace extracts the leading whitespace from a string
+// GetLeadingWhitespace extracts the leading whitespace from a string.
 func GetLeadingWhitespace(content string) string {
 	for i, ch := range content {
 		if ch != ' ' && ch != '\t' {
@@ -132,7 +132,7 @@ func GetLeadingWhitespace(content string) string {
 }
 
 // ProcessHunkHideWhitespace transforms a hunk to hide whitespace-only changes
-// Returns a new set of lines with whitespace changes handled
+// Returns a new set of lines with whitespace changes handled.
 func ProcessHunkHideWhitespace(lines []Line) []Line {
 	result := make([]Line, 0, len(lines))
 

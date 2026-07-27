@@ -7,7 +7,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/diff"
 )
 
-// generateSearchTestFiles creates test files with realistic content for search benchmarking
+// generateSearchTestFiles creates test files with realistic content for search benchmarking.
 func generateSearchTestFiles(fileCount, hunksPerFile, linesPerHunk int) []diff.FileChange {
 	files := make([]diff.FileChange, fileCount)
 
@@ -61,7 +61,7 @@ func generateSearchTestFiles(fileCount, hunksPerFile, linesPerHunk int) []diff.F
 	return files
 }
 
-// BenchmarkSearch_SmallDiff benchmarks search on 10 files, 5 hunks, 10 lines (500 total lines)
+// BenchmarkSearch_SmallDiff benchmarks search on 10 files, 5 hunks, 10 lines (500 total lines).
 func BenchmarkSearch_SmallDiff(b *testing.B) {
 	files := generateSearchTestFiles(10, 5, 10)
 	s := NewSearchState()
@@ -73,7 +73,7 @@ func BenchmarkSearch_SmallDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkSearch_MediumDiff benchmarks search on 50 files, 10 hunks, 20 lines (10,000 total lines)
+// BenchmarkSearch_MediumDiff benchmarks search on 50 files, 10 hunks, 20 lines (10,000 total lines).
 func BenchmarkSearch_MediumDiff(b *testing.B) {
 	files := generateSearchTestFiles(50, 10, 20)
 	s := NewSearchState()
@@ -85,7 +85,7 @@ func BenchmarkSearch_MediumDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkSearch_LargeDiff benchmarks search on 100 files, 20 hunks, 50 lines (100,000 total lines)
+// BenchmarkSearch_LargeDiff benchmarks search on 100 files, 20 hunks, 50 lines (100,000 total lines).
 func BenchmarkSearch_LargeDiff(b *testing.B) {
 	files := generateSearchTestFiles(100, 20, 50)
 	s := NewSearchState()
@@ -97,7 +97,7 @@ func BenchmarkSearch_LargeDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkSearch_CommonTerm benchmarks search for very common term (many matches)
+// BenchmarkSearch_CommonTerm benchmarks search for very common term (many matches).
 func BenchmarkSearch_CommonTerm(b *testing.B) {
 	files := generateSearchTestFiles(50, 10, 20)
 	s := NewSearchState()
@@ -109,7 +109,7 @@ func BenchmarkSearch_CommonTerm(b *testing.B) {
 	}
 }
 
-// BenchmarkSearch_RareTerm benchmarks search for rare term (few matches)
+// BenchmarkSearch_RareTerm benchmarks search for rare term (few matches).
 func BenchmarkSearch_RareTerm(b *testing.B) {
 	files := generateSearchTestFiles(50, 10, 20)
 	s := NewSearchState()
@@ -121,7 +121,7 @@ func BenchmarkSearch_RareTerm(b *testing.B) {
 	}
 }
 
-// BenchmarkSearch_LongQuery benchmarks search with longer query string
+// BenchmarkSearch_LongQuery benchmarks search with longer query string.
 func BenchmarkSearch_LongQuery(b *testing.B) {
 	files := generateSearchTestFiles(50, 10, 20)
 	s := NewSearchState()
@@ -133,7 +133,7 @@ func BenchmarkSearch_LongQuery(b *testing.B) {
 	}
 }
 
-// BenchmarkSearchNavigation benchmarks iterating through matches
+// BenchmarkSearchNavigation benchmarks iterating through matches.
 func BenchmarkSearchNavigation(b *testing.B) {
 	files := generateSearchTestFiles(50, 10, 20)
 	s := NewSearchState()
@@ -148,7 +148,7 @@ func BenchmarkSearchNavigation(b *testing.B) {
 	}
 }
 
-// BenchmarkSearch_IncrementalTyping simulates typing a query character by character
+// BenchmarkSearch_IncrementalTyping simulates typing a query character by character.
 func BenchmarkSearch_IncrementalTyping(b *testing.B) {
 	files := generateSearchTestFiles(50, 10, 20)
 	queries := []string{"f", "fu", "fun", "func", "funct", "functi", "functio", "function"}

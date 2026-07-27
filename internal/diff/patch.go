@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// SelectionState interface for accessing selection state
+// SelectionState interface for accessing selection state.
 type SelectionState interface {
 	IsHunkSelected(filePath string, hunkIdx int) bool
 	HasPartialSelection(filePath string, hunkIdx int) bool
@@ -181,7 +181,7 @@ func GeneratePatchForTag(files []FileChange, selection SelectionState) string {
 	return GeneratePatch(files, selection)
 }
 
-// GetSelectedHunksMap is deprecated but kept for backward compatibility
+// GetSelectedHunksMap is deprecated but kept for backward compatibility.
 func GetSelectedHunksMap(files []FileChange, selectionState interface {
 	IsHunkSelected(filePath string, hunkIdx int) bool
 },

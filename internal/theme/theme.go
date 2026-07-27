@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Theme defines semantic color roles
+// Theme defines semantic color roles.
 type Theme struct {
 	Primary         lipgloss.Color
 	Accent          lipgloss.Color
@@ -23,7 +23,7 @@ type Theme struct {
 	WordDiffDelBg   lipgloss.Color
 }
 
-// Latte returns Catppuccin Latte (light theme)
+// Latte returns Catppuccin Latte (light theme).
 func Latte() Theme {
 	return Theme{
 		Primary:         lipgloss.Color("#8839ef"), // mauve
@@ -41,7 +41,7 @@ func Latte() Theme {
 	}
 }
 
-// Macchiato returns Catppuccin Macchiato (dark theme)
+// Macchiato returns Catppuccin Macchiato (dark theme).
 func Macchiato() Theme {
 	return Theme{
 		Primary:         lipgloss.Color("#c6a0f6"), // mauve
@@ -59,7 +59,7 @@ func Macchiato() Theme {
 	}
 }
 
-// Detect returns the appropriate theme based on environment
+// Detect returns the appropriate theme based on environment.
 func Detect() Theme {
 	if env := os.Getenv("CATPPUCCIN_THEME"); env != "" {
 		switch strings.ToLower(env) {

@@ -10,7 +10,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/jj"
 )
 
-// TestModel creates a model with mock client for testing
+// TestModel creates a model with mock client for testing.
 func NewTestModel(t *testing.T, mode OperatingMode) Model {
 	t.Helper()
 
@@ -25,7 +25,7 @@ func NewTestModel(t *testing.T, mode OperatingMode) Model {
 	return m
 }
 
-// WithChanges sets up the model with test file changes
+// WithChanges sets up the model with test file changes.
 func (m Model) WithChanges(changes []diff.FileChange) Model {
 	m.changes = changes
 	m.fileList.SetFiles(changes)
@@ -35,30 +35,30 @@ func (m Model) WithChanges(changes []diff.FileChange) Model {
 	return m
 }
 
-// WithDestination sets a destination for the model
+// WithDestination sets a destination for the model.
 func (m Model) WithDestination(dest string) Model {
 	m.destination = dest
 	return m
 }
 
-// KeyPress creates a tea.KeyMsg for single character keys
+// KeyPress creates a tea.KeyMsg for single character keys.
 func KeyPress(key rune) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}}
 }
 
-// SpecialKey creates a tea.KeyMsg for special keys
+// SpecialKey creates a tea.KeyMsg for special keys.
 func SpecialKey(keyType tea.KeyType) tea.KeyMsg {
 	return tea.KeyMsg{Type: keyType}
 }
 
-// Update is a helper that processes a message and returns the updated model
+// Update is a helper that processes a message and returns the updated model.
 func Update(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
 	newModel, _ := m.Update(msg)
 	return newModel.(Model)
 }
 
-// UpdateWithCmd processes a message and executes any returned command synchronously
+// UpdateWithCmd processes a message and executes any returned command synchronously.
 func UpdateWithCmd(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
 	newModel, cmd := m.Update(msg)
@@ -75,13 +75,13 @@ func UpdateWithCmd(t *testing.T, m Model, msg tea.Msg) Model {
 	return m
 }
 
-// ModelAssertion provides fluent assertions on model state
+// ModelAssertion provides fluent assertions on model state.
 type ModelAssertion struct {
 	t *testing.T
 	m Model
 }
 
-// Assert creates a new ModelAssertion for fluent testing
+// Assert creates a new ModelAssertion for fluent testing.
 func Assert(t *testing.T, m Model) *ModelAssertion {
 	t.Helper()
 	return &ModelAssertion{t: t, m: m}
@@ -295,7 +295,7 @@ func CtrlKey(key rune) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyCtrlD + tea.KeyType(key-'d'), Runes: nil}
 }
 
-// TestChanges creates sample file changes for testing
+// TestChanges creates sample file changes for testing.
 func TestChanges() []diff.FileChange {
 	return []diff.FileChange{
 		{

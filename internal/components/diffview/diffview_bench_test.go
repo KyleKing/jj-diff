@@ -12,7 +12,7 @@ func testConfig() config.Config {
 	return config.DefaultConfig()
 }
 
-// generateHunks creates n hunks with linesPerHunk lines each
+// generateHunks creates n hunks with linesPerHunk lines each.
 func generateHunks(n, linesPerHunk int) []diff.Hunk {
 	hunks := make([]diff.Hunk, n)
 	for i := 0; i < n; i++ {
@@ -50,7 +50,7 @@ func generateHunks(n, linesPerHunk int) []diff.Hunk {
 	return hunks
 }
 
-// BenchmarkDiffViewRender_SmallDiff benchmarks 10 hunks with 10 lines each (100 total lines)
+// BenchmarkDiffViewRender_SmallDiff benchmarks 10 hunks with 10 lines each (100 total lines).
 func BenchmarkDiffViewRender_SmallDiff(b *testing.B) {
 	fileChange := diff.FileChange{
 		Path:       "src/main.go",
@@ -67,7 +67,7 @@ func BenchmarkDiffViewRender_SmallDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkDiffViewRender_MediumDiff benchmarks 50 hunks with 20 lines each (1000 total lines)
+// BenchmarkDiffViewRender_MediumDiff benchmarks 50 hunks with 20 lines each (1000 total lines).
 func BenchmarkDiffViewRender_MediumDiff(b *testing.B) {
 	fileChange := diff.FileChange{
 		Path:       "src/main.go",
@@ -84,7 +84,7 @@ func BenchmarkDiffViewRender_MediumDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkDiffViewRender_LargeDiff benchmarks 100 hunks with 50 lines each (5000 total lines)
+// BenchmarkDiffViewRender_LargeDiff benchmarks 100 hunks with 50 lines each (5000 total lines).
 func BenchmarkDiffViewRender_LargeDiff(b *testing.B) {
 	fileChange := diff.FileChange{
 		Path:       "src/main.go",
@@ -101,7 +101,7 @@ func BenchmarkDiffViewRender_LargeDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkDiffViewRender_HugeDiff benchmarks 200 hunks with 100 lines each (20000 total lines - stress test)
+// BenchmarkDiffViewRender_HugeDiff benchmarks 200 hunks with 100 lines each (20000 total lines - stress test).
 func BenchmarkDiffViewRender_HugeDiff(b *testing.B) {
 	fileChange := diff.FileChange{
 		Path:       "src/main.go",
@@ -118,7 +118,7 @@ func BenchmarkDiffViewRender_HugeDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkDiffViewRender_WithSelection benchmarks rendering with hunk selection
+// BenchmarkDiffViewRender_WithSelection benchmarks rendering with hunk selection.
 func BenchmarkDiffViewRender_WithSelection(b *testing.B) {
 	fileChange := diff.FileChange{
 		Path:       "src/main.go",
@@ -138,7 +138,7 @@ func BenchmarkDiffViewRender_WithSelection(b *testing.B) {
 	}
 }
 
-// BenchmarkDiffViewRender_WithSearchMatches benchmarks rendering with search match highlighting
+// BenchmarkDiffViewRender_WithSearchMatches benchmarks rendering with search match highlighting.
 func BenchmarkDiffViewRender_WithSearchMatches(b *testing.B) {
 	fileChange := diff.FileChange{
 		Path:       "src/main.go",
@@ -159,7 +159,7 @@ func BenchmarkDiffViewRender_WithSearchMatches(b *testing.B) {
 	}
 }
 
-// BenchmarkDiffViewScroll benchmarks scrolling performance
+// BenchmarkDiffViewScroll benchmarks scrolling performance.
 func BenchmarkDiffViewScroll(b *testing.B) {
 	fileChange := diff.FileChange{
 		Path:       "src/main.go",

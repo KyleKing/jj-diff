@@ -6,7 +6,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/diff"
 )
 
-// TestNewSearchState tests initialization
+// TestNewSearchState tests initialization.
 func TestNewSearchState(t *testing.T) {
 	s := NewSearchState()
 
@@ -27,7 +27,7 @@ func TestNewSearchState(t *testing.T) {
 	}
 }
 
-// TestExecuteSearch_EmptyQuery tests search with empty query
+// TestExecuteSearch_EmptyQuery tests search with empty query.
 func TestExecuteSearch_EmptyQuery(t *testing.T) {
 	files := []diff.FileChange{
 		{Path: "file.txt", Hunks: []diff.Hunk{{Lines: []diff.Line{{Content: "hello"}}}}},
@@ -45,7 +45,7 @@ func TestExecuteSearch_EmptyQuery(t *testing.T) {
 	}
 }
 
-// TestExecuteSearch_FilePathMatch tests matching in file paths
+// TestExecuteSearch_FilePathMatch tests matching in file paths.
 func TestExecuteSearch_FilePathMatch(t *testing.T) {
 	files := []diff.FileChange{
 		{Path: "src/main.go"},
@@ -75,7 +75,7 @@ func TestExecuteSearch_FilePathMatch(t *testing.T) {
 	}
 }
 
-// TestExecuteSearch_LineContentMatch tests matching in line content
+// TestExecuteSearch_LineContentMatch tests matching in line content.
 func TestExecuteSearch_LineContentMatch(t *testing.T) {
 	files := []diff.FileChange{
 		{
@@ -110,7 +110,7 @@ func TestExecuteSearch_LineContentMatch(t *testing.T) {
 	}
 }
 
-// TestExecuteSearch_MultipleMatchesPerLine tests multiple matches in same line
+// TestExecuteSearch_MultipleMatchesPerLine tests multiple matches in same line.
 func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
 	files := []diff.FileChange{
 		{
@@ -154,7 +154,7 @@ func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
 	}
 }
 
-// TestExecuteSearch_CaseInsensitive tests case-insensitive search (default)
+// TestExecuteSearch_CaseInsensitive tests case-insensitive search (default).
 func TestExecuteSearch_CaseInsensitive(t *testing.T) {
 	files := []diff.FileChange{
 		{
@@ -179,7 +179,7 @@ func TestExecuteSearch_CaseInsensitive(t *testing.T) {
 	}
 }
 
-// TestExecuteSearch_CaseSensitive tests case-sensitive search
+// TestExecuteSearch_CaseSensitive tests case-sensitive search.
 func TestExecuteSearch_CaseSensitive(t *testing.T) {
 	files := []diff.FileChange{
 		{
@@ -204,7 +204,7 @@ func TestExecuteSearch_CaseSensitive(t *testing.T) {
 	}
 }
 
-// TestNextMatch tests navigation to next match
+// TestNextMatch tests navigation to next match.
 func TestNextMatch(t *testing.T) {
 	s := &SearchState{
 		Matches: []MatchLocation{
@@ -234,7 +234,7 @@ func TestNextMatch(t *testing.T) {
 	}
 }
 
-// TestPrevMatch tests navigation to previous match
+// TestPrevMatch tests navigation to previous match.
 func TestPrevMatch(t *testing.T) {
 	s := &SearchState{
 		Matches: []MatchLocation{
@@ -264,7 +264,7 @@ func TestPrevMatch(t *testing.T) {
 	}
 }
 
-// TestNextMatch_NoMatches tests navigation with no matches
+// TestNextMatch_NoMatches tests navigation with no matches.
 func TestNextMatch_NoMatches(t *testing.T) {
 	s := &SearchState{
 		Matches:    []MatchLocation{},
@@ -277,7 +277,7 @@ func TestNextMatch_NoMatches(t *testing.T) {
 	}
 }
 
-// TestGetCurrentMatch tests getting current match
+// TestGetCurrentMatch tests getting current match.
 func TestGetCurrentMatch(t *testing.T) {
 	s := &SearchState{
 		Matches: []MatchLocation{
@@ -293,7 +293,7 @@ func TestGetCurrentMatch(t *testing.T) {
 	}
 }
 
-// TestGetCurrentMatch_Invalid tests getting match with invalid index
+// TestGetCurrentMatch_Invalid tests getting match with invalid index.
 func TestGetCurrentMatch_Invalid(t *testing.T) {
 	s := &SearchState{
 		Matches:    []MatchLocation{{FileIdx: 0}},
@@ -306,7 +306,7 @@ func TestGetCurrentMatch_Invalid(t *testing.T) {
 	}
 }
 
-// TestMatchCount tests counting matches
+// TestMatchCount tests counting matches.
 func TestMatchCount(t *testing.T) {
 	s := &SearchState{
 		Matches: []MatchLocation{
@@ -321,7 +321,7 @@ func TestMatchCount(t *testing.T) {
 	}
 }
 
-// TestIsLineMatch tests checking if a line has matches
+// TestIsLineMatch tests checking if a line has matches.
 func TestIsLineMatch(t *testing.T) {
 	s := &SearchState{
 		Matches: []MatchLocation{
@@ -339,7 +339,7 @@ func TestIsLineMatch(t *testing.T) {
 	}
 }
 
-// TestIsCurrentMatch tests checking if position is current match
+// TestIsCurrentMatch tests checking if position is current match.
 func TestIsCurrentMatch(t *testing.T) {
 	s := &SearchState{
 		Matches: []MatchLocation{
@@ -358,7 +358,7 @@ func TestIsCurrentMatch(t *testing.T) {
 	}
 }
 
-// TestGetMatchesForLine tests getting all matches for a specific line
+// TestGetMatchesForLine tests getting all matches for a specific line.
 func TestGetMatchesForLine(t *testing.T) {
 	s := &SearchState{
 		Matches: []MatchLocation{
@@ -379,7 +379,7 @@ func TestGetMatchesForLine(t *testing.T) {
 	}
 }
 
-// TestSaveAndRestoreOriginalState tests navigation state management
+// TestSaveAndRestoreOriginalState tests navigation state management.
 func TestSaveAndRestoreOriginalState(t *testing.T) {
 	s := NewSearchState()
 

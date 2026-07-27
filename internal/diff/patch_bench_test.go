@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// generateBenchmarkFiles creates test files for patch generation benchmarking
+// generateBenchmarkFiles creates test files for patch generation benchmarking.
 func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileChange {
 	files := make([]FileChange, fileCount)
 
@@ -56,7 +56,7 @@ func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileCha
 	return files
 }
 
-// createFullSelection creates a selection with all hunks selected
+// createFullSelection creates a selection with all hunks selected.
 func createFullSelection(files []FileChange) *mockSelectionState {
 	selections := make(map[string]map[int]bool)
 
@@ -70,7 +70,7 @@ func createFullSelection(files []FileChange) *mockSelectionState {
 	return newMockSelection(selections)
 }
 
-// createPartialSelection creates a selection with 50% of hunks selected
+// createPartialSelection creates a selection with 50% of hunks selected.
 func createPartialSelection(files []FileChange) *mockSelectionState {
 	selections := make(map[string]map[int]bool)
 
@@ -86,7 +86,7 @@ func createPartialSelection(files []FileChange) *mockSelectionState {
 	return newMockSelection(selections)
 }
 
-// createLineSelection creates a selection with line-level selections
+// createLineSelection creates a selection with line-level selections.
 func createLineSelection(files []FileChange) *mockSelectionState {
 	mock := &mockSelectionState{
 		selections:     make(map[string]map[int]bool),
@@ -116,7 +116,7 @@ func createLineSelection(files []FileChange) *mockSelectionState {
 	return mock
 }
 
-// BenchmarkPatchGeneration_SmallDiff benchmarks patch generation for 5 files, 5 hunks each
+// BenchmarkPatchGeneration_SmallDiff benchmarks patch generation for 5 files, 5 hunks each.
 func BenchmarkPatchGeneration_SmallDiff(b *testing.B) {
 	files := generateBenchmarkFiles(5, 5, 10)
 	selection := createFullSelection(files)
@@ -127,7 +127,7 @@ func BenchmarkPatchGeneration_SmallDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkPatchGeneration_MediumDiff benchmarks patch generation for 20 files, 10 hunks each
+// BenchmarkPatchGeneration_MediumDiff benchmarks patch generation for 20 files, 10 hunks each.
 func BenchmarkPatchGeneration_MediumDiff(b *testing.B) {
 	files := generateBenchmarkFiles(20, 10, 20)
 	selection := createFullSelection(files)
@@ -138,7 +138,7 @@ func BenchmarkPatchGeneration_MediumDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkPatchGeneration_LargeDiff benchmarks patch generation for 100 files, 20 hunks each
+// BenchmarkPatchGeneration_LargeDiff benchmarks patch generation for 100 files, 20 hunks each.
 func BenchmarkPatchGeneration_LargeDiff(b *testing.B) {
 	files := generateBenchmarkFiles(100, 20, 50)
 	selection := createFullSelection(files)
@@ -149,7 +149,7 @@ func BenchmarkPatchGeneration_LargeDiff(b *testing.B) {
 	}
 }
 
-// BenchmarkPatchGeneration_PartialSelection benchmarks with only 50% of hunks selected
+// BenchmarkPatchGeneration_PartialSelection benchmarks with only 50% of hunks selected.
 func BenchmarkPatchGeneration_PartialSelection(b *testing.B) {
 	files := generateBenchmarkFiles(20, 10, 20)
 	selection := createPartialSelection(files)
@@ -160,7 +160,7 @@ func BenchmarkPatchGeneration_PartialSelection(b *testing.B) {
 	}
 }
 
-// BenchmarkPatchGeneration_LineLevel benchmarks with line-level selections
+// BenchmarkPatchGeneration_LineLevel benchmarks with line-level selections.
 func BenchmarkPatchGeneration_LineLevel(b *testing.B) {
 	files := generateBenchmarkFiles(20, 10, 20)
 	selection := createLineSelection(files)
@@ -171,7 +171,7 @@ func BenchmarkPatchGeneration_LineLevel(b *testing.B) {
 	}
 }
 
-// BenchmarkPatchGeneration_SingleFile benchmarks generating patch for a single large file
+// BenchmarkPatchGeneration_SingleFile benchmarks generating patch for a single large file.
 func BenchmarkPatchGeneration_SingleFile(b *testing.B) {
 	files := generateBenchmarkFiles(1, 100, 50)
 	selection := createFullSelection(files)
@@ -182,7 +182,7 @@ func BenchmarkPatchGeneration_SingleFile(b *testing.B) {
 	}
 }
 
-// BenchmarkPatchGeneration_ManySmallHunks benchmarks many small hunks
+// BenchmarkPatchGeneration_ManySmallHunks benchmarks many small hunks.
 func BenchmarkPatchGeneration_ManySmallHunks(b *testing.B) {
 	files := generateBenchmarkFiles(10, 100, 5)
 	selection := createFullSelection(files)
@@ -193,7 +193,7 @@ func BenchmarkPatchGeneration_ManySmallHunks(b *testing.B) {
 	}
 }
 
-// BenchmarkPatchGeneration_FewLargeHunks benchmarks few large hunks
+// BenchmarkPatchGeneration_FewLargeHunks benchmarks few large hunks.
 func BenchmarkPatchGeneration_FewLargeHunks(b *testing.B) {
 	files := generateBenchmarkFiles(10, 5, 200)
 	selection := createFullSelection(files)

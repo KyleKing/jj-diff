@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-// TestRepo represents a temporary jj repository for testing
+// TestRepo represents a temporary jj repository for testing.
 type TestRepo struct {
 	Dir     string
 	t       *testing.T
 	cleanup func()
 }
 
-// NewTestRepo creates a new temporary jj repository
+// NewTestRepo creates a new temporary jj repository.
 func NewTestRepo(t *testing.T) *TestRepo {
 	t.Helper()
 
@@ -54,7 +54,7 @@ email = "test@example.com"
 	return repo
 }
 
-// WriteFile writes a file to the repository
+// WriteFile writes a file to the repository.
 func (r *TestRepo) WriteFile(path, content string) {
 	r.t.Helper()
 	fullPath := filepath.Join(r.Dir, path)
@@ -68,7 +68,7 @@ func (r *TestRepo) WriteFile(path, content string) {
 	}
 }
 
-// ReadFile reads a file from the repository
+// ReadFile reads a file from the repository.
 func (r *TestRepo) ReadFile(path string) string {
 	r.t.Helper()
 	fullPath := filepath.Join(r.Dir, path)
@@ -79,7 +79,7 @@ func (r *TestRepo) ReadFile(path string) string {
 	return string(content)
 }
 
-// Commit creates a new commit with current changes
+// Commit creates a new commit with current changes.
 func (r *TestRepo) Commit(message string) {
 	r.t.Helper()
 
@@ -90,7 +90,7 @@ func (r *TestRepo) Commit(message string) {
 	}
 }
 
-// Run executes a jj command in the repository
+// Run executes a jj command in the repository.
 func (r *TestRepo) Run(args ...string) (string, error) {
 	r.t.Helper()
 	cmd := exec.Command("jj", args...)
@@ -99,7 +99,7 @@ func (r *TestRepo) Run(args ...string) (string, error) {
 	return string(output), err
 }
 
-// MustRun executes a jj command and fails test on error
+// MustRun executes a jj command and fails test on error.
 func (r *TestRepo) MustRun(args ...string) string {
 	r.t.Helper()
 	output, err := r.Run(args...)
@@ -109,20 +109,20 @@ func (r *TestRepo) MustRun(args ...string) string {
 	return output
 }
 
-// GetDiff returns the diff for a revision
+// GetDiff returns the diff for a revision.
 func (r *TestRepo) GetDiff(revision string) string {
 	r.t.Helper()
 	return r.MustRun("diff", "-r", revision, "--git", "--color=never")
 }
 
-// GetChangeID returns the change ID for a revision
+// GetChangeID returns the change ID for a revision.
 func (r *TestRepo) GetChangeID(revision string) string {
 	r.t.Helper()
 	output := r.MustRun("log", "-r", revision, "--no-graph", "-T", "change_id")
 	return strings.TrimSpace(output)
 }
 
-// AssertFileContent verifies file contents
+// AssertFileContent verifies file contents.
 func (r *TestRepo) AssertFileContent(path, expected string) {
 	r.t.Helper()
 	actual := r.ReadFile(path)
@@ -131,7 +131,7 @@ func (r *TestRepo) AssertFileContent(path, expected string) {
 	}
 }
 
-// AssertDiffContains verifies diff contains expected string
+// AssertDiffContains verifies diff contains expected string.
 func (r *TestRepo) AssertDiffContains(revision, expected string) {
 	r.t.Helper()
 	diff := r.GetDiff(revision)
@@ -145,7 +145,7 @@ func (r *TestRepo) AssertDiffContains(revision, expected string) {
 	}
 }
 
-// AssertDiffNotContains verifies diff does not contain string
+// AssertDiffNotContains verifies diff does not contain string.
 func (r *TestRepo) AssertDiffNotContains(revision, unexpected string) {
 	r.t.Helper()
 	diff := r.GetDiff(revision)
@@ -159,7 +159,7 @@ func (r *TestRepo) AssertDiffNotContains(revision, unexpected string) {
 	}
 }
 
-// AssertDiffEmpty verifies revision has no changes
+// AssertDiffEmpty verifies revision has no changes.
 func (r *TestRepo) AssertDiffEmpty(revision string) {
 	r.t.Helper()
 	diff := r.GetDiff(revision)
