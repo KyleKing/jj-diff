@@ -344,6 +344,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.diffView.SetFileChange(m.changes[0])
 		}
 
+		// jj's diff editor contract is subtractive: the right side starts as the
+		// commit's full content and the user removes what should not be kept.
+		// Starting empty here would discard every change on apply.
+		if m.mode == ModeDiffEditor {
+			m.selection = NewSelectionState()
+			diff.SelectAll(m.changes, m.selection)
+		}
+
 		return m, nil
 
 	case errMsg:
