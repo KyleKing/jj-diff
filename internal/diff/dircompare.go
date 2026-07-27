@@ -113,6 +113,7 @@ func generateFileDiff(relPath, leftPath, rightPath string, inLeft, inRight bool)
 }
 
 func readFileContent(path string) (string, error) {
+	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err

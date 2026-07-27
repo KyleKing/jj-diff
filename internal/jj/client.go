@@ -35,6 +35,7 @@ func (c *Client) CheckInstalled() error {
 }
 
 func (c *Client) Diff(revision string) (string, error) {
+	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", "diff", "-r", revision, "--git", "--color=never")
 	cmd.Dir = c.baseDir
 
@@ -59,6 +60,7 @@ func (c *Client) Status() ([]FileStatus, error) {
 }
 
 func (c *Client) ShowRevision(revision string) (*RevisionInfo, error) {
+	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", "show", "-r", revision, "--no-graph", "--summary")
 	cmd.Dir = c.baseDir
 
@@ -94,7 +96,7 @@ func (c *Client) MoveChanges(patch, source, destination string) (err error) {
 	}()
 
 	patchFile := filepath.Join(tmpDir, "changes.patch")
-	if err := os.WriteFile(patchFile, []byte(patch), 0o644); err != nil {
+	if err := os.WriteFile(patchFile, []byte(patch), 0o600); err != nil {
 		return fmt.Errorf("failed to write patch: %w", err)
 	}
 
@@ -134,6 +136,7 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) (err error)
 		return c.undoAfter(fmt.Errorf("failed to restore working copy: %w", err))
 	}
 
+	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("git", "apply", patchFile)
 	cmd.Dir = c.baseDir
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -197,6 +200,7 @@ func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 		`if(description, description.first_line(), "(no description)"),` +
 		`"---")`
 
+	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", "log",
 		"--no-graph",
 		"--limit", fmt.Sprintf("%d", limit),
@@ -425,6 +429,7 @@ func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 }
 
 func (c *Client) executeJJ(args ...string) (string, error) {
+	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", args...)
 	cmd.Dir = c.baseDir
 
