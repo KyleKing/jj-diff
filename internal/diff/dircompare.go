@@ -368,7 +368,7 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 			fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount),
 		)
 		for _, line := range hunkLines {
-			builder.WriteString(string(line.lineType))
+			builder.WriteRune(line.lineType)
 			builder.WriteString(line.content)
 			builder.WriteString("\n")
 		}
