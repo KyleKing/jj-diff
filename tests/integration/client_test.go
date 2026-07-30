@@ -287,6 +287,58 @@ func TestMoveChanges_CleansUpScratchWorkspaceOnFailure(t *testing.T) {
 	repo.AssertFileContent("file1.txt", "line 1\nline 2\nline 3\n")
 }
 
+// TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact covers the split path's safety property. The
+// new-commit destination cannot apply its patch today (see FINDINGS.md), so what this asserts is that
+// the failure is reported and rolled back rather than taking the working copy with it.
+func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
+	t.Parallel()
+
+	repo := NewTestRepo(t)
+
+	repo.WriteFile("a.txt", "a1\n")
+	repo.WriteFile("b.txt", "b1\n")
+	repo.Commit("Initial commit")
+
+	repo.WriteFile("a.txt", "a1\nA-ADDED\n")
+	repo.WriteFile("b.txt", "b1\nB-ADDED\n")
+
+	originalWC := repo.GetChangeID("@")
+
+	patchA := `diff --git a/a.txt b/a.txt
+--- a/a.txt
++++ b/a.txt
+@@ -1 +1,2 @@
+ a1
++A-ADDED
+`
+
+	client := jj.NewClient(repo.Dir)
+	plans := []jj.SplitPlan{{
+		Tag:   'a',
+		Patch: patchA,
+		Destination: jj.SplitDestination{
+			Type:        jj.SplitDestNewCommit,
+			Description: "split: a only",
+		},
+	}}
+
+	if err := client.ApplySplit(plans, "@"); err == nil {
+		t.Fatal("expected ApplySplit to report the failed plan")
+	}
+
+	repo.AssertFileContent("a.txt", "a1\nA-ADDED\n")
+	repo.AssertFileContent("b.txt", "b1\nB-ADDED\n")
+
+	if currentWC := repo.GetChangeID("@"); currentWC != originalWC {
+		t.Errorf("working copy moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
+	}
+
+	workspaces := repo.MustRun("workspace", "list")
+	if strings.Contains(workspaces, "jj-diff-scratch") {
+		t.Errorf("scratch workspace leaked into jj workspace list:\n%s", workspaces)
+	}
+}
+
 // TestGetRevisions_ParsesRealLogOutput guards the jj log template: an escaped
 // backslash there produces one unbroken line and silently yields no revisions,
 // which empties the destination picker without any error surfacing.
