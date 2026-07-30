@@ -1,3 +1,6 @@
+// Package diffview renders one file's hunks as a scrollable pane, either unified or side by side.
+// It draws the hunk and line cursors, selection markers, split tags, search matches, and syntax
+// or word-level highlighting, and owns no keybindings of its own.
 package diffview
 
 import (
@@ -12,30 +15,44 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// MatchRange is a half-open byte range within one line's raw content, used to underlay search hits.
+// Offsets are byte offsets rather than rune or column positions.
 type MatchRange struct {
 	Start int
 	End   int
 }
 
+// ViewModeType names the layout the pane renders in.
 type ViewModeType string
 
+// The two layouts a pane can render in. The values match the strings accepted by config.ViewMode.
 const (
 	ViewModeUnified    ViewModeType = "unified"
 	ViewModeSideBySide ViewModeType = "side-by-side"
 )
 
+// WordDiffCache holds precomputed intra-line diffs keyed by hunk index, then by line index within
+// that hunk. Only added and deleted lines get an entry, so a lookup miss means render the line plain.
 type WordDiffCache struct {
 	HunkDiffs map[int]map[int]diff.WordDiffResult
 }
 
+// SplitTag is the single character a hunk is tagged with during a multi-way split, drawn as "[a]"
+// beside the hunk header.
 type SplitTag rune
 
+// LineIndex maps a scroll offset to a hunk without walking every hunk. Offsets and counts are in
+// rendered rows, and each hunk's first row is its header, so HunkLineCounts is one more than the
+// hunk's line count. Hiding whitespace changes the row counts, so the index is rebuilt on that toggle.
 type LineIndex struct {
 	TotalLines     int
 	HunkOffsets    []int
 	HunkLineCounts []int
 }
 
+// FindHunkForOffset maps a rendered row to its hunk and the row within that hunk, where row 0 is the
+// hunk header. An offset past the last row clamps to the end of the final hunk, and an empty index
+// returns zeroes.
 func (idx *LineIndex) FindHunkForOffset(offset int) (hunkIdx, lineInHunk int) {
 	if len(idx.HunkOffsets) == 0 {
 		return 0, 0
@@ -62,6 +79,8 @@ func (idx *LineIndex) FindHunkForOffset(offset int) (hunkIdx, lineInHunk int) {
 	return hunkIdx, lineInHunk
 }
 
+// Model is the diff pane. It holds no cursor authority of its own: the parent model pushes the
+// selected hunk, line cursor, search state, and tag state in before each render.
 type Model struct {
 	fileChange      *diff.FileChange
 	offset          int
@@ -86,6 +105,8 @@ type Model struct {
 	lineIndex       *LineIndex
 }
 
+// New builds a pane with no file loaded, so View renders a placeholder until SetFileChange is called.
+// Everything the user can toggle at runtime takes its starting value from cfg.
 func New(cfg config.Config) Model {
 	viewMode := ViewModeUnified
 	if cfg.ViewMode == config.ViewModeSideBySide {
@@ -104,6 +125,8 @@ func New(cfg config.Config) Model {
 	}
 }
 
+// SetFileChange loads a file, scrolls back to the top, and rebuilds the word-diff cache and line
+// index. The pane keeps its own copy of file, so later edits to the caller's value are not picked up.
 func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
@@ -157,11 +180,15 @@ func (m *Model) computeWordDiffs() {
 	}
 }
 
+// SetSelection points the hunk cursor at selectedHunk and installs the predicate that decides which
+// hunks draw as selected. A nil isSelected draws no hunk as selected, which is the browse-mode case.
 func (m *Model) SetSelection(selectedHunk int, isSelected func(hunkIdx int) bool) {
 	m.selectedHunk = selectedHunk
 	m.isSelected = isSelected
 }
 
+// SetVisualState installs the line cursor and visual-mode range. Both lineCursor and visualAnchor are
+// line indexes within the hunk the cursor is on, and the range they bound is inclusive at both ends.
 func (m *Model) SetVisualState(
 	lineCursor int,
 	isVisualMode bool,
@@ -174,6 +201,8 @@ func (m *Model) SetVisualState(
 	m.isLineSelected = isLineSelected
 }
 
+// SetSearchState turns match highlighting on or off. Highlighting needs both isSearching and a
+// non-nil getMatches, so passing false with nil is the way to clear a finished search.
 func (m *Model) SetSearchState(
 	isSearching bool,
 	getMatches func(hunkIdx, lineIdx int) []MatchRange,
@@ -182,6 +211,8 @@ func (m *Model) SetSearchState(
 	m.getMatches = getMatches
 }
 
+// SetTagState installs the lookup for split tags drawn beside each hunk header. The callback is asked
+// once per visible hunk per render, so it must be cheap. A nil callback draws no tags.
 func (m *Model) SetTagState(getHunkTags func(hunkIdx int) []SplitTag) {
 	m.getHunkTags = getHunkTags
 }

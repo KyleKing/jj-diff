@@ -1,3 +1,6 @@
+// Package destpicker lists candidate revisions so the user can choose where changes move.
+// The parent model loads the revisions, routes keys here while the picker is visible, and
+// reads the highlighted entry back out on confirmation.
 package destpicker
 
 import (
@@ -10,12 +13,15 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Model is the destination picker. Mutators take a pointer receiver, so a parent holding it
+// by value must keep the same field rather than a copy.
 type Model struct {
 	revisions []jj.RevisionEntry
 	selected  int
 	visible   bool
 }
 
+// New returns a hidden picker with no revisions, so SetRevisions must run before Show.
 func New() Model {
 	return Model{
 		revisions: []jj.RevisionEntry{},
@@ -24,6 +30,8 @@ func New() Model {
 	}
 }
 
+// SetRevisions replaces the candidate list, keeping the cursor where it is when the new list
+// is long enough and falling back to the first row otherwise. The slice is retained, not copied.
 func (m *Model) SetRevisions(revisions []jj.RevisionEntry) {
 	m.revisions = revisions
 	if m.selected >= len(revisions) {
@@ -31,30 +39,38 @@ func (m *Model) SetRevisions(revisions []jj.RevisionEntry) {
 	}
 }
 
+// Show reveals the picker. While it is visible the parent model routes every key here.
 func (m *Model) Show() {
 	m.visible = true
 }
 
+// Hide takes the picker off screen and leaves the revisions and cursor in place, so a later
+// Show resumes on the same row.
 func (m *Model) Hide() {
 	m.visible = false
 }
 
+// IsVisible reports whether keys belong to the picker rather than the main view.
 func (m *Model) IsVisible() bool {
 	return m.visible
 }
 
+// MoveUp moves the cursor one revision earlier in the list and stops at the first, without wrapping.
 func (m *Model) MoveUp() {
 	if m.selected > 0 {
 		m.selected--
 	}
 }
 
+// MoveDown moves the cursor one revision later in the list and stops at the last, without wrapping.
 func (m *Model) MoveDown() {
 	if m.selected < len(m.revisions)-1 {
 		m.selected++
 	}
 }
 
+// GetSelected returns a pointer into the revision slice, or nil when the list is empty. The
+// pointer is invalidated by the next SetRevisions, so read what is needed before calling it.
 func (m Model) GetSelected() *jj.RevisionEntry {
 	if m.selected >= 0 && m.selected < len(m.revisions) {
 		return &m.revisions[m.selected]
@@ -63,6 +79,8 @@ func (m Model) GetSelected() *jj.RevisionEntry {
 	return nil
 }
 
+// View centers the picker in a terminal of the given cell dimensions, scrolling a window of
+// rows that keeps the cursor near the middle. It returns an empty string while hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {
 		return ""

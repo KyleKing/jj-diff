@@ -1,3 +1,6 @@
+// Package searchmodal shows the incremental search prompt and its match counter. It holds no
+// search logic: the parent model matches against the diff and pushes the query and the result
+// counts in for display.
 package searchmodal
 
 import (
@@ -9,6 +12,8 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Model is the search prompt. It mirrors state the parent model owns, so the query and counts
+// it displays are only as current as the last SetQuery and UpdateResults call.
 type Model struct {
 	query      string
 	visible    bool

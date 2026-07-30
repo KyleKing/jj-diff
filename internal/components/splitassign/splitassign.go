@@ -1,3 +1,6 @@
+// Package splitassign renders the modal that pairs each split tag with a destination, either an
+// existing revision or a commit to create. The parent model fills it with tags and revisions, routes
+// keys to it while it is visible, and reads the finished pairing back with GetDestinations.
 package splitassign
 
 import (
@@ -11,21 +14,33 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// SplitTag is the single character a hunk carries while a multi-way split is being assembled.
+// It is declared here rather than shared with the parent model so this component imports nothing
+// from it.
 type SplitTag rune
 
+// DestinationType separates an assignment that targets a revision that already exists from one that
+// creates a commit.
 type DestinationType int
 
+// Destinations a tag can be sent to. DestExistingRevision is the zero value, so a DestinationSpec
+// that was never filled in reads as targeting an existing revision.
 const (
 	DestExistingRevision DestinationType = iota
 	DestNewCommit
 )
 
+// DestinationSpec is where one tag's hunks land. ChangeID is empty for DestNewCommit, where
+// Description becomes the message of the commit that gets created.
 type DestinationSpec struct {
 	Type        DestinationType
 	ChangeID    string
 	Description string
 }
 
+// Model is the two-panel assignment modal, tags on the left and candidate revisions on the right,
+// with one cursor per panel. It owns the destination map for the whole split, so the parent model
+// keeps a single instance alive across openings.
 type Model struct {
 	tags         []SplitTag
 	revisions    []jj.RevisionEntry
@@ -36,6 +51,7 @@ type Model struct {
 	focusOnTags  bool
 }
 
+// New returns a hidden modal with no tags, no revisions, and the tag panel focused.
 func New() Model {
 	return Model{
 		tags:         []SplitTag{},
@@ -48,6 +64,9 @@ func New() Model {
 	}
 }
 
+// SetTags adopts tags as the tag list and sorts it ascending, which reorders the caller's slice in
+// place. The tag cursor rewinds when it would sit past the end. Assignments are untouched, including
+// any belonging to a tag that is no longer listed.
 func (m *Model) SetTags(tags []SplitTag) {
 	m.tags = tags
 	sort.Slice(m.tags, func(i, j int) bool {
@@ -58,6 +77,8 @@ func (m *Model) SetTags(tags []SplitTag) {
 	}
 }
 
+// SetRevisions replaces the candidate revisions and rewinds the revision cursor when it would sit
+// past the end. Order is preserved because the caller decides which revisions are worth offering.
 func (m *Model) SetRevisions(revisions []jj.RevisionEntry) {
 	m.revisions = revisions
 	if m.selectedRev >= len(revisions) {
