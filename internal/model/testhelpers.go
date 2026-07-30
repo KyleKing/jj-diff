@@ -10,7 +10,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/jj"
 )
 
-// TestModel creates a model with mock client for testing.
+// NewTestModel builds a Model backed by a jj client rooted at a fresh temp dir.
 func NewTestModel(t *testing.T, mode OperatingMode) Model {
 	t.Helper()
 
@@ -25,7 +25,7 @@ func NewTestModel(t *testing.T, mode OperatingMode) Model {
 	return m
 }
 
-// WithChanges sets up the model with test file changes.
+// WithChanges loads changes and selects the first file, mirroring what a real diff load does.
 func (m Model) WithChanges(changes []diff.FileChange) Model {
 	m.changes = changes
 	m.fileList.SetFiles(changes)
@@ -36,45 +36,28 @@ func (m Model) WithChanges(changes []diff.FileChange) Model {
 	return m
 }
 
-// WithDestination sets a destination for the model.
+// WithDestination sets the move destination without going through the picker.
 func (m Model) WithDestination(dest string) Model {
 	m.destination = dest
 	return m
 }
 
-// KeyPress creates a tea.KeyMsg for single character keys.
+// KeyPress builds the message Bubble Tea sends for a printable key.
 func KeyPress(key rune) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}}
 }
 
-// SpecialKey creates a tea.KeyMsg for special keys.
+// SpecialKey builds the message Bubble Tea sends for a named key such as tea.KeyEsc.
 func SpecialKey(keyType tea.KeyType) tea.KeyMsg {
 	return tea.KeyMsg{Type: keyType}
 }
 
-// Update is a helper that processes a message and returns the updated model.
+// Update runs one Update round and asserts the result is still a Model, discarding the command.
 func Update(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
 	newModel, _ := m.Update(msg)
 
 	return assertModel(t, newModel)
-}
-
-// UpdateWithCmd processes a message and executes any returned command synchronously.
-func UpdateWithCmd(t *testing.T, m Model, msg tea.Msg) Model {
-	t.Helper()
-	newModel, cmd := m.Update(msg)
-	m = assertModel(t, newModel)
-
-	if cmd != nil {
-		resultMsg := cmd()
-		if resultMsg != nil {
-			newModel, _ = m.Update(resultMsg)
-			m = assertModel(t, newModel)
-		}
-	}
-
-	return m
 }
 
 func assertModel(t *testing.T, model tea.Model) Model {
@@ -88,19 +71,22 @@ func assertModel(t *testing.T, model tea.Model) Model {
 	return m
 }
 
-// ModelAssertion provides fluent assertions on model state.
-type ModelAssertion struct {
+// Assertion reads unexported Model state, which is why it lives in the package rather than a test file.
+// Every check reports through t.Errorf and returns the receiver, so a chain runs to the end and reports
+// every mismatch instead of stopping at the first.
+type Assertion struct {
 	t *testing.T
 	m Model
 }
 
-// Assert creates a new ModelAssertion for fluent testing.
-func Assert(t *testing.T, m Model) *ModelAssertion {
+// Assert opens a chain of assertions over a snapshot of m. Later mutations of m are not observed.
+func Assert(t *testing.T, m Model) *Assertion {
 	t.Helper()
-	return &ModelAssertion{t: t, m: m}
+	return &Assertion{t: t, m: m}
 }
 
-func (a *ModelAssertion) HasSelectedFile(idx int) *ModelAssertion {
+// HasSelectedFile checks the file-list cursor, which is an index into the unfiltered change list.
+func (a *Assertion) HasSelectedFile(idx int) *Assertion {
 	a.t.Helper()
 	if a.m.selectedFile != idx {
 		a.t.Errorf("Expected selectedFile=%d, got %d", idx, a.m.selectedFile)
@@ -109,7 +95,8 @@ func (a *ModelAssertion) HasSelectedFile(idx int) *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HasSelectedHunk(idx int) *ModelAssertion {
+// HasSelectedHunk checks the hunk cursor, which is an index within the currently selected file only.
+func (a *Assertion) HasSelectedHunk(idx int) *Assertion {
 	a.t.Helper()
 	if a.m.selectedHunk != idx {
 		a.t.Errorf("Expected selectedHunk=%d, got %d", idx, a.m.selectedHunk)
@@ -118,7 +105,8 @@ func (a *ModelAssertion) HasSelectedHunk(idx int) *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HasHunkSelected(filePath string, hunkIdx int) *ModelAssertion {
+// HasHunkSelected checks that the hunk is marked for apply. A partially selected hunk still counts.
+func (a *Assertion) HasHunkSelected(filePath string, hunkIdx int) *Assertion {
 	a.t.Helper()
 	if !a.m.selection.IsHunkSelected(filePath, hunkIdx) {
 		a.t.Errorf("Expected hunk %d in file %s to be selected", hunkIdx, filePath)
@@ -127,7 +115,8 @@ func (a *ModelAssertion) HasHunkSelected(filePath string, hunkIdx int) *ModelAss
 	return a
 }
 
-func (a *ModelAssertion) HasHunkNotSelected(filePath string, hunkIdx int) *ModelAssertion {
+// HasHunkNotSelected checks that no part of the hunk is marked for apply.
+func (a *Assertion) HasHunkNotSelected(filePath string, hunkIdx int) *Assertion {
 	a.t.Helper()
 	if a.m.selection.IsHunkSelected(filePath, hunkIdx) {
 		a.t.Errorf("Expected hunk %d in file %s to NOT be selected", hunkIdx, filePath)
@@ -136,7 +125,8 @@ func (a *ModelAssertion) HasHunkNotSelected(filePath string, hunkIdx int) *Model
 	return a
 }
 
-func (a *ModelAssertion) FocusedPanelIs(panel FocusedPanel) *ModelAssertion {
+// FocusedPanelIs checks which panel receives navigation keys.
+func (a *Assertion) FocusedPanelIs(panel FocusedPanel) *Assertion {
 	a.t.Helper()
 	if a.m.focusedPanel != panel {
 		a.t.Errorf("Expected focusedPanel=%v, got %v", panel, a.m.focusedPanel)
@@ -145,7 +135,8 @@ func (a *ModelAssertion) FocusedPanelIs(panel FocusedPanel) *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) ModeIs(mode OperatingMode) *ModelAssertion {
+// ModeIs checks the operating mode, which is fixed at construction and never changes at runtime.
+func (a *Assertion) ModeIs(mode OperatingMode) *Assertion {
 	a.t.Helper()
 	if a.m.mode != mode {
 		a.t.Errorf("Expected mode=%v, got %v", mode, a.m.mode)
@@ -154,7 +145,8 @@ func (a *ModelAssertion) ModeIs(mode OperatingMode) *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HasDestination(dest string) *ModelAssertion {
+// HasDestination checks the revset the model will move changes to, which is empty until one is picked.
+func (a *Assertion) HasDestination(dest string) *Assertion {
 	a.t.Helper()
 	if a.m.destination != dest {
 		a.t.Errorf("Expected destination=%s, got %s", dest, a.m.destination)
@@ -163,7 +155,8 @@ func (a *ModelAssertion) HasDestination(dest string) *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HasError() *ModelAssertion {
+// HasError checks that the model is holding an error for the view to render.
+func (a *Assertion) HasError() *Assertion {
 	a.t.Helper()
 	if a.m.err == nil {
 		a.t.Error("Expected error, got nil")
@@ -172,7 +165,8 @@ func (a *ModelAssertion) HasError() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HasNoError() *ModelAssertion {
+// HasNoError checks that no error is pending, and prints the error it found when one is.
+func (a *Assertion) HasNoError() *Assertion {
 	a.t.Helper()
 	if a.m.err != nil {
 		a.t.Errorf("Expected no error, got %v", a.m.err)
@@ -181,7 +175,8 @@ func (a *ModelAssertion) HasNoError() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HasChanges(count int) *ModelAssertion {
+// HasChanges checks how many file changes are loaded, ignoring any file-list filter.
+func (a *Assertion) HasChanges(count int) *Assertion {
 	a.t.Helper()
 	if len(a.m.changes) != count {
 		a.t.Errorf("Expected %d changes, got %d", count, len(a.m.changes))
@@ -190,7 +185,8 @@ func (a *ModelAssertion) HasChanges(count int) *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) IsInVisualMode() *ModelAssertion {
+// IsInVisualMode checks that line-range selection is active.
+func (a *Assertion) IsInVisualMode() *Assertion {
 	a.t.Helper()
 	if !a.m.isVisualMode {
 		a.t.Error("Expected model to be in visual mode")
@@ -199,7 +195,8 @@ func (a *ModelAssertion) IsInVisualMode() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) IsNotInVisualMode() *ModelAssertion {
+// IsNotInVisualMode checks that line-range selection is off, so space acts on the whole hunk.
+func (a *Assertion) IsNotInVisualMode() *Assertion {
 	a.t.Helper()
 	if a.m.isVisualMode {
 		a.t.Error("Expected model to NOT be in visual mode")
@@ -208,7 +205,8 @@ func (a *ModelAssertion) IsNotInVisualMode() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HasLineCursor(position int) *ModelAssertion {
+// HasLineCursor checks the line cursor as an index into the rendered rows of the selected hunk.
+func (a *Assertion) HasLineCursor(position int) *Assertion {
 	a.t.Helper()
 	if a.m.lineCursor != position {
 		a.t.Errorf("Expected lineCursor=%d, got %d", position, a.m.lineCursor)
@@ -217,7 +215,8 @@ func (a *ModelAssertion) HasLineCursor(position int) *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HelpIsVisible() *ModelAssertion {
+// HelpIsVisible checks that the help overlay is up.
+func (a *Assertion) HelpIsVisible() *Assertion {
 	a.t.Helper()
 	if !a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to be visible")
@@ -226,7 +225,8 @@ func (a *ModelAssertion) HelpIsVisible() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) HelpIsNotVisible() *ModelAssertion {
+// HelpIsNotVisible checks that the help overlay is down.
+func (a *Assertion) HelpIsNotVisible() *Assertion {
 	a.t.Helper()
 	if a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to NOT be visible")
@@ -235,7 +235,8 @@ func (a *ModelAssertion) HelpIsNotVisible() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) SearchIsVisible() *ModelAssertion {
+// SearchIsVisible checks that the search prompt is up, which is separate from the file-list filter.
+func (a *Assertion) SearchIsVisible() *Assertion {
 	a.t.Helper()
 	if !a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to be visible")
@@ -244,7 +245,8 @@ func (a *ModelAssertion) SearchIsVisible() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) SearchIsNotVisible() *ModelAssertion {
+// SearchIsNotVisible checks that the search prompt is down.
+func (a *Assertion) SearchIsNotVisible() *Assertion {
 	a.t.Helper()
 	if a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to NOT be visible")
@@ -253,25 +255,8 @@ func (a *ModelAssertion) SearchIsNotVisible() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) FileFinderIsVisible() *ModelAssertion {
-	a.t.Helper()
-	if !a.m.fileFinder.IsVisible() {
-		a.t.Error("Expected file finder modal to be visible")
-	}
-
-	return a
-}
-
-func (a *ModelAssertion) FileFinderIsNotVisible() *ModelAssertion {
-	a.t.Helper()
-	if a.m.fileFinder.IsVisible() {
-		a.t.Error("Expected file finder modal to NOT be visible")
-	}
-
-	return a
-}
-
-func (a *ModelAssertion) FileListFilterModeEnabled() *ModelAssertion {
+// FileListFilterModeEnabled checks that the file list is capturing keys for its inline filter.
+func (a *Assertion) FileListFilterModeEnabled() *Assertion {
 	a.t.Helper()
 	if !a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to be enabled")
@@ -280,7 +265,8 @@ func (a *ModelAssertion) FileListFilterModeEnabled() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) FileListFilterModeDisabled() *ModelAssertion {
+// FileListFilterModeDisabled checks that the file list has handed key handling back to the model.
+func (a *Assertion) FileListFilterModeDisabled() *Assertion {
 	a.t.Helper()
 	if a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to be disabled")
@@ -289,25 +275,8 @@ func (a *ModelAssertion) FileListFilterModeDisabled() *ModelAssertion {
 	return a
 }
 
-func (a *ModelAssertion) DestPickerIsVisible() *ModelAssertion {
-	a.t.Helper()
-	if !a.m.destPicker.IsVisible() {
-		a.t.Error("Expected dest picker modal to be visible")
-	}
-
-	return a
-}
-
-func (a *ModelAssertion) DestPickerIsNotVisible() *ModelAssertion {
-	a.t.Helper()
-	if a.m.destPicker.IsVisible() {
-		a.t.Error("Expected dest picker modal to NOT be visible")
-	}
-
-	return a
-}
-
-func (a *ModelAssertion) NoModalsVisible() *ModelAssertion {
+// NoModalsVisible checks every overlay and the file-list filter at once, reporting each one that is up.
+func (a *Assertion) NoModalsVisible() *Assertion {
 	a.t.Helper()
 	if a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to NOT be visible")
@@ -328,11 +297,7 @@ func (a *ModelAssertion) NoModalsVisible() *ModelAssertion {
 	return a
 }
 
-func CtrlKey(key rune) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyCtrlD + tea.KeyType(key-'d'), Runes: nil}
-}
-
-// TestChanges creates sample file changes for testing.
+// TestChanges returns three file changes covering the modified, added, and deleted paths.
 func TestChanges() []diff.FileChange {
 	return []diff.FileChange{
 		{
