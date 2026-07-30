@@ -24,7 +24,7 @@ local linters = new Mapping<String, Step> {
     // The roadmap documents jj's conflict marker format verbatim, so the
     // markers there are content rather than an unresolved merge.
     ["check-merge-conflict"] = (Builtins.check_merge_conflict) {
-        exclude = List(".jj-diff-roadmap.md")
+        exclude = List("ROADMAP.md")
     }
     ["check-symlinks"] = Builtins.check_symlinks
     ["detect-private-key"] = Builtins.detect_private_key

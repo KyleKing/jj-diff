@@ -1,6 +1,14 @@
 # jj-diff Roadmap
 
-Feature plans derived from vision documents analysis. Each feature leverages jj's unique capabilities.
+Feature plans that build on jj's unique capabilities. None of the six below is
+built as of 2026-07-27: `internal/components/` holds no timeline, oplog, or
+smartlog component. Known defects and design decisions live in `FINDINGS.md`; the
+fixture-testing plan lives in `doctest-jj-diff.md`.
+
+Section 4 quotes jj's conflict-marker format verbatim, so the `<<<<<<<` and
+`>>>>>>>` lines in this file are content, not an unresolved merge. `hk.pkl`
+excludes this path from `check-merge-conflict` for that reason; keep the markers
+and the exclude in step if the file is ever renamed.
 
 ---
 
