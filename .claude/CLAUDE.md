@@ -54,15 +54,15 @@ Patch generation in `internal/diff/patch.go` copies whole hunks as-is. For parti
 
 `MoveChanges` in `internal/jj/client.go` runs this sequence:
 
-1. Save the current working copy ID
-2. `jj new <destination>`
-3. `jj restore --from <destination>`
-4. `git apply patch.diff`
-5. `jj squash`
-6. `jj edit <original>`
-7. On error, `jj undo` and restore the working copy
+1. Resolve the destination revset to a change ID and record the current operation ID
+2. `jj workspace add` a scratch workspace under a temp directory
+3. In the scratch workspace: `jj new <destination>`, `git apply patch.diff`, `jj squash --into <destination>`
+4. Always: `jj workspace forget` and delete the directory
+5. On error, `jj op restore` back to the operation from step 1
 
 This is the one place the application itself writes to a repository. It targets the user's repo at runtime, not this one.
+
+The invariant that makes it safe: nothing in this path names `@`. The user's working copy is never read, written, or moved, so a failed or abandoned run cannot cost them unselected changes. Anything added here that resolves a revset relative to `@`, or runs `jj restore` against the user's working copy, reintroduces a data-loss bug that shipped once already.
 
 ## Theme system
 

@@ -8,28 +8,55 @@ instead; this file is the remainder.
 Everything below was reproduced against a real colocated jj repo with jj-diff wired in as
 `ui.diff-editor`, driven through a pty. Nothing here is read off the source alone.
 
-## Interactive mode destroys unselected working-copy changes
+## Interactive mode destroying unselected changes (fixed)
 
-This is the one to fix first.
+`moveChangesWithPatch` used to run `jj new <dest> --no-edit` followed by `jj restore --from <dest>`.
+Because `--no-edit` leaves `@` on the user's working copy, the restore reset the user's own files to
+the destination's content, and every change the patch did not carry was gone at that moment. Selecting
+one hunk of one file in a three-file working copy left the working copy empty, deleted an unrelated
+file from disk, and left the commit from step one dangling in the log. The destination was also passed
+around as a revset rather than a change ID, so it could resolve to a different commit part way through.
 
-`moveChangesWithPatch` in `internal/jj/client.go:108` runs `jj restore --from <destination>`
-as its second step, which resets the working copy to the destination's content. Every change
-the user did not select is gone at that moment. The patch is then applied and squashed, so
-the selected hunks survive and nothing else does.
+Both are fixed. `MoveChanges` now pins the destination to a change ID before any command runs, then
+does all of its work in a throwaway jj workspace created with `jj workspace add` under a temp
+directory. The new invariant is structural rather than a matter of ordering: no command in the move
+path names `@`, so the user's working copy cannot be read, written, or moved by it, and there is no
+sequence of steps that reintroduces the old behaviour. The scratch workspace is forgotten and its
+directory deleted on every return path, and a failure to do either is joined onto the returned error
+instead of being dropped. A genuine failure still rolls the repository back to the operation recorded
+before the workspace was created, and a rollback that itself failed is still reported alongside the
+cause.
 
-To reproduce: a working copy with three modified files, select one hunk in one file, press
-`a`. Afterwards `extra.txt` and the unselected `main.go` edit no longer exist on disk, the
-working copy is empty, and the extra commit created by step 1 is left dangling in the log.
-`jj op restore` gets it back, but the user is never told that.
+Two smaller things came out of the same work:
 
-The sequence also assumes the destination revset stays stable while `@` moves. It does not,
-so `-d @-` can resolve to a different commit partway through.
+- `git apply` resolves a patch's paths against the nearest enclosing git repository rather than
+  against the working directory. A repository above the temp directory would have made the apply a
+  silent no-op with exit status 0, so the move now sets `GIT_CEILING_DIRECTORIES` to the scratch root
+  and additionally refuses to squash when the patch changed nothing
+- `createNewCommit` read `@` after a `jj new --no-edit` and so returned the user's working copy rather
+  than the commit it had just created. Every `ApplySplit` plan targeting a new commit therefore aimed
+  at `@`. It now finds the created commit by diffing the working copy's children across the call
 
-Neither problem is a small fix. The sequence needs to stop touching the user's working copy
-at all: resolve the destination to a change ID up front, build the new commit from the patch
-alone, and squash that. Until then, interactive mode (`jj-diff -i`) is unsafe on a working
-copy that matters, while diff-editor mode (`jj split`, `jj diffedit`, `jj squash -i`) is
-fine because it writes only into the directories jj hands it.
+`tests/integration/client_test.go` covers all of it: working-copy survival, destination pinning, and
+scratch cleanup after a deliberate failure. The survival test fails against the old code exactly the
+way the bug report describes.
+
+No user-facing warning is warranted now. While the bug existed, `jj-diff -i` was unsafe and
+diff-editor mode was fine, and nothing in the UI said so, but documenting a hazard that no released
+build still carries would only confuse people reading the README against a current binary. The v0.1.2
+release notes are where anyone on an older build would look.
+
+## ApplySplit cannot create a new commit
+
+Independent of the fix above, and reproduced against v0.1.2 as well as against current main. A split
+plan with `SplitDestNewCommit` creates its destination as a child of the working copy, so the
+destination already contains every change the working copy has. Applying the plan's patch on top of
+that fails with `patch does not apply`, and the split is rolled back.
+
+Getting this right is a design decision rather than a repair. Taking selected hunks out of `@` and
+into a new commit means creating that commit on `@-` and rebasing `@` onto it, which is closer to what
+`jj split` does than to what `MoveChanges` does. The existing test asserts only the safety property,
+which is that the failed plan is reported and leaves the working copy intact.
 
 ## The Bubble Tea migration
 
@@ -161,15 +188,15 @@ glyphs, or the line cursor should only appear in visual mode.
 | 2 | Match system and real world | 4/4 | jj vocabulary throughout, change IDs shown as jj shows them |
 | 3 | User control and freedom | 2/4 | Esc backs out of modals, but there is no undo hint after an apply and no confirmation before one |
 | 4 | Consistency and standards | 3/4 | vim keys held consistently across views |
-| 5 | Error prevention | 1/4 | `a` in interactive mode destroys unselected changes with no confirmation |
+| 5 | Error prevention | 2/4 | `a` in interactive mode no longer touches unselected changes, but it still applies with no confirmation |
 | 6 | Recognition over recall | 2/4 | `?` exists and the footer hints are good, but the footer truncates at 80 columns and the overlay clips |
 | 7 | Flexibility and efficiency | 3/4 | Half-page and full-page scroll, visual mode, multi-split tagging; no command mode |
 | 8 | Aesthetic and minimalist design | 3/4 | Chrome stays quiet; large blank areas read as unfinished rather than spacious |
 | 9 | Error recovery | 2/4 | Errors render in-app as plain text, but a panic still dumps a Go stack over the terminal |
 | 10 | Terminal portability | 3/4 | `NO_COLOR` respected and fully legible, `+` and `-` markers carry meaning without colour; no `TERM=dumb` handling |
 
-26/40. Ordinary for a TUI at this stage, and the two lowest scores share one root cause: the
-apply path is destructive and says nothing about it.
+27/40. Ordinary for a TUI at this stage. The apply path is safe now, but it still runs without
+confirmation and says nothing while it works.
 
 ### Cognitive load
 
