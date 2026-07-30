@@ -1,3 +1,11 @@
+## v0.1.3 (2026-07-30)
+
+### Fix
+
+- **jj**: return the change ID jj actually created from createNewCommit
+- **jj**: build the patch commit in a scratch workspace so the working copy survives
+- **jj**: pin the destination revset to a change ID before the move starts
+
 ## v0.1.2 (2026-07-30)
 
 ### Refactor
