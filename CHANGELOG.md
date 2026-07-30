@@ -1,3 +1,10 @@
+## v0.1.2 (2026-07-30)
+
+### Refactor
+
+- **search**: rename SearchState to State
+- **diff**: rename DiffSource to Source
+
 ## v0.1.1 (2026-07-27)
 
 ### Fix
