@@ -1,3 +1,5 @@
+// Package jj shells out to the jj binary for the diff, status, and revision data the UI needs, and
+// carries the one write path that moves selected changes into another revision.
 package jj
 
 import (
@@ -10,21 +12,20 @@ import (
 	"strings"
 )
 
+// Client runs jj in one repository. Every call shells out and blocks, so callers in the UI wrap them
+// in a tea.Cmd.
 type Client struct {
 	baseDir string
 }
 
-type RevisionSpec struct {
-	Raw         string
-	ChangeID    string
-	Description string
-	Validated   bool
-}
-
+// NewClient runs jj with baseDir as the working directory, so baseDir decides which repository every
+// call acts on.
 func NewClient(baseDir string) *Client {
 	return &Client{baseDir: baseDir}
 }
 
+// CheckInstalled reports whether a jj binary is on PATH. It runs outside the repository, so it says
+// nothing about baseDir being a jj repo.
 func (c *Client) CheckInstalled() error {
 	cmd := exec.Command("jj", "--version")
 	if err := cmd.Run(); err != nil {
@@ -34,6 +35,8 @@ func (c *Client) CheckInstalled() error {
 	return nil
 }
 
+// Diff returns the git-format diff for a revset, uncolored. The revset is resolved by jj at call
+// time, so a moving revset such as @ follows the working copy.
 func (c *Client) Diff(revision string) (string, error) {
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", "diff", "-r", revision, "--git", "--color=never")
@@ -47,6 +50,8 @@ func (c *Client) Diff(revision string) (string, error) {
 	return string(output), nil
 }
 
+// Status lists the working copy's changed files. Lines jj prints that are not file entries are
+// dropped, so an unparseable output yields an empty slice rather than an error.
 func (c *Client) Status() ([]FileStatus, error) {
 	cmd := exec.Command("jj", "status", "--no-pager")
 	cmd.Dir = c.baseDir
@@ -59,6 +64,8 @@ func (c *Client) Status() ([]FileStatus, error) {
 	return parseStatus(string(output)), nil
 }
 
+// ShowRevision returns one revision's metadata. Fields jj did not print are left empty rather than
+// reported, so the result is never nil on success.
 func (c *Client) ShowRevision(revision string) (*RevisionInfo, error) {
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", "show", "-r", revision, "--no-graph", "--summary")
@@ -72,6 +79,7 @@ func (c *Client) ShowRevision(revision string) (*RevisionInfo, error) {
 	return parseRevisionInfo(string(output)), nil
 }
 
+// Undo reverts the last jj operation in the repository, whether or not this client caused it.
 func (c *Client) Undo() error {
 	cmd := exec.Command("jj", "undo")
 	cmd.Dir = c.baseDir
@@ -84,6 +92,10 @@ func (c *Client) Undo() error {
 	return nil
 }
 
+// MoveChanges applies a patch onto destination and squashes it there. It resets the working copy to
+// the destination as part of the sequence, so changes the patch does not carry are lost; see the
+// first section of FINDINGS.md. The temp file holding the patch is removed even on failure, and a
+// failure to remove it is joined onto the returned error.
 func (c *Client) MoveChanges(patch, source, destination string) (err error) {
 	tmpDir, err := os.MkdirTemp("", "jj-diff-*")
 	if err != nil {
@@ -190,6 +202,8 @@ func (c *Client) restoreOperationAfter(opID string, cause error) error {
 	return cause
 }
 
+// GetRevisions lists recent revisions newest first for the destination picker, defaulting to 20 when
+// limit is not positive.
 func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 	if limit <= 0 {
 		limit = 20
@@ -217,37 +231,51 @@ func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 	return parseRevisionEntries(string(output)), nil
 }
 
+// RevisionEntry is one row of the destination picker. ChangeID is jj's shortest unique prefix, so it
+// is only valid against the repository it came from.
 type RevisionEntry struct {
 	ChangeID    string
 	Description string
 }
 
+// SplitDestinationType separates a split target that already exists from one that will be created.
 type SplitDestinationType int
 
+// Targets a split plan can send its patch to. SplitDestExistingRevision is the zero value, so a
+// SplitDestination that was never filled in reads as targeting an existing revision.
 const (
 	SplitDestExistingRevision SplitDestinationType = iota
 	SplitDestNewCommit
 )
 
+// SplitDestination is where one split plan's patch lands. ChangeID is empty for SplitDestNewCommit,
+// where Description becomes the message of the commit that gets created.
 type SplitDestination struct {
 	Type        SplitDestinationType
 	ChangeID    string
 	Description string
 }
 
+// SplitPlan is one tag's patch and the destination it goes to. Tag is carried through for error
+// messages and has no meaning to jj.
 type SplitPlan struct {
 	Tag         rune
 	Patch       string
 	Destination SplitDestination
 }
 
+// FileStatus is one entry from jj status.
 type FileStatus struct {
 	Path       string
 	ChangeType ChangeType
 }
 
+// ChangeType is what jj status says happened to a file. String returns the one-letter status jj
+// prints.
 type ChangeType int
 
+// Change kinds a status line can report. ChangeTypeModified is the zero value and the fallback for a
+// status letter that is not recognized.
 const (
 	ChangeTypeModified ChangeType = iota
 	ChangeTypeAdded
@@ -270,6 +298,7 @@ func (ct ChangeType) String() string {
 	}
 }
 
+// RevisionInfo is one revision's metadata as jj show prints it. Any field jj omitted is empty.
 type RevisionInfo struct {
 	ChangeID    string
 	Description string
@@ -399,6 +428,9 @@ func (c *Client) restoreOperation(opID string) error {
 	return nil
 }
 
+// ApplySplit runs the plans in order, creating a commit first for each plan that needs one. A failure
+// part way through restores the operation recorded before the first plan, so the repository goes back
+// to where it started rather than keeping the plans that already succeeded.
 func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 	if len(plans) == 0 {
 		return fmt.Errorf("no split plans provided")
