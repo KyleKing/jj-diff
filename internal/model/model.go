@@ -1,3 +1,5 @@
+// Package model is the Bubble Tea root: it owns the diff, the selection, and every child component,
+// and routes each key to the handler for the current mode.
 package model
 
 import (
@@ -24,55 +26,78 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// OperatingMode is which of the three entry points the app was started for, which decides what the
+// selection means and what applying it does.
 type OperatingMode int
 
+// The three ways the app is launched. ModeBrowse is read-only, ModeInteractive moves selected hunks
+// into another revision, and ModeDiffEditor writes the selection back into the trees jj passed.
 const (
 	ModeBrowse OperatingMode = iota
 	ModeInteractive
 	ModeDiffEditor
 )
 
+// FocusedPanel is which of the two panes takes navigation keys.
 type FocusedPanel int
 
+// The two panes Tab switches between. PanelFileList is the zero value, so a fresh model starts on the
+// file list.
 const (
 	PanelFileList FocusedPanel = iota
 	PanelDiffView
 )
 
+// HunkSelection is one hunk's selection. WholeHunk wins over SelectedLines, and selecting the whole
+// hunk discards the per-line set, so the two are never both meaningful.
 type HunkSelection struct {
 	WholeHunk     bool
 	SelectedLines map[int]bool
 }
 
+// FileSelection holds one file's selected hunks, keyed by the hunk's index in the parsed file. The
+// indices go stale when the diff is reloaded.
 type FileSelection struct {
 	Hunks map[int]*HunkSelection
 }
 
+// SelectionState is what the user has picked across every file, keyed by the diff's path. Build it
+// with NewSelectionState, because the mutators assume the map exists.
 type SelectionState struct {
 	Files map[string]*FileSelection
 }
 
+// NewSelectionState returns an empty selection.
 func NewSelectionState() *SelectionState {
 	return &SelectionState{
 		Files: make(map[string]*FileSelection),
 	}
 }
 
+// SplitTag is the single character a hunk carries while a multi-way split is being assembled. Tags
+// are handed out from 'A' upward.
 type SplitTag rune
 
+// DestinationType separates a split target that already exists from one that will be created.
 type DestinationType int
 
+// Destinations a tag can be sent to. DestExistingRevision is the zero value, so a DestinationSpec
+// that was never filled in reads as targeting an existing revision.
 const (
 	DestExistingRevision DestinationType = iota
 	DestNewCommit
 )
 
+// DestinationSpec is where one tag's hunks land. ChangeID is empty for DestNewCommit, where
+// Description becomes the message of the commit that gets created.
 type DestinationSpec struct {
 	Type        DestinationType
 	ChangeID    string
 	Description string
 }
 
+// MultiSplitState is an in-progress multi-way split: one selection and one destination per tag. A tag
+// with a selection but no destination is incomplete and blocks the split from being applied.
 type MultiSplitState struct {
 	Active       bool
 	Selections   map[SplitTag]*SelectionState
@@ -80,6 +105,7 @@ type MultiSplitState struct {
 	CurrentTag   SplitTag
 }
 
+// NewMultiSplitState returns an inactive split with 'A' as the current tag.
 func NewMultiSplitState() *MultiSplitState {
 	return &MultiSplitState{
 		Active:       false,
@@ -89,6 +115,8 @@ func NewMultiSplitState() *MultiSplitState {
 	}
 }
 
+// IsHunkSelected reports whether the whole hunk is selected, which is false for a hunk that only has
+// individual lines picked.
 func (s *SelectionState) IsHunkSelected(filePath string, hunkIdx int) bool {
 	if fileSelection, ok := s.Files[filePath]; ok {
 		if hunkSelection, ok := fileSelection.Hunks[hunkIdx]; ok {
@@ -99,6 +127,8 @@ func (s *SelectionState) IsHunkSelected(filePath string, hunkIdx int) bool {
 	return false
 }
 
+// IsLineSelected reports whether one line is selected, which is true for every line of a hunk
+// selected as a whole.
 func (s *SelectionState) IsLineSelected(filePath string, hunkIdx, lineIdx int) bool {
 	if fileSelection, ok := s.Files[filePath]; ok {
 		if hunkSelection, ok := fileSelection.Hunks[hunkIdx]; ok {
@@ -113,6 +143,8 @@ func (s *SelectionState) IsLineSelected(filePath string, hunkIdx, lineIdx int) b
 	return false
 }
 
+// ToggleHunk flips whole-hunk selection, creating the file and hunk entries as needed. Selecting a
+// hunk discards any lines picked inside it, so a toggle out and back in loses the line selection.
 func (s *SelectionState) ToggleHunk(filePath string, hunkIdx int) {
 	if _, ok := s.Files[filePath]; !ok {
 		s.Files[filePath] = &FileSelection{
@@ -134,6 +166,8 @@ func (s *SelectionState) ToggleHunk(filePath string, hunkIdx int) {
 	}
 }
 
+// ToggleLine flips one line's selection. It does nothing while the hunk is selected as a whole,
+// because that state has no per-line detail to change.
 func (s *SelectionState) ToggleLine(filePath string, hunkIdx, lineIdx int) {
 	if _, ok := s.Files[filePath]; !ok {
 		s.Files[filePath] = &FileSelection{
@@ -156,6 +190,8 @@ func (s *SelectionState) ToggleLine(filePath string, hunkIdx, lineIdx int) {
 	hunkSelection.SelectedLines[lineIdx] = !hunkSelection.SelectedLines[lineIdx]
 }
 
+// SelectLineRange selects an inclusive range of lines, accepting the bounds in either order. It
+// clears whole-hunk selection, and it only adds, so lines already selected outside the range stay.
 func (s *SelectionState) SelectLineRange(filePath string, hunkIdx, startLine, endLine int) {
 	if startLine > endLine {
 		startLine, endLine = endLine, startLine
@@ -182,6 +218,8 @@ func (s *SelectionState) SelectLineRange(filePath string, hunkIdx, startLine, en
 	}
 }
 
+// HasPartialSelection reports whether a hunk has lines picked without being selected as a whole,
+// which is what the renderer draws the partial marker for.
 func (s *SelectionState) HasPartialSelection(filePath string, hunkIdx int) bool {
 	if fileSelection, ok := s.Files[filePath]; ok {
 		if hunkSelection, ok := fileSelection.Hunks[hunkIdx]; ok {
@@ -192,6 +230,8 @@ func (s *SelectionState) HasPartialSelection(filePath string, hunkIdx int) bool 
 	return false
 }
 
+// Model is the whole application state. Bubble Tea passes it by value, so Update returns the updated
+// copy and mutating a Model a handler received has no effect unless that copy is returned.
 type Model struct {
 	client      *jj.Client
 	diffSource  diff.DiffSource
@@ -250,6 +290,7 @@ type destinationSelectedMsg struct {
 	changeID string
 }
 
+// NewModel builds a model reading its diff from a jj revision.
 func NewModel(
 	client *jj.Client,
 	source, destination string,
@@ -260,6 +301,9 @@ func NewModel(
 	return NewModelWithSource(revSource, client, destination, mode, cfg)
 }
 
+// NewModelWithSource builds a model over any diff source, which is how diff-editor mode supplies two
+// directories instead of a revision. client is still needed for the write paths and may only be nil
+// when nothing will be applied.
 func NewModelWithSource(
 	source diff.DiffSource,
 	client *jj.Client,
@@ -298,6 +342,7 @@ func NewModelWithSource(
 	return m, nil
 }
 
+// Init starts the first diff load. Nothing is rendered until it returns and a window size arrives.
 func (m Model) Init() tea.Cmd {
 	return m.loadDiff()
 }
@@ -326,6 +371,8 @@ func (m Model) loadRevisions() tea.Cmd {
 	}
 }
 
+// Update handles one message and returns the model to use next. The concrete type is always Model, so
+// callers chaining updates can assert it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
