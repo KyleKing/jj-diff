@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -151,6 +152,139 @@ func TestMoveChanges_WorkingCopyPreservation(t *testing.T) {
 	if strings.Contains(statusOutput, "error") || strings.Contains(statusOutput, "corrupted") {
 		t.Errorf("Repository appears corrupted: %s", statusOutput)
 	}
+}
+
+// TestMoveChanges_LeavesUnselectedChangesAlone is the regression test for the data-loss bug: the
+// sequence used to reset the working copy to the destination, which deleted every change the patch
+// did not carry. Everything the patch leaves out has to survive on disk, in the working copy, and
+// under the same change ID.
+func TestMoveChanges_LeavesUnselectedChangesAlone(t *testing.T) {
+	t.Parallel()
+
+	repo := NewTestRepo(t)
+
+	repo.WriteFile("main.go", "line1\nline2\nline3\nline4\nline5\n")
+	repo.WriteFile("other.txt", "a\nb\nc\n")
+	repo.Commit("Initial commit")
+
+	repo.WriteFile("main.go", "line1\nCHANGED2\nline3\nline4\nline5\n")
+	repo.WriteFile("other.txt", "a\nBBB\nc\n")
+	repo.WriteFile("extra.txt", "extra content\n")
+
+	originalWC := repo.GetChangeID("@")
+	commitCount := strings.Count(repo.MustRun("log", "--no-graph", "-T", "\"x\\n\"", "-r", "all()"), "x")
+
+	// Only the main.go hunk, which is what selecting one hunk in the UI produces.
+	patch := `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,5 +1,5 @@
+ line1
+-line2
++CHANGED2
+ line3
+ line4
+ line5
+`
+
+	client := jj.NewClient(repo.Dir)
+	if err := client.MoveChanges(patch, "@", "@-"); err != nil {
+		t.Fatalf("MoveChanges failed: %v", err)
+	}
+
+	repo.AssertFileContent("main.go", "line1\nCHANGED2\nline3\nline4\nline5\n")
+	repo.AssertFileContent("other.txt", "a\nBBB\nc\n")
+	repo.AssertFileContent("extra.txt", "extra content\n")
+
+	repo.AssertDiffContains("@", "+BBB")
+	repo.AssertDiffContains("@", "extra.txt")
+	repo.AssertDiffNotContains("@", "+CHANGED2")
+	repo.AssertDiffContains("@-", "+CHANGED2")
+
+	if currentWC := repo.GetChangeID("@"); currentWC != originalWC {
+		t.Errorf("working copy moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
+	}
+
+	after := strings.Count(repo.MustRun("log", "--no-graph", "-T", "\"x\\n\"", "-r", "all()"), "x")
+	if after != commitCount {
+		t.Errorf("expected %d revisions after the move, got %d (a scratch commit was left behind)", commitCount, after)
+	}
+}
+
+// TestMoveChanges_ResolvesDestinationBeforeMoving guards the second bug in the same path. The
+// destination used to be handed to jj as a revset and re-resolved by each command, so a relative
+// revset such as @- could name a different commit part way through, and once the work moved into a
+// scratch workspace it would have resolved against that workspace's own @ instead.
+func TestMoveChanges_ResolvesDestinationBeforeMoving(t *testing.T) {
+	t.Parallel()
+
+	repo := NewTestRepo(t)
+
+	repo.WriteFile("file1.txt", "line 1\n")
+	repo.Commit("first")
+	repo.WriteFile("file2.txt", "line 2\n")
+	repo.Commit("second")
+
+	intendedDest := repo.GetChangeID("@-")
+
+	repo.WriteFile("file1.txt", "line 1\nADDED\n")
+	patch := repo.GetDiff("@")
+
+	client := jj.NewClient(repo.Dir)
+	if err := client.MoveChanges(patch, "@", "@-"); err != nil {
+		t.Fatalf("MoveChanges failed: %v", err)
+	}
+
+	repo.AssertDiffContains(intendedDest, "+ADDED")
+
+	if landed := repo.GetChangeID("@-"); landed != intendedDest {
+		t.Errorf("destination drifted:\nExpected: %s\nActual:   %s", intendedDest, landed)
+	}
+}
+
+// TestMoveChanges_CleansUpScratchWorkspaceOnFailure covers the failure path. A leaked workspace stays
+// in jj workspace list forever and its directory persists, so the cleanup has to run even when the
+// operation it was created for did not finish.
+func TestMoveChanges_CleansUpScratchWorkspaceOnFailure(t *testing.T) {
+	// The scratch directories are created under the process temp directory, so this test needs one
+	// of its own to look in and cannot run alongside another test that creates them.
+	scratchRoot := t.TempDir()
+	t.Setenv("TMPDIR", scratchRoot)
+
+	repo := NewTestRepo(t)
+
+	repo.WriteFile("file1.txt", "line 1\nline 2\n")
+	repo.Commit("Initial commit")
+	repo.WriteFile("file1.txt", "line 1\nline 2\nline 3\n")
+
+	invalidPatch := `diff --git a/file1.txt b/file1.txt
+--- a/file1.txt
++++ b/file1.txt
+@@ -99,1 +99,2 @@
+ this line doesn't exist
++invalid change
+`
+
+	client := jj.NewClient(repo.Dir)
+	if err := client.MoveChanges(invalidPatch, "@", "@-"); err == nil {
+		t.Fatal("expected MoveChanges to fail with an invalid patch")
+	}
+
+	workspaces := repo.MustRun("workspace", "list")
+	if strings.Contains(workspaces, "jj-diff-scratch") {
+		t.Errorf("scratch workspace leaked into jj workspace list:\n%s", workspaces)
+	}
+
+	leaked, err := filepath.Glob(filepath.Join(scratchRoot, "jj-diff-scratch-*"))
+	if err != nil {
+		t.Fatalf("failed to look for leaked scratch directories: %v", err)
+	}
+
+	if len(leaked) > 0 {
+		t.Errorf("scratch directories left on disk: %v", leaked)
+	}
+
+	repo.AssertFileContent("file1.txt", "line 1\nline 2\nline 3\n")
 }
 
 // TestGetRevisions_ParsesRealLogOutput guards the jj log template: an escaped
