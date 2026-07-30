@@ -118,6 +118,11 @@ func (c *Client) MoveChanges(patch, source, destination string) (err error) {
 // moveChangesWithPatch restores the original working copy before returning, so
 // the returned error may carry a second, joined error from that restore.
 func (c *Client) moveChangesWithPatch(patchFile, destination string) (err error) {
+	destID, err := c.resolveChangeID(destination)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination %q: %w", destination, err)
+	}
+
 	currentWC, err := c.getCurrentWorkingCopy()
 	if err != nil {
 		return fmt.Errorf("failed to get current working copy: %w", err)
@@ -139,12 +144,12 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) (err error)
 		}
 	}()
 
-	if _, err := c.executeJJ("new", destination, "--no-edit"); err != nil {
+	if _, err := c.executeJJ("new", destID, "--no-edit"); err != nil {
 		return fmt.Errorf("failed to create new commit: %w", err)
 	}
 
 	// Restore working copy to destination state so patch applies cleanly
-	if _, err := c.executeJJ("restore", "--from", destination); err != nil {
+	if _, err := c.executeJJ("restore", "--from", destID); err != nil {
 		return c.undoAfter(fmt.Errorf("failed to restore working copy: %w", err))
 	}
 
@@ -155,20 +160,32 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) (err error)
 		return c.undoAfter(fmt.Errorf("failed to apply patch: %w: %s", err, output))
 	}
 
-	if _, err := c.executeJJ("squash", "--into", destination); err != nil {
+	if _, err := c.executeJJ("squash", "--into", destID); err != nil {
 		return c.undoAfter(fmt.Errorf("failed to squash changes: %w", err))
 	}
 
 	return nil
 }
 
-func (c *Client) getCurrentWorkingCopy() (string, error) {
-	output, err := c.executeJJ("log", "-r", "@", "--no-graph", "-T", "change_id")
+// resolveChangeID pins a revset to the change ID it names right now. A revset such as @- moves as the
+// repository changes underneath it, so anything that outlives a single command has to hold the change
+// ID instead of the revset that produced it.
+func (c *Client) resolveChangeID(revset string) (string, error) {
+	output, err := c.executeJJ("log", "-r", revset, "--no-graph", "--limit", "1", "-T", "change_id")
 	if err != nil {
 		return "", err
 	}
 
-	return strings.TrimSpace(output), nil
+	changeID := strings.TrimSpace(output)
+	if changeID == "" {
+		return "", fmt.Errorf("revset %q matched no revision", revset)
+	}
+
+	return changeID, nil
+}
+
+func (c *Client) getCurrentWorkingCopy() (string, error) {
+	return c.resolveChangeID("@")
 }
 
 func (c *Client) restoreWorkingCopy(changeID string) error {
