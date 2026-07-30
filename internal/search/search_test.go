@@ -7,9 +7,9 @@ import (
 	"github.com/kyleking/jj-diff/internal/diff"
 )
 
-// TestNewSearchState tests initialization.
-func TestNewSearchState(t *testing.T) {
-	s := NewSearchState()
+// TestNewState tests initialization.
+func TestNewState(t *testing.T) {
+	s := NewState()
 
 	if s.Query != "" {
 		t.Error("Expected empty query")
@@ -34,7 +34,7 @@ func TestExecuteSearch_EmptyQuery(t *testing.T) {
 		{Path: "file.txt", Hunks: []diff.Hunk{{Lines: []diff.Line{{Content: "hello"}}}}},
 	}
 
-	s := NewSearchState()
+	s := NewState()
 	s.Query = ""
 	s.ExecuteSearch(files)
 
@@ -54,7 +54,7 @@ func TestExecuteSearch_FilePathMatch(t *testing.T) {
 		{Path: "pkg/util.go"},
 	}
 
-	s := NewSearchState()
+	s := NewState()
 	s.Query = "main"
 	s.ExecuteSearch(files)
 
@@ -92,7 +92,7 @@ func TestExecuteSearch_LineContentMatch(t *testing.T) {
 		},
 	}
 
-	s := NewSearchState()
+	s := NewState()
 	s.Query = "world"
 	s.ExecuteSearch(files)
 
@@ -128,7 +128,7 @@ func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
 		},
 	}
 
-	s := NewSearchState()
+	s := NewState()
 	s.Query = "test"
 	s.ExecuteSearch(files)
 
@@ -172,7 +172,7 @@ func TestExecuteSearch_CaseInsensitive(t *testing.T) {
 		},
 	}
 
-	s := NewSearchState()
+	s := NewState()
 	s.Query = "hello"
 	s.IsCaseSensitive = false
 	s.ExecuteSearch(files)
@@ -197,7 +197,7 @@ func TestExecuteSearch_CaseSensitive(t *testing.T) {
 		},
 	}
 
-	s := NewSearchState()
+	s := NewState()
 	s.Query = "hello"
 	s.IsCaseSensitive = true
 	s.ExecuteSearch(files)
@@ -209,7 +209,7 @@ func TestExecuteSearch_CaseSensitive(t *testing.T) {
 
 // TestNextMatch tests navigation to next match.
 func TestNextMatch(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0},
 			{FileIdx: 1},
@@ -239,7 +239,7 @@ func TestNextMatch(t *testing.T) {
 
 // TestPrevMatch tests navigation to previous match.
 func TestPrevMatch(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0},
 			{FileIdx: 1},
@@ -269,7 +269,7 @@ func TestPrevMatch(t *testing.T) {
 
 // TestNextMatch_NoMatches tests navigation with no matches.
 func TestNextMatch_NoMatches(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches:    []MatchLocation{},
 		CurrentIdx: -1,
 	}
@@ -282,7 +282,7 @@ func TestNextMatch_NoMatches(t *testing.T) {
 
 // TestGetCurrentMatch tests getting current match.
 func TestGetCurrentMatch(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0},
 			{FileIdx: 1},
@@ -298,7 +298,7 @@ func TestGetCurrentMatch(t *testing.T) {
 
 // TestGetCurrentMatch_Invalid tests getting match with invalid index.
 func TestGetCurrentMatch_Invalid(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches:    []MatchLocation{{FileIdx: 0}},
 		CurrentIdx: 5,
 	}
@@ -311,7 +311,7 @@ func TestGetCurrentMatch_Invalid(t *testing.T) {
 
 // TestMatchCount tests counting matches.
 func TestMatchCount(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0},
 			{FileIdx: 1},
@@ -326,7 +326,7 @@ func TestMatchCount(t *testing.T) {
 
 // TestIsLineMatch tests checking if a line has matches.
 func TestIsLineMatch(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5},
 			{FileIdx: 0, HunkIdx: 1, LineIdx: 3},
@@ -344,7 +344,7 @@ func TestIsLineMatch(t *testing.T) {
 
 // TestIsCurrentMatch tests checking if position is current match.
 func TestIsCurrentMatch(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5},
 			{FileIdx: 0, HunkIdx: 1, LineIdx: 3},
@@ -363,7 +363,7 @@ func TestIsCurrentMatch(t *testing.T) {
 
 // TestGetMatchesForLine tests getting all matches for a specific line.
 func TestGetMatchesForLine(t *testing.T) {
-	s := &SearchState{
+	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5, StartCol: 0, EndCol: 4},
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5, StartCol: 10, EndCol: 14},
@@ -384,7 +384,7 @@ func TestGetMatchesForLine(t *testing.T) {
 
 // TestSaveAndRestoreOriginalState tests navigation state management.
 func TestSaveAndRestoreOriginalState(t *testing.T) {
-	s := NewSearchState()
+	s := NewState()
 
 	original := NavigationState{
 		SelectedFile:   5,

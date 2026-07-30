@@ -29,10 +29,10 @@ type NavigationState struct {
 	FocusedPanel   int
 }
 
-// SearchState carries a query and the hits it produced. Query and IsCaseSensitive are inputs, and
+// State carries a query and the hits it produced. Query and IsCaseSensitive are inputs, and
 // Matches and CurrentIdx only reflect them once ExecuteSearch runs, so editing a field alone leaves
 // the match list stale.
-type SearchState struct {
+type State struct {
 	Query           string
 	Matches         []MatchLocation
 	CurrentIdx      int
@@ -41,10 +41,10 @@ type SearchState struct {
 	IsCaseSensitive bool
 }
 
-// NewSearchState returns an inactive, case-insensitive state with CurrentIdx at -1, which is the
+// NewState returns an inactive, case-insensitive state with CurrentIdx at -1, which is the
 // "nothing selected" value every match accessor checks for.
-func NewSearchState() *SearchState {
-	return &SearchState{
+func NewState() *State {
+	return &State{
 		Query:           "",
 		Matches:         []MatchLocation{},
 		CurrentIdx:      -1,
@@ -56,20 +56,20 @@ func NewSearchState() *SearchState {
 // SaveOriginalState records where to return if the search is canceled, overwriting any earlier save.
 // Call it when the search opens, because calling it after the cursor has jumped to a match saves the
 // match instead of the origin.
-func (s *SearchState) SaveOriginalState(nav NavigationState) {
+func (s *State) SaveOriginalState(nav NavigationState) {
 	s.OriginalState = nav
 }
 
 // RestoreOriginalState returns the position saved when the search opened, leaving it saved so a
 // repeated cancel is harmless.
-func (s *SearchState) RestoreOriginalState() NavigationState {
+func (s *State) RestoreOriginalState() NavigationState {
 	return s.OriginalState
 }
 
 // ExecuteSearch rebuilds the match list by scanning every file path and diff line, then points
 // CurrentIdx at the first hit (or -1 when there is none). Overlapping hits are all reported, because
 // the scan resumes one byte past each one, and an empty Query clears the list.
-func (s *SearchState) ExecuteSearch(files []diff.FileChange) {
+func (s *State) ExecuteSearch(files []diff.FileChange) {
 	s.Matches = []MatchLocation{}
 	s.CurrentIdx = -1
 
@@ -140,7 +140,7 @@ func (s *SearchState) ExecuteSearch(files []diff.FileChange) {
 
 // NextMatch advances one match and wraps past the last, returning nil when there are no matches. The
 // pointer refers into the match slice, which the next ExecuteSearch replaces.
-func (s *SearchState) NextMatch() *MatchLocation {
+func (s *State) NextMatch() *MatchLocation {
 	if len(s.Matches) == 0 {
 		return nil
 	}
@@ -151,7 +151,7 @@ func (s *SearchState) NextMatch() *MatchLocation {
 }
 
 // PrevMatch steps back one match and wraps past the first, returning nil when there are no matches.
-func (s *SearchState) PrevMatch() *MatchLocation {
+func (s *State) PrevMatch() *MatchLocation {
 	if len(s.Matches) == 0 {
 		return nil
 	}
@@ -166,7 +166,7 @@ func (s *SearchState) PrevMatch() *MatchLocation {
 
 // GetCurrentMatch returns the match CurrentIdx points at, or nil when the index is out of range,
 // which covers both a fresh state and a query that found nothing.
-func (s *SearchState) GetCurrentMatch() *MatchLocation {
+func (s *State) GetCurrentMatch() *MatchLocation {
 	if s.CurrentIdx >= 0 && s.CurrentIdx < len(s.Matches) {
 		return &s.Matches[s.CurrentIdx]
 	}
@@ -176,14 +176,14 @@ func (s *SearchState) GetCurrentMatch() *MatchLocation {
 
 // MatchCount reports how many hits the last ExecuteSearch found, counting occurrences rather than
 // lines, so one line with two hits counts twice.
-func (s *SearchState) MatchCount() int {
+func (s *State) MatchCount() int {
 	return len(s.Matches)
 }
 
 // IsLineMatch reports whether any hit falls on one diff line. All three indices are 0-based, and a
 // hunkIdx and lineIdx of -1 tests a file-path hit. It walks the whole match list, so cost grows with
 // matches times rendered lines.
-func (s *SearchState) IsLineMatch(fileIdx, hunkIdx, lineIdx int) bool {
+func (s *State) IsLineMatch(fileIdx, hunkIdx, lineIdx int) bool {
 	for _, match := range s.Matches {
 		if match.FileIdx == fileIdx && match.HunkIdx == hunkIdx && match.LineIdx == lineIdx {
 			return true
@@ -195,7 +195,7 @@ func (s *SearchState) IsLineMatch(fileIdx, hunkIdx, lineIdx int) bool {
 
 // IsCurrentMatch reports whether the hit CurrentIdx points at falls on one diff line, which lets a
 // renderer style the active hit apart from the rest. It is false whenever there is no current hit.
-func (s *SearchState) IsCurrentMatch(fileIdx, hunkIdx, lineIdx int) bool {
+func (s *State) IsCurrentMatch(fileIdx, hunkIdx, lineIdx int) bool {
 	if s.CurrentIdx < 0 || s.CurrentIdx >= len(s.Matches) {
 		return false
 	}
@@ -206,7 +206,7 @@ func (s *SearchState) IsCurrentMatch(fileIdx, hunkIdx, lineIdx int) bool {
 
 // GetMatchesForLine returns every hit on one diff line in ascending column order, which is the order
 // a renderer needs to highlight the spans in one pass. The result is nil when the line has no hit.
-func (s *SearchState) GetMatchesForLine(fileIdx, hunkIdx, lineIdx int) []MatchLocation {
+func (s *State) GetMatchesForLine(fileIdx, hunkIdx, lineIdx int) []MatchLocation {
 	var matches []MatchLocation
 	for _, match := range s.Matches {
 		if match.FileIdx == fileIdx && match.HunkIdx == hunkIdx && match.LineIdx == lineIdx {

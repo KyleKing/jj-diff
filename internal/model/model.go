@@ -263,7 +263,7 @@ type Model struct {
 
 	// Search state
 	searchModal searchmodal.Model
-	searchState *search.SearchState
+	searchState *search.State
 
 	// File finder
 	fileFinder filefinder.Model
@@ -336,7 +336,7 @@ func NewModelWithSource(
 	m.commitMsg = commitmsg.New()
 	m.help = help.New()
 	m.searchModal = searchmodal.New()
-	m.searchState = search.NewSearchState()
+	m.searchState = search.NewState()
 	m.fileFinder = filefinder.New()
 
 	return m, nil
