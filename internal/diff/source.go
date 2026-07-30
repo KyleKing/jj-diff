@@ -4,9 +4,9 @@ import (
 	"github.com/kyleking/jj-diff/internal/jj"
 )
 
-// DiffSource abstracts the source of diff data.
-// This enables the same UI to work with both jj revisions and directory comparisons.
-type DiffSource interface {
+// Source is where a diff comes from, either a jj revision or a pair of directories. GetDiff blocks
+// on external work, so the UI calls it from a tea.Cmd rather than from Update.
+type Source interface {
 	GetDiff() (string, error)
 	GetSourceLabel() string
 	SupportsRevisions() bool

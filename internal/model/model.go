@@ -234,7 +234,7 @@ func (s *SelectionState) HasPartialSelection(filePath string, hunkIdx int) bool 
 // copy and mutating a Model a handler received has no effect unless that copy is returned.
 type Model struct {
 	client      *jj.Client
-	diffSource  diff.DiffSource
+	diffSource  diff.Source
 	mode        OperatingMode
 	source      string
 	destination string
@@ -305,7 +305,7 @@ func NewModel(
 // directories instead of a revision. client is still needed for the write paths and may only be nil
 // when nothing will be applied.
 func NewModelWithSource(
-	source diff.DiffSource,
+	source diff.Source,
 	client *jj.Client,
 	destination string,
 	mode OperatingMode,
