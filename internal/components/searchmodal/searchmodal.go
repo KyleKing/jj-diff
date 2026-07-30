@@ -53,14 +53,14 @@ func (m *Model) SetQuery(query string) {
 	m.query = query
 }
 
-// UpdateResults sets the match counter. currentIdx is 0-based and is displayed one higher, so pass
-// -1 when no match is current.
+// UpdateResults sets the match counter. The current index is 0-based and is displayed one higher, so
+// pass -1 when no match is current.
 func (m *Model) UpdateResults(matchCount, currentIdx int) {
 	m.matchCount = matchCount
 	m.currentIdx = currentIdx
 }
 
-// View renders the prompt centred in the given terminal size, returning the empty string while
+// View renders the prompt centered in the given terminal size, returning the empty string while
 // hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {

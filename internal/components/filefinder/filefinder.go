@@ -13,7 +13,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// Model is the picker's state. items and itemData are parallel slices, so a caller passing lists of
+// Model is the picker's state. The item and data slices are parallel, so a caller passing lists of
 // different lengths gets matches whose Original is missing.
 type Model struct {
 	query       string
@@ -94,7 +94,7 @@ func (m Model) GetSelected() interface{} {
 	return nil
 }
 
-// View renders the picker centred in the given terminal size, returning the empty string while
+// View renders the picker centered in the given terminal size, returning the empty string while
 // hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {

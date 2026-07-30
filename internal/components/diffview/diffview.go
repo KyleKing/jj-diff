@@ -319,8 +319,8 @@ func (m Model) calculateTotalLines() int {
 	return total
 }
 
-// View renders the pane at the given size, padding out to it when the content is shorter. focused
-// only affects the cursor styling, so an unfocused pane still shows where the cursor sits.
+// View renders the pane at the given size, padding out to it when the content is shorter. The
+// focused flag only changes cursor styling, so an unfocused pane still shows where the cursor sits.
 func (m Model) View(width, height int, focused bool) string {
 	if m.fileChange == nil {
 		return padToSize("No file selected", width, height)

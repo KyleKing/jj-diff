@@ -175,7 +175,7 @@ func (m Model) GetDestinations() map[SplitTag]*DestinationSpec {
 	return m.destinations
 }
 
-// View renders the modal centred in the given terminal size, returning the empty string while hidden.
+// View renders the modal centered in the given terminal size, returning the empty string while hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {
 		return ""

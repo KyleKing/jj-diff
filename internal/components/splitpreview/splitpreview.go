@@ -77,7 +77,7 @@ func (m *Model) IsVisible() bool {
 	return m.visible
 }
 
-// View renders the preview centred in the given terminal size, returning the empty string while
+// View renders the preview centered in the given terminal size, returning the empty string while
 // hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {

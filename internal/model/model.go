@@ -302,8 +302,8 @@ func NewModel(
 }
 
 // NewModelWithSource builds a model over any diff source, which is how diff-editor mode supplies two
-// directories instead of a revision. client is still needed for the write paths and may only be nil
-// when nothing will be applied.
+// directories instead of a revision. The client is still needed for the write paths and may only be
+// nil when nothing will be applied.
 func NewModelWithSource(
 	source diff.Source,
 	client *jj.Client,

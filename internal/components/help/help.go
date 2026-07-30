@@ -10,7 +10,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// Model is the overlay's state. mode selects which mode-specific bindings the overlay lists and must
+// Model is the overlay's state. The mode selects which mode-specific bindings are listed and must
 // match the mode strings the parent passes to Show.
 type Model struct {
 	visible bool
@@ -41,7 +41,7 @@ func (m *Model) IsVisible() bool {
 	return m.visible
 }
 
-// View renders the overlay centred in the given terminal size, returning the empty string while
+// View renders the overlay centered in the given terminal size, returning the empty string while
 // hidden. The content is clipped rather than scrolled when it is taller than height.
 func (m Model) View(width, height int) string {
 	if !m.visible {
