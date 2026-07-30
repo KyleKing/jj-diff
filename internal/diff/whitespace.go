@@ -6,17 +6,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Glyphs standing in for whitespace when it is rendered visibly. A trailing space gets its own glyph
+// so it stays distinguishable from an interior space.
 const (
 	TabChar          = '→'
 	SpaceChar        = '·'
 	TrailingSpaceStr = "␣"
 )
 
+// WhitespaceRenderer replaces whitespace with visible glyphs and styles only the run at the end of a
+// line, so trailing whitespace reads differently from the whitespace inside a line.
 type WhitespaceRenderer struct {
 	tabWidth          int
 	trailingHighlight lipgloss.Style
 }
 
+// NewWhitespaceRenderer builds a renderer that draws a tab as one glyph padded out to tabWidth
+// columns and paints the trailing whitespace run with trailingHighlight.
 func NewWhitespaceRenderer(tabWidth int, trailingHighlight lipgloss.Style) *WhitespaceRenderer {
 	return &WhitespaceRenderer{
 		tabWidth:          tabWidth,
@@ -24,6 +30,9 @@ func NewWhitespaceRenderer(tabWidth int, trailingHighlight lipgloss.Style) *Whit
 	}
 }
 
+// Render substitutes glyphs for spaces and tabs, returning the empty string unchanged. Output for a
+// line with trailing whitespace carries ANSI styling, so measure it with lipgloss.Width rather than
+// len, and it is wider than the input wherever a tab expanded.
 func (r *WhitespaceRenderer) Render(content string) string {
 	if content == "" {
 		return content
@@ -74,6 +83,9 @@ func (r *WhitespaceRenderer) renderTrailingWhitespace(trailing string) string {
 	return r.trailingHighlight.Render(result.String())
 }
 
+// RenderWhitespaceSimple substitutes whitespace glyphs without any styling, treating trailing
+// whitespace the same as interior whitespace. The result carries no ANSI codes, which suits a
+// caller that needs to slice or measure the output by index.
 func RenderWhitespaceSimple(content string, tabWidth int) string {
 	if content == "" {
 		return content
@@ -98,6 +110,8 @@ func RenderWhitespaceSimple(content string, tabWidth int) string {
 	return result.String()
 }
 
+// HasTrailingWhitespace reports whether content ends in a space or a tab. An empty string does not,
+// and a line that is entirely whitespace does.
 func HasTrailingWhitespace(content string) bool {
 	if len(content) == 0 {
 		return false
@@ -107,6 +121,8 @@ func HasTrailingWhitespace(content string) bool {
 	return last == ' ' || last == '\t'
 }
 
+// CountTrailingWhitespace counts the trailing spaces and tabs as bytes, so a tab counts once
+// whatever tab width the renderer expands it to.
 func CountTrailingWhitespace(content string) int {
 	count := 0
 	for i := len(content) - 1; i >= 0; i-- {

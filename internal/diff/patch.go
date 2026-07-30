@@ -12,6 +12,10 @@ type SelectionState interface {
 	IsLineSelected(filePath string, hunkIdx, lineIdx int) bool
 }
 
+// GeneratePatch renders the selected hunks as a unified diff that git apply accepts. A fully
+// selected hunk is copied verbatim, and a partially selected one keeps the selected lines plus three
+// lines of context on each side with recalculated header counts. A file with nothing selected is
+// left out, so an empty selection returns the empty string.
 func GeneratePatch(files []FileChange, selection SelectionState) string {
 	var patch strings.Builder
 
@@ -177,6 +181,8 @@ func recalculateHunkHeader(selectedLines []Line) string {
 	return fmt.Sprintf("@@ -%d,%d +%d,%d @@", oldStart, oldCount, newStart, newCount)
 }
 
+// GeneratePatchForTag renders the patch for one split tag. The tag is already baked into the
+// selection the caller passes, so the output matches GeneratePatch over that same selection.
 func GeneratePatchForTag(files []FileChange, selection SelectionState) string {
 	return GeneratePatch(files, selection)
 }

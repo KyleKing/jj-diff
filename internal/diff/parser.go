@@ -1,3 +1,5 @@
+// Package diff parses unified diff text into files, hunks, and lines, and turns a user's hunk and
+// line selections back into a patch or into reconstructed files on disk.
 package diff
 
 import (
@@ -6,14 +8,20 @@ import (
 	"strings"
 )
 
+// FileChange holds one file's hunks in the order the diff lists them. Path is the "b/" side of the
+// diff header, so a renamed file carries its new path.
 type FileChange struct {
 	Path       string
 	ChangeType ChangeType
 	Hunks      []Hunk
 }
 
+// ChangeType is what a diff header says happened to a file. String returns the one-letter status
+// jj and git print.
 type ChangeType int
 
+// Change kinds a file header can describe. ChangeTypeModified is the zero value and the fallback
+// when the header carries no "new file", "deleted file", or "rename from" marker.
 const (
 	ChangeTypeModified ChangeType = iota
 	ChangeTypeAdded
@@ -36,6 +44,8 @@ func (ct ChangeType) String() string {
 	}
 }
 
+// Hunk is one @@ section. OldStart and NewStart are 1-based line numbers in the old and new file,
+// and Lines interleaves context, additions, and deletions in diff order.
 type Hunk struct {
 	Header   string
 	OldStart int
@@ -45,6 +55,9 @@ type Hunk struct {
 	Lines    []Line
 }
 
+// Line is one diff line with the leading +, -, or space stripped from Content. OldLineNum and
+// NewLineNum are 1-based and both are always set, so an addition still records where it falls on
+// the old side.
 type Line struct {
 	Type       LineType
 	Content    string
@@ -52,8 +65,12 @@ type Line struct {
 	NewLineNum int
 }
 
+// LineType marks a diff line as context, an addition, or a deletion. String returns the diff
+// marker, which patch rendering writes back in front of the content.
 type LineType int
 
+// Line kinds inside a hunk. LineContext is the zero value, so a line the parser cannot classify
+// from its first byte is treated as context and its content is kept whole.
 const (
 	LineContext LineType = iota
 	LineAddition
@@ -78,6 +95,8 @@ var (
 	hunkHeaderRE = regexp.MustCompile(`^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@(.*)$`)
 )
 
+// Parse splits unified diff text into one FileChange per "diff --git" header, dropping any section
+// whose header does not parse. Empty input returns an empty slice rather than nil.
 func Parse(diffText string) []FileChange {
 	if diffText == "" {
 		return []FileChange{}
@@ -253,6 +272,8 @@ func determineChangeType(section string) ChangeType {
 	return ChangeTypeModified
 }
 
+// TotalLines counts every line across the file's hunks, context included, so it is the height the
+// file's hunks occupy rather than the size of the change.
 func (fc *FileChange) TotalLines() int {
 	total := 0
 	for _, hunk := range fc.Hunks {
@@ -262,6 +283,8 @@ func (fc *FileChange) TotalLines() int {
 	return total
 }
 
+// AddedLines counts added lines across every hunk, which with DeletedLines gives the +/- pair shown
+// beside a file. A whitespace-only edit still counts on both sides.
 func (fc *FileChange) AddedLines() int {
 	count := 0
 	for _, hunk := range fc.Hunks {
@@ -275,6 +298,8 @@ func (fc *FileChange) AddedLines() int {
 	return count
 }
 
+// DeletedLines counts deleted lines across every hunk, counting the parsed diff rather than the
+// file, so a line replaced by an edit counts here and in AddedLines.
 func (fc *FileChange) DeletedLines() int {
 	count := 0
 	for _, hunk := range fc.Hunks {

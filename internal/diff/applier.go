@@ -21,6 +21,9 @@ type Applier struct {
 	RightDir string
 }
 
+// NewApplier reconstructs files in rightDir from the originals in leftDir. Pass the two directories
+// jj hands the diff editor: every path out of the diff is resolved under them and rejected if it
+// escapes, and files are written 0600 under 0750 parents because both trees are temporary.
 func NewApplier(leftDir, rightDir string) *Applier {
 	return &Applier{
 		LeftDir:  leftDir,
@@ -291,8 +294,9 @@ func (a *Applier) writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o600)
 }
 
-// SelectAll selects all hunks in all files.
-// Used when user wants to keep all changes (default behavior).
+// SelectAll toggles every hunk in every file, which diff-editor mode calls once on load because
+// starting with nothing selected would make a no-op edit discard the whole working copy. It toggles
+// rather than sets, so calling it on an already-full selection clears it.
 func SelectAll(files []FileChange, selection interface {
 	ToggleHunk(filePath string, hunkIdx int)
 },
