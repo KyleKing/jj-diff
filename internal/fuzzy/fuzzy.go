@@ -1,3 +1,5 @@
+// Package fuzzy scores candidate strings against a subsequence query and ranks them, backing the
+// file and revision pickers.
 package fuzzy
 
 import (
@@ -5,6 +7,9 @@ import (
 	"unicode"
 )
 
+// Match is one scored candidate. Indices holds the ascending byte offsets in Text that the query
+// matched, and Original carries whatever value the caller paired with the candidate. Matched is
+// false on the unranked passthrough Filter returns for an empty query.
 type Match struct {
 	Text     string
 	Score    int
