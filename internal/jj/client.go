@@ -92,10 +92,10 @@ func (c *Client) Undo() error {
 	return nil
 }
 
-// MoveChanges applies a patch onto destination and squashes it there. It resets the working copy to
-// the destination as part of the sequence, so changes the patch does not carry are lost; see the
-// first section of FINDINGS.md. The temp file holding the patch is removed even on failure, and a
-// failure to remove it is joined onto the returned error.
+// MoveChanges applies a patch onto destination and squashes it there. Nothing the patch does not carry
+// is touched: the caller's working copy is never read, written, or moved by the sequence, because every
+// write happens in a throwaway workspace. The temp file holding the patch is removed even on failure,
+// and a failure to remove it is joined onto the returned error.
 func (c *Client) MoveChanges(patch, source, destination string) (err error) {
 	tmpDir, err := os.MkdirTemp("", "jj-diff-*")
 	if err != nil {
@@ -115,53 +115,122 @@ func (c *Client) MoveChanges(patch, source, destination string) (err error) {
 	return c.moveChangesWithPatch(patchFile, destination)
 }
 
-// moveChangesWithPatch restores the original working copy before returning, so
-// the returned error may carry a second, joined error from that restore.
-func (c *Client) moveChangesWithPatch(patchFile, destination string) (err error) {
+// moveChangesWithPatch pins the destination before any command runs, then builds the patch into a
+// commit from a scratch workspace. A failure anywhere rolls the repository back to the operation
+// recorded up front, and a rollback that itself failed is reported alongside the cause.
+func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
 	destID, err := c.resolveChangeID(destination)
 	if err != nil {
 		return fmt.Errorf("failed to resolve destination %q: %w", destination, err)
 	}
 
-	currentWC, err := c.getCurrentWorkingCopy()
+	opID, err := c.getCurrentOperationID()
 	if err != nil {
-		return fmt.Errorf("failed to get current working copy: %w", err)
+		return fmt.Errorf("failed to get operation ID for rollback: %w", err)
+	}
+
+	if err := c.applyPatchInScratchWorkspace(patchFile, destID); err != nil {
+		return c.restoreOperationAfter(opID, err)
+	}
+
+	return nil
+}
+
+// Sentinel errors the move path returns on its own rather than wrapping one from jj or git.
+var (
+	errRevsetNoMatch       = errors.New("revset matched no revision")
+	errPatchChangedNothing = errors.New("the patch applied cleanly but changed nothing, so there is nothing to move")
+)
+
+// scratchWorkspacePrefix names both the temp directory and the jj workspace, so a leaked workspace is
+// identifiable in jj workspace list.
+const scratchWorkspacePrefix = "jj-diff-scratch"
+
+// applyPatchInScratchWorkspace builds the patch into a commit on destID from a workspace of its own.
+// No command here names @, so the caller's working copy is untouched whether the run succeeds or
+// fails. The workspace is forgotten and its directory removed on every return path, including a panic,
+// though a panic discards the cleanup's own error along with the return value.
+func (c *Client) applyPatchInScratchWorkspace(patchFile, destID string) (err error) {
+	root, err := os.MkdirTemp("", scratchWorkspacePrefix+"-*")
+	if err != nil {
+		return fmt.Errorf("failed to create scratch workspace directory: %w", err)
+	}
+
+	// jj creates the workspace directory itself and refuses an existing one, so it goes under root
+	// rather than being root.
+	name := filepath.Base(root)
+	dir := filepath.Join(root, "workspace")
+
+	if _, addErr := c.executeJJ("workspace", "add", "--name", name, dir); addErr != nil {
+		addErr = fmt.Errorf("failed to create scratch workspace: %w", addErr)
+		if rmErr := os.RemoveAll(root); rmErr != nil {
+			addErr = errors.Join(addErr, fmt.Errorf("failed to remove %s: %w", root, rmErr))
+		}
+
+		return addErr
 	}
 
 	defer func() {
-		// On the success path the squash consumes the working copy commit, so
-		// currentWC no longer resolves and there is nothing to restore. Only a
-		// bail-out leaves the caller sitting somewhere it did not start.
-		if err == nil {
-			return
-		}
-
-		if restoreErr := c.restoreWorkingCopy(currentWC); restoreErr != nil {
-			err = errors.Join(
-				err,
-				fmt.Errorf("failed to restore working copy %s: %w", currentWC, restoreErr),
-			)
-		}
+		err = errors.Join(err, c.removeScratchWorkspace(name, root))
 	}()
 
-	if _, err := c.executeJJ("new", destID, "--no-edit"); err != nil {
-		return fmt.Errorf("failed to create new commit: %w", err)
+	scratch := &Client{baseDir: dir}
+
+	if _, err := scratch.executeJJ("new", destID); err != nil {
+		return fmt.Errorf("failed to create scratch commit on %s: %w", destID, err)
 	}
 
-	// Restore working copy to destination state so patch applies cleanly
-	if _, err := c.executeJJ("restore", "--from", destID); err != nil {
-		return c.undoAfter(fmt.Errorf("failed to restore working copy: %w", err))
+	if err := applyPatchFile(dir, root, patchFile); err != nil {
+		return err
+	}
+
+	changed, err := scratch.Diff("@")
+	if err != nil {
+		return fmt.Errorf("failed to read the scratch commit: %w", err)
+	}
+
+	if strings.TrimSpace(changed) == "" {
+		return errPatchChangedNothing
+	}
+
+	if _, err := scratch.executeJJ("squash", "--into", destID); err != nil {
+		return fmt.Errorf("failed to squash changes into %s: %w", destID, err)
+	}
+
+	return nil
+}
+
+// removeScratchWorkspace drops the workspace from the repository and deletes its directory, reporting
+// both failures rather than the first, because either one left behind is a leak the caller should see.
+func (c *Client) removeScratchWorkspace(name, root string) error {
+	var errs error
+
+	if _, err := c.executeJJ("workspace", "forget", name); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("failed to forget scratch workspace %s: %w", name, err))
+	}
+
+	if err := os.RemoveAll(root); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("failed to remove %s: %w", root, err))
+	}
+
+	return errs
+}
+
+// applyPatchFile applies patchFile inside dir. Git resolves a patch's paths against the nearest
+// enclosing repository rather than against the working directory, so an unrelated repository above
+// ceiling would turn the apply into a silent no-op. The ceiling stops that search.
+func applyPatchFile(dir, ceiling, patchFile string) error {
+	if resolved, err := filepath.EvalSymlinks(ceiling); err == nil {
+		ceiling = resolved
 	}
 
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("git", "apply", patchFile)
-	cmd.Dir = c.baseDir
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return c.undoAfter(fmt.Errorf("failed to apply patch: %w: %s", err, output))
-	}
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_CEILING_DIRECTORIES="+ceiling)
 
-	if _, err := c.executeJJ("squash", "--into", destID); err != nil {
-		return c.undoAfter(fmt.Errorf("failed to squash changes: %w", err))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to apply patch: %w: %s", err, output)
 	}
 
 	return nil
@@ -178,7 +247,7 @@ func (c *Client) resolveChangeID(revset string) (string, error) {
 
 	changeID := strings.TrimSpace(output)
 	if changeID == "" {
-		return "", fmt.Errorf("revset %q matched no revision", revset)
+		return "", fmt.Errorf("%q: %w", revset, errRevsetNoMatch)
 	}
 
 	return changeID, nil
@@ -186,24 +255,6 @@ func (c *Client) resolveChangeID(revset string) (string, error) {
 
 func (c *Client) getCurrentWorkingCopy() (string, error) {
 	return c.resolveChangeID("@")
-}
-
-func (c *Client) restoreWorkingCopy(changeID string) error {
-	_, err := c.executeJJ("edit", changeID)
-	return err
-}
-
-// undoAfter reports cause, and additionally reports when the rollback itself
-// failed and the repository is therefore left modified.
-func (c *Client) undoAfter(cause error) error {
-	if undoErr := c.Undo(); undoErr != nil {
-		return errors.Join(
-			cause,
-			fmt.Errorf("rollback failed, repository may be left modified: %w", undoErr),
-		)
-	}
-
-	return cause
 }
 
 // restoreOperationAfter reports cause, and additionally reports when restoring
