@@ -42,7 +42,7 @@ This needs a planned migration rather than an opportunistic bump, because the 0.
 break lands directly on the parts of this app that are already fragile:
 
 - `Model.Update` returns `(tea.Model, tea.Cmd)` and the code type-asserts the result back to
-  `Model` in `internal/model/testhelpers.go` and everywhere a command chains. v2 makes the
+  `Model` in `internal/model/testhelpers_test.go` and everywhere a command chains. v2 makes the
   model generic, which removes the assertions but rewrites every handler signature
 - `lipgloss.HasDarkBackground()` is a package-level call in `internal/theme/theme.go:73`. In
   lipgloss 1.x background detection moves onto a renderer, so theme initialization stops
@@ -180,10 +180,11 @@ binding at once with no grouping by frequency). Moderate load, addressable.
 
 ## Deferred lint findings
 
-679 findings remain from `mise exec -- golangci-lint run ./... --max-issues-per-linter=0
+459 findings remain from `mise exec -- golangci-lint run ./... --max-issues-per-linter=0
 --max-same-issues=0`. All are style. The correctness linters are at zero: gosec, staticcheck,
-errcheck, govet, and unused were 72 findings between them at the start of the pass and are
-now clear.
+errcheck, and unused were 62 findings between them at the start of the pass and are now
+clear. The `govet` count below is `fieldalignment` only, which is a layout suggestion rather
+than a correctness one.
 
 The strict gate was left strict. No linter was disabled, no exclusion was added, and no
 baseline was recorded, so CI will fail on these until they are cleared or a decision is made
@@ -191,25 +192,37 @@ to exclude them.
 
 | Linter | Count | What clearing it involves |
 |---|---:|---|
-| revive | 312 | 261 are `exported` (a doc comment on every exported symbol) and 20 are `package-comments`. Mechanical but large, and whether every internal package needs doc comments is a real decision |
 | paralleltest | 113 | Adding `t.Parallel()` to each subtest. Safe for the pure-function packages, needs care in `internal/model` where tests share a lipgloss global, and in `tests/integration` where each test spawns real jj |
 | mnd | 91 | Magic numbers, mostly layout constants (column widths, padding, context-line counts) and file modes. Worth naming the layout ones; the file modes read fine as octal literals and are candidates for an exclusion |
-| gocritic | 68 | 33 are `hugeParam` on the Bubble Tea value receivers, which is the framework's design and not fixable without switching to pointer receivers. 18 are `appendCombine`. The rest is a handful of if-else chains |
-| testpackage | 15 | Moving tests to `_test` packages. Several test unexported functions and would need those exported or the tests split |
+| gocritic | 82 | 48 are `hugeParam` on the Bubble Tea value receivers, which is the framework's design and not fixable without switching to pointer receivers. 20 are `appendCombine`, 8 are `emptyStringTest`, and 5 are if-else chains |
+| revive | 39 | 19 `unused-receiver`, 7 `use-any`, 7 `unused-parameter`, and 6 singletons. The `exported` and `package-comments` rules are now at zero |
+| govet | 28 | All `fieldalignment`: reordering struct fields to shrink padding. Mechanical, and it churns every struct literal that lists fields positionally |
+| testpackage | 16 | Moving tests to `_test` packages. Several test unexported functions and would need those exported or the tests split |
 | wrapcheck | 12 | Wrapping errors returned straight from `os` and `filepath`. Cheap and worth doing |
+| unparam | 11 | Parameters and returns that never vary, mostly error returns that are always nil. Worth doing, because each one is a signature that promises more than it delivers |
 | noctx | 11 | Switching `exec.Command` to `exec.CommandContext`. Worth doing properly: it would also give the TUI a way to cancel a slow jj call, which it currently cannot |
+| gocognit, gocyclo, funlen | 13 | `parseFileChange`, `computeHunks`, `Score`, `help.View`, and the round-trip test. Real complexity, worth splitting when each is next touched |
 | err113 | 9 | Sentinel errors instead of `fmt.Errorf` with no verb. Cheap |
 | nestif | 8 | Deeply nested conditionals, all in `internal/model` key handlers. Would resolve itself under the `key.Binding` refactor above |
-| gocognit and gocyclo | 12 | `parseFileChange`, `computeHunks`, `Score`, and the round-trip test. Real complexity, worth splitting when each is next touched |
-| prealloc, perfsprint, goconst, dupl, exhaustive, intrange, ireturn, lll, wastedassign | 31 | Small and mechanical |
+| goconst, prealloc, dupl, perfsprint, exhaustive, intrange, ireturn, lll, wastedassign, nonamedreturns | 26 | Small and mechanical |
 
-Clearing revive's `exported` rule alone would take the total from 679 to roughly 400. That
-and paralleltest are two thirds of the number and neither changes behaviour, so they are the
-obvious first batch if the goal is a green gate.
+### Why the totals drop by less than the findings cleared
+
+golangci-lint runs with `uniq-by-line`, so it prints at most one issue per source line and
+whichever linter reports first hides the rest. Clearing a rule therefore uncovers whatever
+else was sitting on the same lines. Documenting the exported declarations cleared 130
+`exported` findings and 7 `package-comments`, and the total moved 567 to 459 rather than to
+430, because the declaration lines were also carrying 13 `govet fieldalignment` findings, 13
+`gocritic` findings, 1 `funlen`, and 2 other revive rules that had been masked. Expect the
+same on the next batch. A smaller drop than the number cleared means the tool uncovered work
+that was always there.
+
+paralleltest is the largest block left and it changes no behaviour, so it is the obvious next
+batch if the goal is a green gate.
 
 ## Smaller notes
 
-- `internal/model/model.go` is 1536 lines and holds the mode enum, the selection state, every
+- `internal/model/model.go` is 1583 lines and holds the mode enum, the selection state, every
   key handler, and the whole view. Splitting the key handlers per mode into their own files
   would make the diff-editor and interactive paths reviewable
 - There is no test covering `reconstructAddedFile` or `reconstructDeletedFile`. The
