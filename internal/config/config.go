@@ -95,6 +95,7 @@ type RenderOptions struct {
 	WordLevelDiff   bool
 }
 
+// ToRenderOptions drops the layout choice and keeps the fields that affect a single rendered line.
 func (c Config) ToRenderOptions() RenderOptions {
 	return RenderOptions{
 		ShowWhitespace:  c.ShowWhitespace,

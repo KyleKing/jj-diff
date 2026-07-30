@@ -86,23 +86,28 @@ func (m *Model) SetRevisions(revisions []jj.RevisionEntry) {
 	}
 }
 
+// Show opens the modal with the tag panel focused, whatever panel was focused when it last closed.
 func (m *Model) Show() {
 	m.visible = true
 	m.focusOnTags = true
 }
 
+// Hide closes the modal, keeping the assignments made so far.
 func (m *Model) Hide() {
 	m.visible = false
 }
 
+// IsVisible reports whether the modal is open, which is how the parent decides to route keys here.
 func (m *Model) IsVisible() bool {
 	return m.visible
 }
 
+// ToggleFocus swaps the cursor between the tag panel and the revision panel.
 func (m *Model) ToggleFocus() {
 	m.focusOnTags = !m.focusOnTags
 }
 
+// MoveUp moves the focused panel's cursor up one row, stopping at the first.
 func (m *Model) MoveUp() {
 	if m.focusOnTags {
 		if m.selectedTag > 0 {
@@ -115,6 +120,7 @@ func (m *Model) MoveUp() {
 	}
 }
 
+// MoveDown moves the focused panel's cursor down one row, stopping at the last.
 func (m *Model) MoveDown() {
 	if m.focusOnTags {
 		if m.selectedTag < len(m.tags)-1 {
@@ -127,6 +133,8 @@ func (m *Model) MoveDown() {
 	}
 }
 
+// AssignRevisionToCurrentTag points the selected tag at the selected revision, replacing any earlier
+// assignment. It does nothing when either cursor sits outside its list.
 func (m *Model) AssignRevisionToCurrentTag() {
 	if m.selectedTag >= 0 && m.selectedTag < len(m.tags) &&
 		m.selectedRev >= 0 && m.selectedRev < len(m.revisions) {
@@ -140,6 +148,8 @@ func (m *Model) AssignRevisionToCurrentTag() {
 	}
 }
 
+// AssignNewCommitToCurrentTag sends the selected tag to a commit to be created with description.
+// It does nothing when the tag cursor sits outside the list.
 func (m *Model) AssignNewCommitToCurrentTag(description string) {
 	if m.selectedTag >= 0 && m.selectedTag < len(m.tags) {
 		tag := m.tags[m.selectedTag]
@@ -150,6 +160,8 @@ func (m *Model) AssignNewCommitToCurrentTag(description string) {
 	}
 }
 
+// AssignNewCommitToTag sends a named tag to a commit to be created with description, without regard
+// to the cursor, and records the tag even when it is not in the modal's tag list.
 func (m *Model) AssignNewCommitToTag(tag SplitTag, description string) {
 	m.destinations[tag] = &DestinationSpec{
 		Type:        DestNewCommit,
@@ -157,10 +169,13 @@ func (m *Model) AssignNewCommitToTag(tag SplitTag, description string) {
 	}
 }
 
+// GetDestinations returns the tag-to-destination map by reference, so later assignments are visible
+// through a map the caller already holds. A tag the user never assigned is absent.
 func (m Model) GetDestinations() map[SplitTag]*DestinationSpec {
 	return m.destinations
 }
 
+// View renders the modal centred in the given terminal size, returning the empty string while hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {
 		return ""

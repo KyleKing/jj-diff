@@ -1,3 +1,5 @@
+// Package statusbar renders the single-line footer: the mode, the diff's source and destination, and
+// the keybinding hints for whatever the user is doing.
 package statusbar
 
 import (
@@ -9,6 +11,8 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Context is what the footer describes. Destination is omitted from the render when empty, and
+// FocusedPanel is "files" or the diff pane, which selects which hints are shown.
 type Context struct {
 	Destination  string
 	FocusedPanel string
@@ -17,12 +21,16 @@ type Context struct {
 	Source       string
 }
 
+// Model is stateless: the footer is rendered entirely from the Context passed to each call.
 type Model struct{}
 
+// New returns the footer renderer.
 func New() Model {
 	return Model{}
 }
 
+// View renders the footer with the file list treated as focused. Use ViewWithContext to say which
+// panel has focus.
 func (m Model) View(width int, modeText, source, destination string, isVisualMode bool) string {
 	return m.ViewWithContext(width, Context{
 		Mode:         modeText,
@@ -33,6 +41,8 @@ func (m Model) View(width int, modeText, source, destination string, isVisualMod
 	})
 }
 
+// ViewWithContext renders the footer to exactly width columns. Content longer than that is clipped
+// from the right with no ellipsis, which drops the rightmost hints without saying so.
 func (m Model) ViewWithContext(width int, ctx Context) string {
 	var parts []string
 	if ctx.IsVisualMode {

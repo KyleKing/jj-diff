@@ -10,16 +10,22 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// SideBySideView renders old and new content in two columns. It is stateless, so one instance can
+// serve every file.
 type SideBySideView struct{}
 
+// NewSideBySideView returns the two-column renderer.
 func NewSideBySideView() *SideBySideView {
 	return &SideBySideView{}
 }
 
+// SupportsSelection reports false, because the two-column layout draws no selection markers.
 func (v *SideBySideView) SupportsSelection() bool {
 	return false
 }
 
+// Render draws the file into ctx.Width by ctx.Height, splitting the width between the two columns
+// and padding out when the content is shorter. A nil file renders the empty-state placeholder.
 func (v *SideBySideView) Render(file *diff.FileChange, ctx RenderContext) string {
 	if file == nil {
 		return padToSize("No file selected", ctx.Width, ctx.Height)

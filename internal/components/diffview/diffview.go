@@ -217,20 +217,26 @@ func (m *Model) SetTagState(getHunkTags func(hunkIdx int) []SplitTag) {
 	m.getHunkTags = getHunkTags
 }
 
+// ToggleWhitespace flips visible whitespace glyphs and rebuilds the line index, because the glyphs
+// change how wide a rendered line is.
 func (m *Model) ToggleWhitespace() {
 	m.showWhitespace = !m.showWhitespace
 	m.buildLineIndex()
 }
 
+// ToggleLineNumbers flips the old/new line-number gutter.
 func (m *Model) ToggleLineNumbers() {
 	m.showLineNumbers = !m.showLineNumbers
 }
 
+// ToggleWordDiff flips intra-line highlighting and recomputes the word diffs for the current file,
+// which costs a pass over every changed line pair.
 func (m *Model) ToggleWordDiff() {
 	m.wordLevelDiff = !m.wordLevelDiff
 	m.computeWordDiffs()
 }
 
+// ToggleSideBySide switches between the unified and side-by-side layouts.
 func (m *Model) ToggleSideBySide() {
 	if m.viewMode == ViewModeUnified {
 		m.viewMode = ViewModeSideBySide
@@ -239,22 +245,28 @@ func (m *Model) ToggleSideBySide() {
 	}
 }
 
+// IsSideBySide reports the current layout, which the status bar reads to label the toggle.
 func (m *Model) IsSideBySide() bool {
 	return m.viewMode == ViewModeSideBySide
 }
 
+// ShowWhitespace reports whether whitespace glyphs are drawn.
 func (m *Model) ShowWhitespace() bool {
 	return m.showWhitespace
 }
 
+// ShowLineNumbers reports whether the line-number gutter is drawn.
 func (m *Model) ShowLineNumbers() bool {
 	return m.showLineNumbers
 }
 
+// WordLevelDiff reports whether intra-line highlighting is on.
 func (m *Model) WordLevelDiff() bool {
 	return m.wordLevelDiff
 }
 
+// Scroll moves the viewport by delta lines, clamped to the file's rendered height. It does nothing
+// when no file is loaded, so callers need not check first.
 func (m *Model) Scroll(delta int) {
 	if m.fileChange == nil {
 		return
@@ -273,18 +285,22 @@ func (m *Model) Scroll(delta int) {
 	m.offset = newOffset
 }
 
+// ScrollHalfPageDown scrolls down half of viewHeight. Pass the pane's height, not the terminal's.
 func (m *Model) ScrollHalfPageDown(viewHeight int) {
 	m.Scroll(viewHeight / 2)
 }
 
+// ScrollHalfPageUp scrolls up half of viewHeight. Pass the pane's height, not the terminal's.
 func (m *Model) ScrollHalfPageUp(viewHeight int) {
 	m.Scroll(-viewHeight / 2)
 }
 
+// ScrollFullPageDown scrolls down viewHeight lines. Pass the pane's height, not the terminal's.
 func (m *Model) ScrollFullPageDown(viewHeight int) {
 	m.Scroll(viewHeight)
 }
 
+// ScrollFullPageUp scrolls up viewHeight lines. Pass the pane's height, not the terminal's.
 func (m *Model) ScrollFullPageUp(viewHeight int) {
 	m.Scroll(-viewHeight)
 }
@@ -303,6 +319,8 @@ func (m Model) calculateTotalLines() int {
 	return total
 }
 
+// View renders the pane at the given size, padding out to it when the content is shorter. focused
+// only affects the cursor styling, so an unfocused pane still shows where the cursor sits.
 func (m Model) View(width, height int, focused bool) string {
 	if m.fileChange == nil {
 		return padToSize("No file selected", width, height)

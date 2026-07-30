@@ -1,3 +1,5 @@
+// Package filelist renders the changed-file list, either as a one-line summary of the selected file
+// or as a full list, with an inline filter over the paths.
 package filelist
 
 import (
@@ -11,11 +13,14 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// MatchRange is a search hit inside a file path, as byte offsets with End exclusive.
 type MatchRange struct {
 	Start int
 	End   int
 }
 
+// Model is the file list's state. Every mutator takes a pointer receiver, so a caller holding a
+// value must copy the result back into its own state.
 type Model struct {
 	files        []diff.FileChange
 	selected     int
@@ -27,6 +32,7 @@ type Model struct {
 	filterQuery  string
 }
 
+// New returns a collapsed, unfiltered list with no files.
 func New() Model {
 	return Model{
 		files:        []diff.FileChange{},
@@ -38,14 +44,18 @@ func New() Model {
 	}
 }
 
+// SetExpanded switches between the one-line summary and the full list.
 func (m *Model) SetExpanded(expanded bool) {
 	m.expanded = expanded
 }
 
+// IsExpanded reports whether the full list is drawn.
 func (m Model) IsExpanded() bool {
 	return m.expanded
 }
 
+// SetFilterMode opens or closes the inline path filter. Closing it also clears the query, so a
+// reopened filter starts empty.
 func (m *Model) SetFilterMode(enabled bool) {
 	m.filterMode = enabled
 	if !enabled {
@@ -53,31 +63,41 @@ func (m *Model) SetFilterMode(enabled bool) {
 	}
 }
 
+// IsFilterMode reports whether the inline filter is open.
 func (m Model) IsFilterMode() bool {
 	return m.filterMode
 }
 
+// SetFilterQuery replaces the filter text. It does not move the selection, so the diff pane keeps
+// showing whatever file was selected before the filter narrowed the list.
 func (m *Model) SetFilterQuery(query string) {
 	m.filterQuery = query
 }
 
+// FilterQuery returns the current filter text.
 func (m Model) FilterQuery() string {
 	return m.filterQuery
 }
 
+// SetFiles replaces the list contents. It leaves the selected index alone, so a caller shrinking the
+// list must clamp the selection itself.
 func (m *Model) SetFiles(files []diff.FileChange) {
 	m.files = files
 }
 
+// SetSelected moves the cursor to an index into the unfiltered file slice.
 func (m *Model) SetSelected(idx int) {
 	m.selected = idx
 }
 
+// SetSearchState stores the hit lookup for path highlighting. The render path does not read it yet,
+// so setting it has no visible effect.
 func (m *Model) SetSearchState(isSearching bool, getMatches func(fileIdx int) []MatchRange) {
 	m.isSearching = isSearching
 	m.getMatches = getMatches
 }
 
+// View renders the list at the given size, using only one row when collapsed regardless of height.
 func (m Model) View(width, height int, focused bool) string {
 	if len(m.files) == 0 {
 		if m.expanded {

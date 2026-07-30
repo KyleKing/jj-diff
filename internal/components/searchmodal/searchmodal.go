@@ -21,12 +21,15 @@ type Model struct {
 	currentIdx int
 }
 
+// New returns a hidden prompt with an empty query.
 func New() Model {
 	return Model{
 		visible: false,
 	}
 }
 
+// Show opens the prompt with the query and counts cleared, so a reopen never displays the previous
+// search.
 func (m *Model) Show() {
 	m.visible = true
 	m.query = ""
@@ -34,23 +37,31 @@ func (m *Model) Show() {
 	m.currentIdx = -1
 }
 
+// Hide closes the prompt, leaving the query in place for the parent to read.
 func (m *Model) Hide() {
 	m.visible = false
 }
 
+// IsVisible reports whether the prompt is open, which is how the parent decides to route keys here.
 func (m Model) IsVisible() bool {
 	return m.visible
 }
 
+// SetQuery replaces the displayed query. It runs no search, so the counts stay as UpdateResults left
+// them until the parent calls it again.
 func (m *Model) SetQuery(query string) {
 	m.query = query
 }
 
+// UpdateResults sets the match counter. currentIdx is 0-based and is displayed one higher, so pass
+// -1 when no match is current.
 func (m *Model) UpdateResults(matchCount, currentIdx int) {
 	m.matchCount = matchCount
 	m.currentIdx = currentIdx
 }
 
+// View renders the prompt centred in the given terminal size, returning the empty string while
+// hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {
 		return ""

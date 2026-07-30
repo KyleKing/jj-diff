@@ -1,3 +1,5 @@
+// Package help renders the keybinding overlay. The bindings are written out here by hand, so adding a
+// key to the model means adding its row here too.
 package help
 
 import (
@@ -8,30 +10,39 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Model is the overlay's state. mode selects which mode-specific bindings the overlay lists and must
+// match the mode strings the parent passes to Show.
 type Model struct {
 	visible bool
 	mode    string
 }
 
+// New returns a hidden overlay.
 func New() Model {
 	return Model{
 		visible: false,
 	}
 }
 
+// Show opens the overlay for a mode, where "Diff-Editor" and "Interactive" each add their own
+// bindings and any other value lists only the shared ones.
 func (m *Model) Show(mode string) {
 	m.visible = true
 	m.mode = mode
 }
 
+// Hide closes the overlay.
 func (m *Model) Hide() {
 	m.visible = false
 }
 
+// IsVisible reports whether the overlay is open, which is how the parent decides to route keys here.
 func (m *Model) IsVisible() bool {
 	return m.visible
 }
 
+// View renders the overlay centred in the given terminal size, returning the empty string while
+// hidden. The content is clipped rather than scrolled when it is taller than height.
 func (m Model) View(width, height int) string {
 	if !m.visible {
 		return ""

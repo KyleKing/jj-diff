@@ -1,3 +1,6 @@
+// Package filefinder is a fuzzy picker modal over a list of items. Nothing in the app opens it: the
+// file list's inline filter serves that role, and FINDINGS.md carries the decision to bind or delete
+// this package.
 package filefinder
 
 import (
@@ -10,6 +13,8 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Model is the picker's state. items and itemData are parallel slices, so a caller passing lists of
+// different lengths gets matches whose Original is missing.
 type Model struct {
 	query       string
 	visible     bool
@@ -19,6 +24,7 @@ type Model struct {
 	itemData    []interface{}
 }
 
+// New returns a hidden picker with no items.
 func New() Model {
 	return Model{
 		visible:     false,
@@ -26,6 +32,8 @@ func New() Model {
 	}
 }
 
+// Show opens the picker over items, pairing each with the value at the same index in data, which is
+// what GetSelected returns. The query is cleared and every item matches until SetQuery narrows it.
 func (m *Model) Show(items []string, data []interface{}) {
 	m.visible = true
 	m.query = ""
@@ -35,14 +43,18 @@ func (m *Model) Show(items []string, data []interface{}) {
 	m.selectedIdx = 0
 }
 
+// Hide closes the picker, keeping the items so a reopen without Show still has them.
 func (m *Model) Hide() {
 	m.visible = false
 }
 
+// IsVisible reports whether the picker is open, which is how the parent decides to route keys here.
 func (m Model) IsVisible() bool {
 	return m.visible
 }
 
+// SetQuery re-runs the fuzzy match and resets the cursor to the top match. It ignores the query when
+// Show was never called, so the cursor also stays put.
 func (m *Model) SetQuery(query string) {
 	m.query = query
 	if len(m.items) > 0 && len(m.itemData) > 0 {
@@ -51,16 +63,19 @@ func (m *Model) SetQuery(query string) {
 	}
 }
 
+// Query returns the current search text.
 func (m Model) Query() string {
 	return m.query
 }
 
+// SelectNext moves the cursor down one match, wrapping past the last.
 func (m *Model) SelectNext() {
 	if len(m.matches) > 0 {
 		m.selectedIdx = (m.selectedIdx + 1) % len(m.matches)
 	}
 }
 
+// SelectPrev moves the cursor up one match, wrapping past the first.
 func (m *Model) SelectPrev() {
 	if len(m.matches) > 0 {
 		m.selectedIdx--
@@ -70,6 +85,7 @@ func (m *Model) SelectPrev() {
 	}
 }
 
+// GetSelected returns the data value paired with the highlighted match, or nil when nothing matches.
 func (m Model) GetSelected() interface{} {
 	if m.selectedIdx >= 0 && m.selectedIdx < len(m.matches) {
 		return m.matches[m.selectedIdx].Original
@@ -78,6 +94,8 @@ func (m Model) GetSelected() interface{} {
 	return nil
 }
 
+// View renders the picker centred in the given terminal size, returning the empty string while
+// hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {
 		return ""
