@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -139,6 +140,7 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
 // Sentinel errors the move path returns on its own rather than wrapping one from jj or git.
 var (
 	errRevsetNoMatch       = errors.New("revset matched no revision")
+	errNewCommitNotFound   = errors.New("jj created a commit that could not be found afterwards")
 	errPatchChangedNothing = errors.New("the patch applied cleanly but changed nothing, so there is nothing to move")
 )
 
@@ -251,10 +253,6 @@ func (c *Client) resolveChangeID(revset string) (string, error) {
 	}
 
 	return changeID, nil
-}
-
-func (c *Client) getCurrentWorkingCopy() (string, error) {
-	return c.resolveChangeID("@")
 }
 
 // restoreOperationAfter reports cause, and additionally reports when restoring
@@ -475,17 +473,40 @@ func (c *Client) getCurrentOperationID() (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
+// createNewCommit adds an empty described commit as a child of the working copy and returns its change
+// ID. Because jj does not report the ID it created and --no-edit leaves @ where it was, the ID is
+// found by diffing the working copy's children across the call rather than by reading @ afterwards.
 func (c *Client) createNewCommit(description string) (string, error) {
+	before, err := c.changeIDs("@+")
+	if err != nil {
+		return "", fmt.Errorf("failed to list existing children: %w", err)
+	}
+
 	if _, err := c.executeJJ("new", "-m", description, "--no-edit"); err != nil {
 		return "", fmt.Errorf("failed to create new commit: %w", err)
 	}
 
-	changeID, err := c.getCurrentWorkingCopy()
+	after, err := c.changeIDs("@+")
 	if err != nil {
-		return "", fmt.Errorf("failed to get new commit ID: %w", err)
+		return "", fmt.Errorf("failed to list children after creating the commit: %w", err)
 	}
 
-	return changeID, nil
+	for _, changeID := range after {
+		if !slices.Contains(before, changeID) {
+			return changeID, nil
+		}
+	}
+
+	return "", errNewCommitNotFound
+}
+
+func (c *Client) changeIDs(revset string) ([]string, error) {
+	output, err := c.executeJJ("log", "-r", revset, "--no-graph", "-T", `change_id ++ "\n"`)
+	if err != nil {
+		return nil, err
+	}
+
+	return strings.Fields(output), nil
 }
 
 func (c *Client) restoreOperation(opID string) error {
