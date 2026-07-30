@@ -1,3 +1,6 @@
+// Command jj-diff is a terminal diff viewer for Jujutsu. It runs in three modes: browse,
+// interactive (which can move selected hunks to another revision), and diff-editor (which jj
+// invokes with a left and a right directory).
 package main
 
 import (

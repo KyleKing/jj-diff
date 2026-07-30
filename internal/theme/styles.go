@@ -1,3 +1,6 @@
+// Package theme holds the Catppuccin palette as package-level colors that every component reads
+// directly. Init must run before any component builds a style, so the colors are set once at
+// startup and treated as immutable afterwards.
 package theme
 
 import "github.com/charmbracelet/lipgloss"

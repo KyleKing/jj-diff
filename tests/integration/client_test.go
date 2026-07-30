@@ -1,3 +1,5 @@
+// Package integration drives internal/jj against a real jj binary in a throwaway repository.
+// Every test skips when jj is absent, because the CI runners have none.
 package integration
 
 import (

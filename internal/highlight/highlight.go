@@ -1,3 +1,5 @@
+// Package highlight applies chroma syntax highlighting to diff content, picking a lexer from the
+// file path. Highlighting is best effort: a path with no known lexer renders unstyled.
 package highlight
 
 import (
