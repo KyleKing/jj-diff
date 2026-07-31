@@ -1,3 +1,5 @@
+@../AGENTS.md
+
 # Project: jj-diff
 
 A TUI for viewing and manipulating diffs in Jujutsu (jj). Built with Bubble Tea following The Elm Architecture.
