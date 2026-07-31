@@ -1,3 +1,9 @@
+## v0.1.4 (2026-07-31)
+
+### Fix
+
+- import AGENTS.md so its instructions actually load
+
 ## v0.1.3 (2026-07-30)
 
 ### Fix

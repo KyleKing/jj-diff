@@ -1,6 +1,6 @@
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.3"
+version = "0.1.4"
 version_files = [".cz.toml:^version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
