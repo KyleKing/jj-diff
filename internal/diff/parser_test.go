@@ -5,6 +5,8 @@ import (
 )
 
 func TestParse_EmptyDiff(t *testing.T) {
+	t.Parallel()
+
 	result := Parse("")
 	if len(result) != 0 {
 		t.Errorf("Expected 0 files, got %d", len(result))
@@ -12,6 +14,8 @@ func TestParse_EmptyDiff(t *testing.T) {
 }
 
 func TestParse_SimpleDiff(t *testing.T) {
+	t.Parallel()
+
 	input := `diff --git a/file.txt b/file.txt
 --- a/file.txt
 +++ b/file.txt
@@ -63,6 +67,8 @@ func TestParse_SimpleDiff(t *testing.T) {
 }
 
 func TestParse_NewFile(t *testing.T) {
+	t.Parallel()
+
 	input := `diff --git a/newfile.txt b/newfile.txt
 new file mode 100644
 --- /dev/null
@@ -85,6 +91,8 @@ new file mode 100644
 }
 
 func TestParse_DeletedFile(t *testing.T) {
+	t.Parallel()
+
 	input := `diff --git a/oldfile.txt b/oldfile.txt
 deleted file mode 100644
 --- a/oldfile.txt
@@ -107,6 +115,8 @@ deleted file mode 100644
 }
 
 func TestParse_MultipleFiles(t *testing.T) {
+	t.Parallel()
+
 	input := `diff --git a/file1.txt b/file1.txt
 --- a/file1.txt
 +++ b/file1.txt
@@ -137,6 +147,8 @@ diff --git a/file2.txt b/file2.txt
 }
 
 func TestFileChange_AddedLines(t *testing.T) {
+	t.Parallel()
+
 	fc := FileChange{
 		Hunks: []Hunk{
 			{
@@ -157,6 +169,8 @@ func TestFileChange_AddedLines(t *testing.T) {
 }
 
 func TestFileChange_DeletedLines(t *testing.T) {
+	t.Parallel()
+
 	fc := FileChange{
 		Hunks: []Hunk{
 			{
@@ -177,6 +191,8 @@ func TestFileChange_DeletedLines(t *testing.T) {
 }
 
 func TestFileChange_TotalLines(t *testing.T) {
+	t.Parallel()
+
 	fc := FileChange{
 		Hunks: []Hunk{
 			{Lines: []Line{{}, {}, {}}},

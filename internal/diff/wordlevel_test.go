@@ -5,6 +5,8 @@ import (
 )
 
 func TestComputeWordDiff(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		oldLine        string
@@ -51,6 +53,8 @@ func TestComputeWordDiff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := ComputeWordDiff(tt.oldLine, tt.newLine)
 
 			if len(result.OldSpans) != tt.expectOldSpans {
@@ -64,6 +68,8 @@ func TestComputeWordDiff(t *testing.T) {
 }
 
 func TestComputeWordDiffSpanTypes(t *testing.T) {
+	t.Parallel()
+
 	result := ComputeWordDiff("old_function()", "new_function()")
 
 	hasDeleted := false
@@ -97,6 +103,8 @@ func TestComputeWordDiffSpanTypes(t *testing.T) {
 }
 
 func TestFindLinePairs(t *testing.T) {
+	t.Parallel()
+
 	hunk := &Hunk{
 		Lines: []Line{
 			{Type: LineContext, Content: "context"},
@@ -128,6 +136,8 @@ func TestFindLinePairs(t *testing.T) {
 }
 
 func TestFindLinePairsMultiplePairs(t *testing.T) {
+	t.Parallel()
+
 	hunk := &Hunk{
 		Lines: []Line{
 			{Type: LineDeletion, Content: "old1"},
@@ -152,6 +162,8 @@ func TestFindLinePairsMultiplePairs(t *testing.T) {
 }
 
 func TestFindLinePairsUnbalanced(t *testing.T) {
+	t.Parallel()
+
 	hunk := &Hunk{
 		Lines: []Line{
 			{Type: LineDeletion, Content: "old1"},
@@ -169,6 +181,8 @@ func TestFindLinePairsUnbalanced(t *testing.T) {
 }
 
 func TestComputeHunkWordDiffs(t *testing.T) {
+	t.Parallel()
+
 	hunk := &Hunk{
 		Lines: []Line{
 			{Type: LineContext, Content: "context"},

@@ -9,6 +9,8 @@ import (
 
 // TestNewState tests initialization.
 func TestNewState(t *testing.T) {
+	t.Parallel()
+
 	s := NewState()
 
 	if s.Query != "" {
@@ -30,6 +32,8 @@ func TestNewState(t *testing.T) {
 
 // TestExecuteSearch_EmptyQuery tests search with empty query.
 func TestExecuteSearch_EmptyQuery(t *testing.T) {
+	t.Parallel()
+
 	files := []diff.FileChange{
 		{Path: "file.txt", Hunks: []diff.Hunk{{Lines: []diff.Line{{Content: "hello"}}}}},
 	}
@@ -48,6 +52,8 @@ func TestExecuteSearch_EmptyQuery(t *testing.T) {
 
 // TestExecuteSearch_FilePathMatch tests matching in file paths.
 func TestExecuteSearch_FilePathMatch(t *testing.T) {
+	t.Parallel()
+
 	files := []diff.FileChange{
 		{Path: "src/main.go"},
 		{Path: "src/test.go"},
@@ -78,6 +84,8 @@ func TestExecuteSearch_FilePathMatch(t *testing.T) {
 
 // TestExecuteSearch_LineContentMatch tests matching in line content.
 func TestExecuteSearch_LineContentMatch(t *testing.T) {
+	t.Parallel()
+
 	files := []diff.FileChange{
 		{
 			Path: "file.txt",
@@ -113,6 +121,8 @@ func TestExecuteSearch_LineContentMatch(t *testing.T) {
 
 // TestExecuteSearch_MultipleMatchesPerLine tests multiple matches in same line.
 func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
+	t.Parallel()
+
 	files := []diff.FileChange{
 		{
 			Path: "file.txt",
@@ -159,6 +169,8 @@ func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
 
 // TestExecuteSearch_CaseInsensitive tests case-insensitive search (default).
 func TestExecuteSearch_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	files := []diff.FileChange{
 		{
 			Path: "file.txt",
@@ -184,6 +196,8 @@ func TestExecuteSearch_CaseInsensitive(t *testing.T) {
 
 // TestExecuteSearch_CaseSensitive tests case-sensitive search.
 func TestExecuteSearch_CaseSensitive(t *testing.T) {
+	t.Parallel()
+
 	files := []diff.FileChange{
 		{
 			Path: "file.txt",
@@ -269,6 +283,8 @@ func TestPrevMatch(t *testing.T) {
 
 // TestNextMatch_NoMatches tests navigation with no matches.
 func TestNextMatch_NoMatches(t *testing.T) {
+	t.Parallel()
+
 	s := &State{
 		Matches:    []MatchLocation{},
 		CurrentIdx: -1,
@@ -282,6 +298,8 @@ func TestNextMatch_NoMatches(t *testing.T) {
 
 // TestGetCurrentMatch tests getting current match.
 func TestGetCurrentMatch(t *testing.T) {
+	t.Parallel()
+
 	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0},
@@ -298,6 +316,8 @@ func TestGetCurrentMatch(t *testing.T) {
 
 // TestGetCurrentMatch_Invalid tests getting match with invalid index.
 func TestGetCurrentMatch_Invalid(t *testing.T) {
+	t.Parallel()
+
 	s := &State{
 		Matches:    []MatchLocation{{FileIdx: 0}},
 		CurrentIdx: 5,
@@ -311,6 +331,8 @@ func TestGetCurrentMatch_Invalid(t *testing.T) {
 
 // TestMatchCount tests counting matches.
 func TestMatchCount(t *testing.T) {
+	t.Parallel()
+
 	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0},
@@ -326,6 +348,8 @@ func TestMatchCount(t *testing.T) {
 
 // TestIsLineMatch tests checking if a line has matches.
 func TestIsLineMatch(t *testing.T) {
+	t.Parallel()
+
 	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5},
@@ -344,6 +368,8 @@ func TestIsLineMatch(t *testing.T) {
 
 // TestIsCurrentMatch tests checking if position is current match.
 func TestIsCurrentMatch(t *testing.T) {
+	t.Parallel()
+
 	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5},
@@ -363,6 +389,8 @@ func TestIsCurrentMatch(t *testing.T) {
 
 // TestGetMatchesForLine tests getting all matches for a specific line.
 func TestGetMatchesForLine(t *testing.T) {
+	t.Parallel()
+
 	s := &State{
 		Matches: []MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5, StartCol: 0, EndCol: 4},
@@ -384,6 +412,8 @@ func TestGetMatchesForLine(t *testing.T) {
 
 // TestSaveAndRestoreOriginalState tests navigation state management.
 func TestSaveAndRestoreOriginalState(t *testing.T) {
+	t.Parallel()
+
 	s := NewState()
 
 	original := NavigationState{

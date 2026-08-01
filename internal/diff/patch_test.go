@@ -48,6 +48,8 @@ func newMockSelection(selections map[string]map[int]bool) *mockSelectionState {
 
 // TestGeneratePatch_SingleHunk tests patch generation with a single selected hunk.
 func TestGeneratePatch_SingleHunk(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "file.txt",
@@ -94,6 +96,8 @@ func TestGeneratePatch_SingleHunk(t *testing.T) {
 
 // TestGeneratePatch_MultipleHunks tests selecting multiple hunks from same file.
 func TestGeneratePatch_MultipleHunks(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "file.txt",
@@ -131,6 +135,8 @@ func TestGeneratePatch_MultipleHunks(t *testing.T) {
 
 // TestGeneratePatch_MultipleFiles tests selecting hunks from multiple files.
 func TestGeneratePatch_MultipleFiles(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "file1.txt",
@@ -177,6 +183,8 @@ func TestGeneratePatch_MultipleFiles(t *testing.T) {
 
 // TestGeneratePatch_NewFile tests patch generation for added files.
 func TestGeneratePatch_NewFile(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "newfile.txt",
@@ -212,6 +220,8 @@ func TestGeneratePatch_NewFile(t *testing.T) {
 
 // TestGeneratePatch_DeletedFile tests patch generation for deleted files.
 func TestGeneratePatch_DeletedFile(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "deleted.txt",
@@ -246,6 +256,8 @@ func TestGeneratePatch_DeletedFile(t *testing.T) {
 
 // TestGeneratePatch_NoSelection tests that empty selection produces empty patch.
 func TestGeneratePatch_NoSelection(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "file.txt",
@@ -265,6 +277,8 @@ func TestGeneratePatch_NoSelection(t *testing.T) {
 
 // TestGeneratePatch_PartialSelection tests selecting only some hunks.
 func TestGeneratePatch_PartialSelection(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "file.txt",
@@ -306,6 +320,8 @@ func TestGeneratePatch_PartialSelection(t *testing.T) {
 
 // TestGetSelectedHunksMap tests conversion from selection state to map.
 func TestGetSelectedHunksMap(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:  "file1.txt",
@@ -346,6 +362,8 @@ func TestGetSelectedHunksMap(t *testing.T) {
 
 // TestGetSelectedHunksMap_NoSelections tests with no selections.
 func TestGetSelectedHunksMap_NoSelections(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:  "file.txt",
@@ -364,6 +382,8 @@ func TestGetSelectedHunksMap_NoSelections(t *testing.T) {
 
 // TestGeneratePatch_PartialHunk tests generating patch with line-level selection.
 func TestGeneratePatch_PartialHunk(t *testing.T) {
+	t.Parallel()
+
 	files := []FileChange{
 		{
 			Path:       "file.txt",
@@ -415,6 +435,8 @@ func TestGeneratePatch_PartialHunk(t *testing.T) {
 
 // TestExpandWithContext tests context expansion algorithm.
 func TestExpandWithContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		selected     map[int]bool
 		expected     map[int]bool
@@ -454,6 +476,8 @@ func TestExpandWithContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := expandWithContext(tt.selected, tt.totalLines, tt.contextLines)
 
 			if len(result) != len(tt.expected) {
@@ -471,6 +495,8 @@ func TestExpandWithContext(t *testing.T) {
 
 // TestRecalculateHunkHeader tests hunk header recalculation.
 func TestRecalculateHunkHeader(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		expected string
@@ -512,6 +538,8 @@ func TestRecalculateHunkHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := recalculateHunkHeader(tt.lines)
 			if result != tt.expected {
 				t.Errorf("Expected %s, got %s", tt.expected, result)

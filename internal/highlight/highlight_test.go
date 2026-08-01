@@ -6,6 +6,8 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 	if h == nil {
 		t.Fatal("Expected highlighter to be created")
@@ -16,6 +18,8 @@ func TestNew(t *testing.T) {
 }
 
 func TestDetectLexer(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 
 	testCases := []struct {
@@ -49,6 +53,8 @@ func TestDetectLexer(t *testing.T) {
 }
 
 func TestHighlightLine_Go(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 
 	line := "func main() {"
@@ -67,6 +73,8 @@ func TestHighlightLine_Go(t *testing.T) {
 }
 
 func TestHighlightLine_Python(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 
 	line := "def hello_world():"
@@ -82,6 +90,8 @@ func TestHighlightLine_Python(t *testing.T) {
 }
 
 func TestHighlightLine_EmptyLine(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 
 	result := h.HighlightLine("main.go", "")
@@ -92,6 +102,8 @@ func TestHighlightLine_EmptyLine(t *testing.T) {
 }
 
 func TestHighlightLine_UnknownLanguage(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 
 	line := "some random text"
@@ -104,6 +116,8 @@ func TestHighlightLine_UnknownLanguage(t *testing.T) {
 }
 
 func TestIsEnabled(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 
 	testCases := []struct {
@@ -125,6 +139,8 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestHighlightLine_PreservesContent(t *testing.T) {
+	t.Parallel()
+
 	h := New()
 
 	testCases := []struct {

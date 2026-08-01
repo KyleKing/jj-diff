@@ -6,6 +6,8 @@ import (
 )
 
 func TestRenderWhitespaceSimple(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -46,6 +48,8 @@ func TestRenderWhitespaceSimple(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := RenderWhitespaceSimple(tt.input, tt.tabWidth)
 			for _, expected := range tt.contains {
 				if !strings.Contains(result, expected) {
@@ -57,6 +61,8 @@ func TestRenderWhitespaceSimple(t *testing.T) {
 }
 
 func TestRenderWhitespaceTabPadding(t *testing.T) {
+	t.Parallel()
+
 	result := RenderWhitespaceSimple("\t", 4)
 	runes := []rune(result)
 	if len(runes) != 4 {
@@ -74,6 +80,8 @@ func TestRenderWhitespaceTabPadding(t *testing.T) {
 }
 
 func TestHasTrailingWhitespace(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected bool
@@ -94,6 +102,8 @@ func TestHasTrailingWhitespace(t *testing.T) {
 }
 
 func TestCountTrailingWhitespace(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected int

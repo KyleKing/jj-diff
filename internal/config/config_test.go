@@ -5,6 +5,8 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
+	t.Parallel()
+
 	cfg := DefaultConfig()
 
 	if cfg.ViewMode != ViewModeUnified {
@@ -102,6 +104,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 }
 
 func TestToRenderOptions(t *testing.T) {
+	t.Parallel()
+
 	cfg := Config{
 		ViewMode:        ViewModeSideBySide,
 		ShowWhitespace:  true,
@@ -127,6 +131,8 @@ func TestToRenderOptions(t *testing.T) {
 }
 
 func TestParseBool(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected bool

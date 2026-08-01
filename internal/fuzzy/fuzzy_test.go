@@ -5,6 +5,8 @@ import (
 )
 
 func TestScore_ExactMatch(t *testing.T) {
+	t.Parallel()
+
 	score, indices := Score("hello", "hello")
 	if score == 0 {
 		t.Error("Expected exact match to have score > 0")
@@ -15,6 +17,8 @@ func TestScore_ExactMatch(t *testing.T) {
 }
 
 func TestScore_NoMatch(t *testing.T) {
+	t.Parallel()
+
 	score, _ := Score("hello", "xyz")
 	if score != 0 {
 		t.Errorf("Expected no match (score 0), got score %d", score)
@@ -22,6 +26,8 @@ func TestScore_NoMatch(t *testing.T) {
 }
 
 func TestScore_PartialMatch(t *testing.T) {
+	t.Parallel()
+
 	score, indices := Score("hello world", "hlo")
 	if score == 0 {
 		t.Error("Expected partial match to have score > 0")
@@ -32,6 +38,8 @@ func TestScore_PartialMatch(t *testing.T) {
 }
 
 func TestScore_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	score1, _ := Score("Hello", "hello")
 	score2, _ := Score("hello", "HELLO")
 
@@ -41,6 +49,8 @@ func TestScore_CaseInsensitive(t *testing.T) {
 }
 
 func TestScore_ConsecutiveBonus(t *testing.T) {
+	t.Parallel()
+
 	// "hel" in "hello" should score higher than "hel" in "hxexlxlxo"
 	score1, _ := Score("hello", "hel")
 	score2, _ := Score("hxexlxlxo", "hel")
@@ -55,6 +65,8 @@ func TestScore_ConsecutiveBonus(t *testing.T) {
 }
 
 func TestScore_WordBoundaryBonus(t *testing.T) {
+	t.Parallel()
+
 	// "fc" should match "FileClass" better than "performance"
 	score1, _ := Score("FileClass", "fc")
 	score2, _ := Score("performance", "fc")
@@ -69,6 +81,8 @@ func TestScore_WordBoundaryBonus(t *testing.T) {
 }
 
 func TestScore_PathMatching(t *testing.T) {
+	t.Parallel()
+
 	paths := []string{
 		"internal/model/model.go",
 		"internal/model/model_test.go",
@@ -97,6 +111,8 @@ func TestScore_PathMatching(t *testing.T) {
 }
 
 func TestFilter_EmptyQuery(t *testing.T) {
+	t.Parallel()
+
 	items := []string{"foo", "bar", "baz"}
 	matches := Filter("", items)
 
@@ -112,6 +128,8 @@ func TestFilter_EmptyQuery(t *testing.T) {
 }
 
 func TestFilter_SortsByScore(t *testing.T) {
+	t.Parallel()
+
 	items := []string{
 		"internal/components/diffview/diffview.go",
 		"internal/diff/parser.go",
@@ -134,6 +152,8 @@ func TestFilter_SortsByScore(t *testing.T) {
 }
 
 func TestFilter_NoMatches(t *testing.T) {
+	t.Parallel()
+
 	items := []string{"foo", "bar", "baz"}
 	matches := Filter("xyz", items)
 
@@ -143,6 +163,8 @@ func TestFilter_NoMatches(t *testing.T) {
 }
 
 func TestFilterWithData_PreservesData(t *testing.T) {
+	t.Parallel()
+
 	items := []string{"foo", "bar"}
 	data := []interface{}{42, "hello"}
 
@@ -159,6 +181,8 @@ func TestFilterWithData_PreservesData(t *testing.T) {
 }
 
 func TestScore_RealWorldExamples(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		text          string
 		query         string

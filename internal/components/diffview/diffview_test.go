@@ -27,6 +27,8 @@ func testFileChange() diff.FileChange {
 }
 
 func TestNewWithDefaultConfig(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.DefaultConfig()
 	m := New(cfg)
 
@@ -45,6 +47,8 @@ func TestNewWithDefaultConfig(t *testing.T) {
 }
 
 func TestNewWithSideBySideConfig(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Config{
 		ViewMode:        config.ViewModeSideBySide,
 		ShowWhitespace:  true,
@@ -69,6 +73,8 @@ func TestNewWithSideBySideConfig(t *testing.T) {
 }
 
 func TestViewUnifiedMode(t *testing.T) {
+	t.Parallel()
+
 	m := New(config.DefaultConfig())
 	m.SetFileChange(testFileChange())
 
@@ -80,6 +86,8 @@ func TestViewUnifiedMode(t *testing.T) {
 }
 
 func TestViewSideBySideMode(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Config{
 		ViewMode:        config.ViewModeSideBySide,
 		ShowLineNumbers: true,
@@ -102,6 +110,8 @@ func TestViewSideBySideMode(t *testing.T) {
 }
 
 func TestViewWithWhitespaceHiding(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Config{
 		ShowWhitespace:  true,
 		ShowLineNumbers: true,
@@ -165,6 +175,8 @@ func TestViewWithoutLineNumbers(t *testing.T) {
 }
 
 func TestToggleMethods(t *testing.T) {
+	t.Parallel()
+
 	m := New(config.DefaultConfig())
 
 	m.ToggleWhitespace()
@@ -184,6 +196,8 @@ func TestToggleMethods(t *testing.T) {
 }
 
 func TestWordDiffToggle(t *testing.T) {
+	t.Parallel()
+
 	m := New(config.DefaultConfig())
 	m.SetFileChange(testFileChange())
 
@@ -203,6 +217,8 @@ func TestWordDiffToggle(t *testing.T) {
 }
 
 func TestScrolling(t *testing.T) {
+	t.Parallel()
+
 	m := New(config.DefaultConfig())
 
 	fc := diff.FileChange{
@@ -241,6 +257,8 @@ func TestScrolling(t *testing.T) {
 }
 
 func TestNoFileSelected(t *testing.T) {
+	t.Parallel()
+
 	m := New(config.DefaultConfig())
 
 	output := m.View(80, 20, false)
