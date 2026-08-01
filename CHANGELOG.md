@@ -1,3 +1,13 @@
+## v0.1.5 (2026-08-01)
+
+### Fix
+
+- **ci**: let mise own the Go toolchain and skip commitizen on an empty range
+
+### Refactor
+
+- **model**: split the key and view handlers into named steps
+
 ## v0.1.4 (2026-07-31)
 
 ### Fix
