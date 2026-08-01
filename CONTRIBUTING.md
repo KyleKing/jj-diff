@@ -26,12 +26,14 @@ sorts after `template.toml` (`user.toml` works; `project.toml` does not, since
 | `mise run build` | Build binary |
 | `mise run ci` | Full CI check (tests + build) |
 | `mise run clean` | Clean build artifacts |
-| `mise run demo` | Generate VHS demo recordings |
+| `mise run demo` | Generate VHS demo recordings (needs [vhs](https://github.com/charmbracelet/vhs) on `PATH`; it is not pinned in `[tools]`) |
+| `mise run dev` | Run from source (`go run`, always reflects current code) |
 | `mise run format` | Auto-fix lint and formatting |
 | `mise run hooks` | Run git hooks |
 | `mise run lint` | Run linter |
-| `mise dev` | Run from source (`go run`, always reflects current code) |
 | `mise run test` | Run tests with coverage |
+| `mise run test:coverage-min` | Fail below the 70% coverage threshold |
+| `mise run test:view-coverage` | Open the coverage report in a browser |
 | `mise tasks` | List all available tasks |
 
 ## Code Guidelines
@@ -61,18 +63,22 @@ Run straight from source with `go run`, which always reflects the current code, 
 go run ./cmd/jj-diff [args]
 ```
 
-To test the actual `gh jj-diff ...` extension invocation or a Homebrew install, use the released version rather than installing from this checkout:
+Or through mise, which runs the same thing:
 
 ```bash
-gh extension install kyleking/jj-diff
-# or
-brew install --formula https://github.com/kyleking/jj-diff/raw/main/Formula/jj-diff.rb
+mise run dev [args]
+```
+
+To test a Homebrew install, use the released version rather than installing from this checkout:
+
+```bash
+brew install --cask kyleking/tap/jj-diff
 ```
 
 
 ## Releases
 
-Automated by the Bump Version workflow. **Note:** For GH CLI extensions, the first release is required before users can run `gh extension install kyleking/jj-diff`.
+Automated by the Bump Version workflow.
 
 ### Creating a Release
 
@@ -85,43 +91,23 @@ Automated by the Bump Version workflow. **Note:** For GH CLI extensions, the fir
 
    goreleaser runs inside that same workflow because a tag pushed with `GITHUB_TOKEN` does not trigger any other workflow.
 
-3. Verify the release has properly named binaries:
-   - `jj-diff-linux-amd64`
-   - `jj-diff-darwin-arm64`
-   - `jj-diff-windows-amd64.exe`
-   - etc.
-
-### Updating the Homebrew Formula
-
-After a release, update `Formula/jj-diff.rb`:
-
-1. Download the release binaries from the GitHub release page
-2. Generate SHA256 checksums:
+3. Verify the release by distinct hash, not by asset count. Every target is a separate build, so the checksums must all differ; a repeated hash means one binary was published under several names:
 
    ```bash
-   shasum -a 256 jj-diff-darwin-arm64 jj-diff-darwin-amd64 jj-diff-linux-arm64 jj-diff-linux-amd64
+   gh release download <tag> -p checksums.txt -O - | awk '{print $1}' | sort -u | wc -l
    ```
 
-   Or run `mise run brew:sha` for a reminder of these steps.
-
-3. Update the `version` and `sha256` values in `Formula/jj-diff.rb`
-4. Commit and push the formula changes
+   Expect one line per binary. Names should read `jj-diff-linux-amd64`, `jj-diff-darwin-arm64`, `jj-diff-windows-amd64.exe`, and so on.
 
 ### Installing via Homebrew
 
-Users can install directly from the repository formula:
+goreleaser builds the cask and pushes it to `https://github.com/kyleking/homebrew-tap` as part of the release, with the SHA256 values taken from the artifacts it just built:
 
 ```bash
-brew install --formula https://github.com/kyleking/jj-diff/raw/main/Formula/jj-diff.rb
+brew install --cask kyleking/tap/jj-diff
 ```
 
-Or from a local checkout:
-
-```bash
-brew install --formula ./Formula/jj-diff.rb
-```
-
-To set up a [homebrew tap](https://docs.brew.sh/Taps) for `brew install kyleking/tap/jj-diff`, create a `homebrew-tap` repo at `https://github.com/kyleking/homebrew-tap` and copy the formula there.
+The push needs a `TAP_DEPLOY_KEY` secret scoped to the tap repo; run `scripts/provision-tap-deploy-key.sh` to create it. Without the secret the release still publishes every binary and skips the cask with a warning.
 
 
 ## Troubleshooting
@@ -130,4 +116,8 @@ To set up a [homebrew tap](https://docs.brew.sh/Taps) for `brew install kyleking
 mise install --force   # Reinstall tools
 hk install --mise --force  # Reinstall hooks
 go test -v -run TestName ./package  # Debug specific test
+go test ./... -update  # Refresh golden fixtures, where the project has them
 ```
+
+Golden files are byte-exact snapshots, so `hk.pkl` excludes `**/*.golden` from every
+whitespace fixer. Regenerate them with `-update` and review the diff; never hand-edit.

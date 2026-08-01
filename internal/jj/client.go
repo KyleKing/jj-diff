@@ -52,7 +52,7 @@ func (c *Client) Diff(revision string) (string, error) {
 }
 
 // Status lists the working copy's changed files. Lines jj prints that are not file entries are
-// dropped, so an unparseable output yields an empty slice rather than an error.
+// dropped, so an unparsable output yields an empty slice rather than an error.
 func (c *Client) Status() ([]FileStatus, error) {
 	cmd := exec.Command("jj", "status", "--no-pager")
 	cmd.Dir = c.baseDir
