@@ -129,6 +129,28 @@ func isWholeLineBody(body string) bool {
 		strings.HasPrefix(body, "\t")
 }
 
+// TestCompareDirectories_SkipsJJInstructions guards against jj's own scratch file, which it writes
+// into the right-hand directory of every diff-editor invocation, showing up as a spurious added file.
+func TestCompareDirectories_SkipsJJInstructions(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	left := filepath.Join(base, "left")
+	right := filepath.Join(base, "right")
+	writeTree(t, left, "main.go", leftMain)
+	writeTree(t, right, "main.go", rightMain)
+	writeTree(t, right, "JJ-INSTRUCTIONS", "Lines in this file...\n")
+
+	patch, err := diff.CompareDirectories(left, right)
+	if err != nil {
+		t.Fatalf("CompareDirectories: %v", err)
+	}
+
+	if strings.Contains(patch, "JJ-INSTRUCTIONS") {
+		t.Errorf("patch should not mention JJ-INSTRUCTIONS:\n%s", patch)
+	}
+}
+
 // TestCompareDirectories_LineGranularity guards against the character-mode diff
 // that split segments mid-line and produced fragments such as "-p" / "+fmt.P".
 func TestCompareDirectories_LineGranularity(t *testing.T) {

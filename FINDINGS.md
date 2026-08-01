@@ -27,15 +27,6 @@ rebasing `@` onto it, which is closer to what `jj split` does than to what
 `MoveChanges` does. The existing test asserts only the safety property: the failed
 plan is reported and leaves the working copy intact.
 
-### `JJ-INSTRUCTIONS` is presented as an editable file
-
-jj writes a `JJ-INSTRUCTIONS` file into the right-hand directory and expects the
-editor to ignore it. jj-diff lists it first, as an added file with six hunks, so
-the first thing a user sees in `jj diffedit` is jj's own scratch file.
-`walkDirectory` in `internal/diff/dircompare.go` should skip it (it has no
-reference to the name today), but confirm against current jj first whether the
-name is stable and whether jj expects it left in place.
-
 ## The Bubble Tea migration
 
 `go.mod` still pins bubbletea 0.25.0 and lipgloss 0.10.0, both from early 2024.

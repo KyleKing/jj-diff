@@ -46,6 +46,10 @@ func CompareDirectories(leftDir, rightDir string) (string, error) {
 	return diffBuilder.String(), nil
 }
 
+// jjInstructionsFile is the scratch file jj writes into the diff editor's right-hand directory with
+// instructions for the user. It is not part of the diff and the editor is expected to leave it alone.
+const jjInstructionsFile = "JJ-INSTRUCTIONS"
+
 func walkDirectory(dir string) (map[string]bool, error) {
 	files := make(map[string]bool)
 
@@ -60,6 +64,10 @@ func walkDirectory(dir string) (map[string]bool, error) {
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return fmt.Errorf("resolving %s under %s: %w", path, dir, err)
+		}
+
+		if relPath == jjInstructionsFile {
+			return nil
 		}
 
 		files[relPath] = true
