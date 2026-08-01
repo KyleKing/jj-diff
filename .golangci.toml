@@ -67,7 +67,7 @@ enable = [
   "ineffassign",
   "interfacebloat",
   "intrange",
-  "ireturn",  # revisit: BubbleTea Init/Update methods return interfaces by design
+  "ireturn",
   "lll",
   "loggercheck",
   "maintidx",
@@ -154,7 +154,10 @@ enabled-tags = [
   "experimental",
   "opinionated"
 ]
-disabled-checks = ["whyNoLint"]
+disabled-checks = [
+  "hugeParam",  # BubbleTea root Models are large by design; value receivers keep Update/View copy semantics
+  "whyNoLint"
+]
 
 [linters.settings.gocyclo]
 min-complexity = 15
@@ -168,7 +171,7 @@ enable-all = true
 disable = ["shadow"]
 
 [linters.settings.ireturn]
-allow = ["error", "empty", "stdlib"]
+allow = ["error", "empty", "stdlib", "github.com/charmbracelet/bubbletea.Model"]
 
 [linters.settings.lll]
 line-length = 120

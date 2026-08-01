@@ -1028,6 +1028,7 @@ func (m Model) handleDestPickerKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+//nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
 func (m Model) handleSplitAssignKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
@@ -1078,6 +1079,7 @@ func (m Model) handleSplitPreviewKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+//nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
 func (m Model) handleCommitMsgKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
@@ -1322,6 +1324,7 @@ func (m Model) getHunkTags(filePath string, hunkIdx int) []SplitTag {
 	return tags
 }
 
+//nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers handleActionKey dispatches through.
 func (m Model) enterSearchMode() (Model, tea.Cmd) {
 	m.searchState.SaveOriginalState(search.NavigationState{
 		SelectedFile:   m.selectedFile,
@@ -1453,6 +1456,7 @@ func (m Model) getLineContentMatches(filePath string, hunkIdx, lineIdx int) []di
 	return ranges
 }
 
+//nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
 func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -1486,6 +1490,7 @@ func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 }
 
+//nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
 func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case keyEnter:

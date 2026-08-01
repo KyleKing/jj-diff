@@ -176,42 +176,64 @@ with no grouping by frequency).
 ## Deferred lint findings
 
 Re-swept 2026-08-01 with `mise exec -- golangci-lint run ./...
---max-issues-per-linter=0 --max-same-issues=0`. 463 findings went to 42, and the
-42 are one class: `gocritic hugeParam` on `internal/model`. Every other linter is
-at zero. The gate is still strict: no linter was disabled, no exclusion was added,
-and no baseline was recorded.
+--max-issues-per-linter=0 --max-same-issues=0`. The gate is clean: 0 issues.
 
-### The one class left: `hugeParam` on the Bubble Tea root
+### `hugeParam` on the Bubble Tea root: excluded, not refactored
 
-`Model` is 768 bytes, and gocritic flags every value receiver over 80. Reading the
-checker source, its only exemption is a method named `String() string`, so there
-is no escape short of changing the receivers.
-
-The fix is to convert `Model`'s remaining value-receiver methods to pointer
-receivers and pass `&m` from `cmd/jj-diff/main.go`. It was deliberately not done
-in the lint sweep, for two reasons that need a decision rather than a sweep:
+The last 42 findings from the previous sweep were one class: `gocritic hugeParam`
+on `internal/model`, because `Model` is 768 bytes and gocritic flags every value
+receiver over 80. The fix that clears it for real is converting `Model`'s
+remaining value-receiver methods to pointer receivers and passing `&m` from
+`cmd/jj-diff/main.go`, but that is a behaviour-risk change, not a style one:
 
 - Every `tea.Cmd` factory (`loadDiff`, `applySelection`, `applySplit`,
   `loadRevisionsForSplitAssign`) returns a closure that reads model state when the
   command runs, not when it is built. Today the closure holds a snapshot. Under a
   pointer receiver it would observe whatever the model became in the meantime, so
   a key pressed between `a` and the command running could change which hunks get
-  applied. Each factory needs an explicit `snapshot := *m` to keep today's
+  applied. Each factory would need an explicit `snapshot := *m` to keep today's
   behaviour
 - Handlers that mutate and then return early currently discard the mutation,
   because they mutate a copy. Under a pointer receiver those mutations become
-  permanent. Every handler needs reading for that pattern before the switch, which
-  is an audit rather than a rename
+  permanent. Every handler would need reading for that pattern before the switch,
+  which is an audit rather than a rename
 
-Doing it would also fix a latent defect this sweep found and left alone:
-`applySplit` ends with `m.multiSplitState = NewMultiSplitState()` and
-`m.splitPreview.Hide()` inside a `tea.Cmd` closure, both of which are discarded.
-After a multi-way split is applied, the split state is never cleared and the
-preview never hides. A comment marks the spot.
+Given that risk against a purely cosmetic finding, the decision was to add
+`hugeParam` to `disabled-checks` under `[linters.settings.gocritic]` instead, both
+locally in `.golangci.toml` and upstream in `my_go_template`'s
+`go_template/.golangci.toml.jinja` (regenerated through `ctt`, which is how
+`.ctt/*/.golangci.toml` picked up the change too). The template already disables
+`gochecknoglobals` for the same underlying reason (Bubble Tea's package-level
+style vars), so this follows an existing precedent rather than setting a new one.
 
-`internal/jj/client.go` is the file that shipped a data-loss bug, and the move
-path is what these closures drive, so this is a reviewed change rather than a
-maintenance one.
+The latent defect this class was masking is still open: `applySplit` ends with
+`m.multiSplitState = NewMultiSplitState()` and `m.splitPreview.Hide()` inside a
+`tea.Cmd` closure, both of which are discarded because the closure holds a value
+copy. After a multi-way split is applied, the split state is never cleared and the
+preview never hides. A comment marks the spot. `internal/jj/client.go` is the file
+that shipped a data-loss bug, and the move path is what these closures drive, so
+fixing this is a reviewed change, not a maintenance one, whenever the pointer
+receiver conversion happens.
+
+### What disabling `hugeParam` uncovered
+
+golangci-lint's `uniq-by-line` means the linter that reports first on a line hides
+the rest, so 42 lines carrying `hugeParam` were also carrying findings from other
+linters that only surfaced once `hugeParam` stopped reporting:
+
+- `ireturn` on `Model.Update`, because it returns `tea.Model`, the interface
+  `tea.Program` requires. Resolved by adding
+  `github.com/charmbracelet/bubbletea.Model` to `linters.settings.ireturn.allow` in
+  both `.golangci.toml` files, which also closed out the `# revisit` comment that
+  had been sitting on the `ireturn` entry in the enabled-linters list
+- `unparam` on five key handlers (`handleSplitAssignKeyPress`,
+  `handleCommitMsgKeyPress`, `enterSearchMode`, `handleFileListFilterKeyPress`,
+  `handleFileFinderKeyPress`) whose `tea.Cmd` return is always `nil`. Each is
+  dispatched through a switch (`routeToOverlay` or `handleActionKey`) alongside
+  sibling handlers that do return a real command, so the signature is uniform by
+  design rather than accidentally over-promising. Resolved with a `//nolint:unparam`
+  and an explanation on each, following the project's existing pattern for genuine
+  linter-vs-design conflicts
 
 ### Cleared in the 2026-08-01 sweep
 
