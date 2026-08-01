@@ -175,42 +175,70 @@ with no grouping by frequency).
 
 ## Deferred lint findings
 
-463 findings from `mise exec -- golangci-lint run ./... --max-issues-per-linter=0
---max-same-issues=0`, re-counted 2026-07-27. All are style. The correctness
-linters are at zero: gosec, staticcheck, errcheck, and unused were 62 findings
-between them before the sweep and are now clear. The `govet` count is
-`fieldalignment` only, a layout suggestion rather than a correctness one.
+Re-swept 2026-08-01 with `mise exec -- golangci-lint run ./...
+--max-issues-per-linter=0 --max-same-issues=0`. 463 findings went to 42, and the
+42 are one class: `gocritic hugeParam` on `internal/model`. Every other linter is
+at zero. The gate is still strict: no linter was disabled, no exclusion was added,
+and no baseline was recorded.
 
-The strict gate was left strict. No linter was disabled, no exclusion was added,
-and no baseline was recorded, so CI fails on these until they are cleared or a
-decision is made to exclude them.
+### The one class left: `hugeParam` on the Bubble Tea root
 
-| Linter | Count | What clearing it involves |
-|---|---:|---|
-| paralleltest | 113 | Adding `t.Parallel()` to each subtest. Safe for the pure-function packages, needs care in `internal/model` where tests share a lipgloss global, and in `tests/integration` where each test spawns real jj |
-| mnd | 91 | Magic numbers, mostly layout constants (column widths, padding, context-line counts) and file modes. Worth naming the layout ones; the file modes read fine as octal literals and are candidates for an exclusion |
-| gocritic | 82 | 48 are `hugeParam` on the Bubble Tea value receivers, which is the framework's design and not fixable without switching to pointer receivers. 20 are `appendCombine`, 8 are `emptyStringTest`, and 5 are if-else chains |
-| revive | 39 | 19 `unused-receiver`, 7 `use-any`, 7 `unused-parameter`, and 6 singletons. The `exported` and `package-comments` rules are at zero |
-| govet | 28 | All `fieldalignment`: reordering struct fields to shrink padding. Mechanical, and it churns every struct literal that lists fields positionally |
-| testpackage | 16 | Moving tests to `_test` packages. Several test unexported functions and would need those exported or the tests split |
-| gocognit, gocyclo, funlen | 13 | `parseFileChange`, `computeHunks`, `Score`, `help.View`, and the round-trip test. Real complexity, worth splitting when each is next touched |
-| wrapcheck | 12 | Wrapping errors returned straight from `os` and `filepath`. Cheap and worth doing |
-| noctx | 11 | Switching `exec.Command` to `exec.CommandContext`. Worth doing properly: it would also give the TUI a way to cancel a slow jj call, which it currently cannot |
-| unparam | 11 | Parameters and returns that never vary, mostly error returns that are always nil. Worth doing, because each one is a signature that promises more than it delivers |
-| err113 | 9 | Sentinel errors instead of `fmt.Errorf` with no verb. Cheap |
-| nestif | 8 | Deeply nested conditionals, all in `internal/model` key handlers. Would resolve itself under the `key.Binding` refactor above |
-| goconst, prealloc, dupl, perfsprint, exhaustive, intrange, ireturn, lll, wastedassign, nonamedreturns | 30 | Small and mechanical |
+`Model` is 768 bytes, and gocritic flags every value receiver over 80. Reading the
+checker source, its only exemption is a method named `String() string`, so there
+is no escape short of changing the receivers.
 
-paralleltest is the largest block and changes no behaviour, so it is the obvious
-next batch if the goal is a green gate.
+The fix is to convert `Model`'s remaining value-receiver methods to pointer
+receivers and pass `&m` from `cmd/jj-diff/main.go`. It was deliberately not done
+in the lint sweep, for two reasons that need a decision rather than a sweep:
 
-Expect the total to fall by less than the number you clear. golangci-lint runs
-with `uniq-by-line`, so it prints at most one issue per source line and whichever
-linter reports first hides the rest. Clearing a rule uncovers whatever else sat on
-the same lines: documenting the exported declarations cleared 130 `exported` and 7
-`package-comments` findings but moved the total 567 to 459 rather than to 430,
-because those lines were also carrying 13 `govet fieldalignment`, 13 `gocritic`, 1
-`funlen`, and 2 other revive findings that had been masked.
+- Every `tea.Cmd` factory (`loadDiff`, `applySelection`, `applySplit`,
+  `loadRevisionsForSplitAssign`) returns a closure that reads model state when the
+  command runs, not when it is built. Today the closure holds a snapshot. Under a
+  pointer receiver it would observe whatever the model became in the meantime, so
+  a key pressed between `a` and the command running could change which hunks get
+  applied. Each factory needs an explicit `snapshot := *m` to keep today's
+  behaviour
+- Handlers that mutate and then return early currently discard the mutation,
+  because they mutate a copy. Under a pointer receiver those mutations become
+  permanent. Every handler needs reading for that pattern before the switch, which
+  is an audit rather than a rename
+
+Doing it would also fix a latent defect this sweep found and left alone:
+`applySplit` ends with `m.multiSplitState = NewMultiSplitState()` and
+`m.splitPreview.Hide()` inside a `tea.Cmd` closure, both of which are discarded.
+After a multi-way split is applied, the split state is never cleared and the
+preview never hides. A comment marks the spot.
+
+`internal/jj/client.go` is the file that shipped a data-loss bug, and the move
+path is what these closures drive, so this is a reviewed change rather than a
+maintenance one.
+
+### Cleared in the 2026-08-01 sweep
+
+paralleltest 113, mnd 91, gocritic 40 of 82, revive 39, govet 28, testpackage 16,
+wrapcheck 12, noctx 11, unparam 11, err113 9, nestif 8, goconst 6, prealloc 5,
+perfsprint 4, dupl 4, exhaustive 3, gocognit 10, gocyclo 2, lll 2, ireturn 2,
+intrange 2, funlen 1, wastedassign 1, nonamedreturns 1.
+
+Three new `//nolint` directives came out of it, each for a genuine conflict
+between two enabled linters rather than to dodge a fix:
+
+- `internal/model/testhelpers.go` `TestChanges`: `mnd`. The literals are hunk
+  offsets and line numbers, which are the fixture's data
+- `internal/fuzzy/fuzzy.go` `Score`: `unnamedResult` wants the results named and
+  `nonamedreturns` rejects that
+- `internal/highlight/highlight.go` `detectLexer`: `ireturn`, because returning
+  chroma's registry interface is the design
+
+Two follow-ups the sweep surfaced but could not finish inside its own scope:
+
+- `noctx` was cleared with a `jjCommand` helper that passes
+  `context.Background()`. Threading a real context means adding `ctx` to `Diff`,
+  `GetRevisions`, `MoveChanges`, `ApplySplit`, and `diff.Source.GetDiff()`, which
+  would give the TUI a way to cancel a slow jj call. It currently cannot
+- `MoveChanges`'s `source` parameter is unused and is now `_`. The signature was
+  left alone so `internal/model` still compiles; delete it properly when that call
+  site is next touched
 
 ## Smaller notes
 
@@ -239,16 +267,28 @@ because those lines were also carrying 13 `govet fieldalignment`, 13 `gocritic`,
 
 ## Pending the next copier update
 
-This repo is pinned at my_go_template v0.7.0; the template is at v0.9.0.
+This repo is on my_go_template v0.9.1 as of 2026-08-01.
 
-- `hk.pkl` carries a local `exclude` on `check-merge-conflict` for the roadmap,
-  which documents jj's conflict-marker format verbatim. `hk.pkl` is
-  template-managed, so this hunk lands in a `.rej` on every update and has to be
-  re-applied by hand. It is the first case of a child legitimately overriding a
-  template hook
-- Template v0.8.0 adds a `typos` step that flags deliberate fixture strings in
-  `internal/fuzzy/fuzzy_test.go`. The fix is a project-local
-  `[default.extend-words]` in a `.typos.toml` here; the template file is the base
-  and children extend it
-- Template v0.8.0's `remove-if-found.txt` deletes the obsolete `Formula/jj-diff.rb`
-  stub automatically. Nothing to delete by hand
+- `hk.pkl` carries two local overrides that land in a `.rej` on every update and
+  have to be re-applied by hand: an `exclude` on `check-merge-conflict` for
+  `ROADMAP.md`, which documents jj's conflict-marker format verbatim, and a guard
+  on `commitizen-branch` so `cz check --rev-range origin/HEAD..HEAD` is skipped
+  when the range is empty. cz exits non-zero on an empty range, so without the
+  guard `hk check --all` cannot pass on a branch level with origin. Both belong
+  upstream: the guard is not repo-specific
+- `.github/workflows/ci.yml` had `actions/setup-go` removed from the `ci` job.
+  Running it alongside `jdx/mise-action` puts two GOROOTs on PATH, and `go` then
+  finds the other tree's `compile` and refuses to run
+  (`version "go1.26.5" does not match go tool version "go1.25.0"`). The template's
+  `go_template/.github/workflows/ci.yml.jinja` still carries the defect, so this
+  local fix is reverted by the next update until it is back-ported
+- CI still never runs the jj integration tests, because the runners have no `jj`
+  binary and the suite skips when it is absent. Installing jj in the workflow is a
+  template change, not a local one
+- `.typos.toml` now carries a project-local `[default.extend-words]` for the
+  truncated query prefixes used as fuzzy-match and search fixtures (`hel`,
+  `functio`). The template file is the base and this extends it
+- `filelist.renderExpanded` and `filefinder.renderMatch` both panic at very small
+  terminal widths in some configurations, for example `maxWidth - 3` when
+  `maxWidth` is 2. Pre-existing and untouched, because fixing it changes rendered
+  output
