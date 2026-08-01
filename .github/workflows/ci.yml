@@ -18,21 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # mise is the only Go toolchain in this job. Adding actions/setup-go alongside it puts two
+      # GOROOTs on PATH, and `go` then finds the other tree's `compile` and refuses to run.
       - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
-        with:
-          # `mise run ci` only needs `go`, already provided by actions/setup-go below;
-          # skip installing the dev/hook tools from .config/mise.toml's [tools] block.
-          install: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: 'go.mod'
 
       - run: mise run ci
-        env:
-          # `mise run` auto-installs every [tools] entry regardless of the
-          # action's `install: false`; the ci task only needs setup-go's go
-          MISE_TASK_RUN_AUTO_INSTALL: "false"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

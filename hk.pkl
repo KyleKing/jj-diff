@@ -133,8 +133,10 @@ local pre_push_checks = new Mapping<String, Step> {
     ["ci"] {
         check = "mise run ci"
     }
+    // cz exits non-zero on an empty range, so a branch level with origin would fail the check with
+    // nothing to check. The guard makes the step a no-op there.
     ["commitizen-branch"] {
-        check = "cz check --rev-range origin/HEAD..HEAD"
+        check = "test -z \"$(git rev-list origin/HEAD..HEAD)\" || cz check --rev-range origin/HEAD..HEAD"
     }
 }
 
