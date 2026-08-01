@@ -102,6 +102,7 @@ func actionSection(mode string, width int) []string {
 		keyBinding("r", "Refresh diff from jj", width),
 		keyBinding("/", "Search in files and diff content", width),
 		keyBinding("f", "Filter files (type to search)", width),
+		keyBinding("F", "Find file (fuzzy picker)", width),
 	}
 
 	if mode == modeDiffEditor {

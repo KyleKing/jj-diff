@@ -116,15 +116,6 @@ Either the filter should follow the selection to the top match as you type, or
 Enter should commit the highlighted row. That is a decision about how filter and
 search should differ, which is why it is here rather than in a commit.
 
-### Two competing file-finder implementations
-
-`internal/components/filefinder/` is fully built, rendered by `Model.View`, and
-has a key handler in `internal/model/model.go`, but nothing opens it. `f` opens
-the file list's inline filter instead. The dead entry point is gone; the component
-and its handler were left alone because deleting a working modal is a bigger call
-than a lint sweep should make. Pick one: bind the modal to a key and document it,
-or delete the package and its handler.
-
 ### The file list stores search state it never renders
 
 `filelist.SetSearchState` is wired up from `model.go` and `getFilePathMatches`

@@ -1,6 +1,4 @@
-// Package filefinder is a fuzzy picker modal over a list of items. Nothing in the app opens it: the
-// file list's inline filter serves that role, and FINDINGS.md carries the decision to bind or delete
-// this package.
+// Package filefinder is a fuzzy picker modal over a list of items, bound to F.
 package filefinder
 
 import (

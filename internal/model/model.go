@@ -600,6 +600,9 @@ func (m *Model) handleActionKey(key string) (Model, tea.Cmd, bool) {
 		m.fileList.SetFilterMode(true)
 
 		model = *m
+	case "F":
+		m.closeAllModals()
+		model = m.openFileFinder()
 	case "v":
 		model = m.enterVisualMode()
 	case "r":
@@ -835,6 +838,20 @@ func (m *Model) openSplitPreview() Model {
 		m.splitPreview.SetSummaries(m.buildSplitSummaries(destinations))
 		m.splitPreview.Show()
 	}
+
+	return *m
+}
+
+// openFileFinder shows the fuzzy file picker over the current change list.
+func (m *Model) openFileFinder() Model {
+	items := make([]string, len(m.changes))
+	data := make([]any, len(m.changes))
+	for i, file := range m.changes {
+		items[i] = file.Path
+		data[i] = i
+	}
+
+	m.fileFinder.Show(items, data)
 
 	return *m
 }
