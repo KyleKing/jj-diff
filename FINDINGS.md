@@ -197,15 +197,6 @@ locally in `.golangci.toml` and upstream in `my_go_template`'s
 `gochecknoglobals` for the same underlying reason (Bubble Tea's package-level
 style vars), so this follows an existing precedent rather than setting a new one.
 
-The latent defect this class was masking is still open: `applySplit` ends with
-`m.multiSplitState = NewMultiSplitState()` and `m.splitPreview.Hide()` inside a
-`tea.Cmd` closure, both of which are discarded because the closure holds a value
-copy. After a multi-way split is applied, the split state is never cleared and the
-preview never hides. A comment marks the spot. `internal/jj/client.go` is the file
-that shipped a data-loss bug, and the move path is what these closures drive, so
-fixing this is a reviewed change, not a maintenance one, whenever the pointer
-receiver conversion happens.
-
 ### What disabling `hugeParam` uncovered
 
 golangci-lint's `uniq-by-line` means the linter that reports first on a line hides

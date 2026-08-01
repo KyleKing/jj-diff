@@ -318,6 +318,8 @@ type destinationSelectedMsg struct {
 	changeID string
 }
 
+type splitAppliedMsg struct{}
+
 // NewModel builds a model reading its diff from a jj revision.
 func NewModel(
 	client *jj.Client,
@@ -443,6 +445,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case destinationSelectedMsg:
 		m.destination = msg.changeID
 		m.destPicker.Hide()
+
+		return m, m.loadDiff()
+
+	case splitAppliedMsg:
+		m.multiSplitState = NewMultiSplitState()
+		m.splitPreview.Hide()
 
 		return m, m.loadDiff()
 
@@ -1209,12 +1217,7 @@ func (m Model) applySplit() tea.Cmd {
 			return errMsg{fmt.Errorf("failed to apply split: %w", err)}
 		}
 
-		// The model this closure captured is a copy, so it cannot clear the split state or hide the
-		// preview; both stay as the user left them until the reload lands. FINDINGS.md carries it.
-		//
-		// Inside a tea.Cmd the caller expects a tea.Msg, so the reload command has
-		// to be run rather than handed back as a message Update cannot match.
-		return m.loadDiff()()
+		return splitAppliedMsg{}
 	}
 }
 
