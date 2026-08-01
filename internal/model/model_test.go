@@ -1,3 +1,6 @@
+// focusedPanel, selection, lineCursor) and construct the unexported errMsg and diffLoadedMsg.
+//
+//nolint:testpackage // white-box: these tests read and set unexported model state (height,
 package model
 
 import (
@@ -7,6 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var errTest = errors.New("test error")
+
 // TestModelNavigation tests file and hunk navigation workflows.
 func TestModelNavigation(t *testing.T) {
 	t.Parallel()
@@ -15,7 +20,8 @@ func TestModelNavigation(t *testing.T) {
 
 	// Navigate files (j/k)
 	m = Update(t, m, KeyPress('j'))
-	Assert(t, m).HasSelectedFile(1).HasSelectedHunk(0)
+	Assert(t, m).HasSelectedFile(1)
+	Assert(t, m).HasSelectedHunk(0)
 
 	m = Update(t, m, KeyPress('j'))
 	Assert(t, m).HasSelectedFile(2)
@@ -25,11 +31,13 @@ func TestModelNavigation(t *testing.T) {
 
 	// Jump to first (g)
 	m = Update(t, m, KeyPress('g'))
-	Assert(t, m).HasSelectedFile(0).HasSelectedHunk(0)
+	Assert(t, m).HasSelectedFile(0)
+	Assert(t, m).HasSelectedHunk(0)
 
 	// Jump to last (G)
 	m = Update(t, m, KeyPress('G'))
-	Assert(t, m).HasSelectedFile(2).HasSelectedHunk(0)
+	Assert(t, m).HasSelectedFile(2)
+	Assert(t, m).HasSelectedHunk(0)
 
 	// Navigate hunks when focused on diff view
 	m.selectedFile = 0 // file1.txt has 2 hunks
@@ -136,11 +144,10 @@ func TestModelInteractiveWorkflow(t *testing.T) {
 	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
 
 	// Initial state
-	Assert(t, m).
-		ModeIs(ModeInteractive).
-		HasDestination("").
-		HasChanges(3).
-		FocusedPanelIs(PanelFileList)
+	Assert(t, m).ModeIs(ModeInteractive)
+	Assert(t, m).HasDestination("")
+	Assert(t, m).HasChanges(3)
+	Assert(t, m).FocusedPanelIs(PanelFileList)
 
 	// Set destination via message (simulating picker selection)
 	m = Update(t, m, destinationSelectedMsg{changeID: "abc123"})
@@ -189,7 +196,8 @@ func TestModelDiffLoaded(t *testing.T) {
 	changes := TestChanges()
 	m = Update(t, m, diffLoadedMsg{changes: changes})
 
-	Assert(t, m).HasChanges(3).HasNoError()
+	Assert(t, m).HasChanges(3)
+	Assert(t, m).HasNoError()
 }
 
 // TestModelErrorHandling tests error message handling.
@@ -198,8 +206,7 @@ func TestModelErrorHandling(t *testing.T) {
 
 	m := NewTestModel(t, ModeBrowse)
 
-	testErr := errors.New("test error")
-	m = Update(t, m, errMsg{err: testErr})
+	m = Update(t, m, errMsg{err: errTest})
 
 	Assert(t, m).HasError()
 }
@@ -419,7 +426,8 @@ func TestModelVisualModeNavigation(t *testing.T) {
 	m.selectedFile = 0
 
 	m = Update(t, m, KeyPress('v'))
-	Assert(t, m).IsInVisualMode().HasLineCursor(0)
+	Assert(t, m).IsInVisualMode()
+	Assert(t, m).HasLineCursor(0)
 
 	m = Update(t, m, KeyPress('j'))
 	Assert(t, m).HasLineCursor(1)
@@ -607,17 +615,21 @@ func TestModalMutualExclusivity(t *testing.T) {
 
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, KeyPress('/'))
-	Assert(t, m).SearchIsVisible().HelpIsNotVisible()
+	Assert(t, m).SearchIsVisible()
+	Assert(t, m).HelpIsNotVisible()
 
 	m = Update(t, m, KeyPress('?'))
-	Assert(t, m).HelpIsVisible().SearchIsNotVisible()
+	Assert(t, m).HelpIsVisible()
+	Assert(t, m).SearchIsNotVisible()
 
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, KeyPress('f'))
-	Assert(t, m).FileListFilterModeEnabled().HelpIsNotVisible()
+	Assert(t, m).FileListFilterModeEnabled()
+	Assert(t, m).HelpIsNotVisible()
 
 	m = Update(t, m, KeyPress('?'))
-	Assert(t, m).HelpIsVisible().FileListFilterModeDisabled()
+	Assert(t, m).HelpIsVisible()
+	Assert(t, m).FileListFilterModeDisabled()
 }
 
 // TestModalEscClosesAny tests that ESC closes any open modal.
@@ -674,19 +686,11 @@ func TestVimScrolling(t *testing.T) {
 	m.height = 24
 	m.focusedPanel = PanelDiffView
 
-	initialOffset := 0
-
 	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
-	if m.diffView.ShowLineNumbers() {
-	}
-
 	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
 	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
-
 	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlB})
-
-	_ = initialOffset
+	Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlB})
 }
 
 // TestScrollingOnlyInDiffPanel tests that scrolling only works when diff panel is focused.
@@ -700,5 +704,5 @@ func TestScrollingOnlyInDiffPanel(t *testing.T) {
 	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
 
 	m.focusedPanel = PanelDiffView
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
+	Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
 }

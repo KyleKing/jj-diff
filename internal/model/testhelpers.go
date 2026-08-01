@@ -86,197 +86,159 @@ func Assert(t *testing.T, m Model) *Assertion {
 }
 
 // HasSelectedFile checks the file-list cursor, which is an index into the unfiltered change list.
-func (a *Assertion) HasSelectedFile(idx int) *Assertion {
+func (a *Assertion) HasSelectedFile(idx int) {
 	a.t.Helper()
 	if a.m.selectedFile != idx {
 		a.t.Errorf("Expected selectedFile=%d, got %d", idx, a.m.selectedFile)
 	}
-
-	return a
 }
 
 // HasSelectedHunk checks the hunk cursor, which is an index within the currently selected file only.
-func (a *Assertion) HasSelectedHunk(idx int) *Assertion {
+func (a *Assertion) HasSelectedHunk(idx int) {
 	a.t.Helper()
 	if a.m.selectedHunk != idx {
 		a.t.Errorf("Expected selectedHunk=%d, got %d", idx, a.m.selectedHunk)
 	}
-
-	return a
 }
 
 // HasHunkSelected checks that the hunk is marked for apply. A partially selected hunk still counts.
-func (a *Assertion) HasHunkSelected(filePath string, hunkIdx int) *Assertion {
+func (a *Assertion) HasHunkSelected(filePath string, hunkIdx int) {
 	a.t.Helper()
 	if !a.m.selection.IsHunkSelected(filePath, hunkIdx) {
 		a.t.Errorf("Expected hunk %d in file %s to be selected", hunkIdx, filePath)
 	}
-
-	return a
 }
 
 // HasHunkNotSelected checks that no part of the hunk is marked for apply.
-func (a *Assertion) HasHunkNotSelected(filePath string, hunkIdx int) *Assertion {
+func (a *Assertion) HasHunkNotSelected(filePath string, hunkIdx int) {
 	a.t.Helper()
 	if a.m.selection.IsHunkSelected(filePath, hunkIdx) {
 		a.t.Errorf("Expected hunk %d in file %s to NOT be selected", hunkIdx, filePath)
 	}
-
-	return a
 }
 
 // FocusedPanelIs checks which panel receives navigation keys.
-func (a *Assertion) FocusedPanelIs(panel FocusedPanel) *Assertion {
+func (a *Assertion) FocusedPanelIs(panel FocusedPanel) {
 	a.t.Helper()
 	if a.m.focusedPanel != panel {
 		a.t.Errorf("Expected focusedPanel=%v, got %v", panel, a.m.focusedPanel)
 	}
-
-	return a
 }
 
 // ModeIs checks the operating mode, which is fixed at construction and never changes at runtime.
-func (a *Assertion) ModeIs(mode OperatingMode) *Assertion {
+func (a *Assertion) ModeIs(mode OperatingMode) {
 	a.t.Helper()
 	if a.m.mode != mode {
 		a.t.Errorf("Expected mode=%v, got %v", mode, a.m.mode)
 	}
-
-	return a
 }
 
 // HasDestination checks the revset the model will move changes to, which is empty until one is picked.
-func (a *Assertion) HasDestination(dest string) *Assertion {
+func (a *Assertion) HasDestination(dest string) {
 	a.t.Helper()
 	if a.m.destination != dest {
 		a.t.Errorf("Expected destination=%s, got %s", dest, a.m.destination)
 	}
-
-	return a
 }
 
 // HasError checks that the model is holding an error for the view to render.
-func (a *Assertion) HasError() *Assertion {
+func (a *Assertion) HasError() {
 	a.t.Helper()
 	if a.m.err == nil {
 		a.t.Error("Expected error, got nil")
 	}
-
-	return a
 }
 
 // HasNoError checks that no error is pending, and prints the error it found when one is.
-func (a *Assertion) HasNoError() *Assertion {
+func (a *Assertion) HasNoError() {
 	a.t.Helper()
 	if a.m.err != nil {
 		a.t.Errorf("Expected no error, got %v", a.m.err)
 	}
-
-	return a
 }
 
 // HasChanges checks how many file changes are loaded, ignoring any file-list filter.
-func (a *Assertion) HasChanges(count int) *Assertion {
+func (a *Assertion) HasChanges(count int) {
 	a.t.Helper()
 	if len(a.m.changes) != count {
 		a.t.Errorf("Expected %d changes, got %d", count, len(a.m.changes))
 	}
-
-	return a
 }
 
 // IsInVisualMode checks that line-range selection is active.
-func (a *Assertion) IsInVisualMode() *Assertion {
+func (a *Assertion) IsInVisualMode() {
 	a.t.Helper()
 	if !a.m.isVisualMode {
 		a.t.Error("Expected model to be in visual mode")
 	}
-
-	return a
 }
 
 // IsNotInVisualMode checks that line-range selection is off, so space acts on the whole hunk.
-func (a *Assertion) IsNotInVisualMode() *Assertion {
+func (a *Assertion) IsNotInVisualMode() {
 	a.t.Helper()
 	if a.m.isVisualMode {
 		a.t.Error("Expected model to NOT be in visual mode")
 	}
-
-	return a
 }
 
 // HasLineCursor checks the line cursor as an index into the rendered rows of the selected hunk.
-func (a *Assertion) HasLineCursor(position int) *Assertion {
+func (a *Assertion) HasLineCursor(position int) {
 	a.t.Helper()
 	if a.m.lineCursor != position {
 		a.t.Errorf("Expected lineCursor=%d, got %d", position, a.m.lineCursor)
 	}
-
-	return a
 }
 
 // HelpIsVisible checks that the help overlay is up.
-func (a *Assertion) HelpIsVisible() *Assertion {
+func (a *Assertion) HelpIsVisible() {
 	a.t.Helper()
 	if !a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to be visible")
 	}
-
-	return a
 }
 
 // HelpIsNotVisible checks that the help overlay is down.
-func (a *Assertion) HelpIsNotVisible() *Assertion {
+func (a *Assertion) HelpIsNotVisible() {
 	a.t.Helper()
 	if a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to NOT be visible")
 	}
-
-	return a
 }
 
 // SearchIsVisible checks that the search prompt is up, which is separate from the file-list filter.
-func (a *Assertion) SearchIsVisible() *Assertion {
+func (a *Assertion) SearchIsVisible() {
 	a.t.Helper()
 	if !a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to be visible")
 	}
-
-	return a
 }
 
 // SearchIsNotVisible checks that the search prompt is down.
-func (a *Assertion) SearchIsNotVisible() *Assertion {
+func (a *Assertion) SearchIsNotVisible() {
 	a.t.Helper()
 	if a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to NOT be visible")
 	}
-
-	return a
 }
 
 // FileListFilterModeEnabled checks that the file list is capturing keys for its inline filter.
-func (a *Assertion) FileListFilterModeEnabled() *Assertion {
+func (a *Assertion) FileListFilterModeEnabled() {
 	a.t.Helper()
 	if !a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to be enabled")
 	}
-
-	return a
 }
 
 // FileListFilterModeDisabled checks that the file list has handed key handling back to the model.
-func (a *Assertion) FileListFilterModeDisabled() *Assertion {
+func (a *Assertion) FileListFilterModeDisabled() {
 	a.t.Helper()
 	if a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to be disabled")
 	}
-
-	return a
 }
 
 // NoModalsVisible checks every overlay and the file-list filter at once, reporting each one that is up.
-func (a *Assertion) NoModalsVisible() *Assertion {
+func (a *Assertion) NoModalsVisible() {
 	a.t.Helper()
 	if a.m.help.IsVisible() {
 		a.t.Error("Expected help modal to NOT be visible")
@@ -293,11 +255,11 @@ func (a *Assertion) NoModalsVisible() *Assertion {
 	if a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to NOT be enabled")
 	}
-
-	return a
 }
 
 // TestChanges returns three file changes covering the modified, added, and deleted paths.
+//
+//nolint:mnd // Hunk offsets and line numbers are the fixture's data, so naming them hides it.
 func TestChanges() []diff.FileChange {
 	return []diff.FileChange{
 		{
