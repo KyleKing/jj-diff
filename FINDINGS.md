@@ -29,48 +29,50 @@ plan is reported and leaves the working copy intact.
 
 ## The Bubble Tea migration
 
-`go.mod` still pins bubbletea 0.25.0 and lipgloss 0.10.0, both from early 2024.
-Current is bubbletea 1.3.10 and lipgloss 1.1.0, and bubbletea v2 is a further
-break on top of that. Dependabot PR #4 bundled both bumps with two other updates
-and was closed unmerged, which was the right call for a drive-by upgrade and the
-wrong outcome for the codebase.
+Done. `go.mod` now pins `charm.land/bubbletea/v2` and `charm.land/lipgloss/v2`,
+which is where both modules moved for v2, and the go directive is 1.25.0 because
+that is what they require. The jump went straight from 0.25.0 and 0.10.0 to v2
+rather than through 1.x, so the 1.x renderer API was never a step this codebase
+had to sit on.
 
-This needs a planned migration rather than an opportunistic bump, because the 0.25
-to 1.x break lands directly on the parts of this app that are already fragile:
+What the break actually touched:
 
-- `Model.Update` returns `(tea.Model, tea.Cmd)` and the code type-asserts the
-  result back to `Model` in `internal/model/testhelpers_test.go` and everywhere a
-  command chains. v2 makes the model generic, which removes the assertions but
-  rewrites every handler signature
-- `lipgloss.HasDarkBackground()` is a package-level call in
-  `internal/theme/theme.go`. In lipgloss 1.x background detection moves onto a
-  renderer, so theme initialization stops being a global and has to be threaded
-  through, or read from the background-colour message v2 sends. The current global
-  is read at init time by every component
-- Colour styles are constructed inline in view code
-  (`lipgloss.NewStyle().Foreground(...)`) in at least `diffview.go`,
-  `filelist.go`, `help.go`, and `highlight.go`, with several hex literals
-  hard-coded in `internal/highlight/highlight.go` rather than referencing
-  `internal/theme`. Every one is a touch point for the renderer change
-- Key handling is a flat `switch msg.String()` over string literals. v2 replaces
-  `tea.KeyMsg` with a key interface and encourages `key.Binding`. Moving to
-  bindings would also fix the discoverability problems below, because the help
-  overlay and the status-bar hints could be generated from the bindings instead of
-  hand-maintained in parallel
+- `Model.View` returns `tea.View` instead of `string`. The body moved to an
+  unexported `render() string` and `View` wraps it, setting `AltScreen` on the
+  view. That replaces `tea.WithAltScreen()`, which no longer exists as a program
+  option
+- `Model.Update` still returns `(tea.Model, tea.Cmd)`, so the type assertions in
+  `internal/model/testhelpers.go` stayed. v2 did not make the model generic
+- `tea.KeyMsg` became an interface over `KeyPressMsg` and `KeyReleaseMsg`. Every
+  handler takes `tea.KeyPressMsg` and the flat `switch msg.String()` survived
+  untouched, so `key.Binding` is still available as a later change
+- Space now arrives as `"space"` rather than `" "`, because v2 renders it through
+  `Keystroke()`. The hunk-toggle case reads `keySpace`
+- Text entry read `len(msg.String()) == 1`, which no longer admits a space and
+  never admitted a multi-byte rune. The four entry points (search, file filter,
+  file finder, and commit message) read `msg.Key().Text`, which is populated only
+  for printable characters
+- `lipgloss.Color` is a function returning `color.Color`, so the palette fields and
+  the package-level colour vars in `internal/theme` are `color.Color`
+- `lipgloss.HasDarkBackground` takes an input and an output file. `theme.Detect`
+  passes `os.Stdin` and `os.Stdout` and keeps the global, which is the standalone
+  workflow lipgloss documents. It returns dark when neither is a terminal. Reading
+  `tea.BackgroundColorMsg` in `Update` instead would let the theme follow a
+  terminal that changes background mid-session, and is the reason to revisit this
+- `lipgloss.WithWhitespaceForeground` is gone in favour of
+  `WithWhitespaceStyle(Style)`, in `searchmodal.go` and `filefinder.go`
+- `linters.settings.ireturn.allow` in `.golangci.toml` named the old import path,
+  so `Model.Update` started reporting until it was pointed at
+  `charm.land/bubbletea/v2.Model`. That file is template-managed, so the same edit
+  belongs in my_go_template
 
-Suggested order, each step shippable on its own:
+Still open, and independent of the migration:
 
-1. Pull every hex literal and inline style into `internal/theme`, so the renderer
-   change later has one place to land
-2. Replace the string `switch` with `key.Binding` values, and generate both the
-   help overlay and the status-bar hints from them. This deletes the
-   four-places-to-edit rule in `.claude/CLAUDE.md`
-3. Bump to bubbletea 1.3.10 and lipgloss 1.1.0 together, with the golden-file
-   tests as the guard
-4. Evaluate v2 separately, after 1 to 3 have settled
-
-Do not do 3 before 1 and 2. The upgrade compiles clean and behaves differently,
-which is the worst kind of change to make on top of untested view code.
+- Hex literals are hard-coded in `internal/highlight/highlight.go` rather than
+  referencing `internal/theme`, and styles are still built inline in `diffview.go`,
+  `filelist.go`, and `help.go`
+- Key handling is a flat `switch` over string literals, so the help overlay and the
+  status-bar hints are still maintained in parallel with it
 
 ## UX findings
 

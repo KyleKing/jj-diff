@@ -141,7 +141,7 @@ jj commit -m "changes"
 /path/to/jj-diff --interactive
 ```
 
-Force a theme in tests with `lipgloss.SetHasDarkBackground(true)`.
+Force a theme in tests with `t.Setenv("CATPPUCCIN_THEME", "macchiato")` followed by `theme.Init()`. Lip Gloss v2 has no global background override, so the environment variable is the only seam.
 
 ## Running locally
 

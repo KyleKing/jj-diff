@@ -3,7 +3,7 @@ package diff
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Glyphs standing in for whitespace when it is rendered visibly. A trailing space gets its own glyph

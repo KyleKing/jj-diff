@@ -68,6 +68,6 @@ The invariant that makes it safe: nothing in this path names `@`. The user's wor
 
 ## Theme system
 
-`internal/theme/` initializes a global theme at startup. It auto-detects via `lipgloss.HasDarkBackground()`, honors `CATPPUCCIN_THEME=latte` or `macchiato`, and components read global colors such as `theme.Primary` and `theme.AddedLine`.
+`internal/theme/` initializes a global theme at startup. It auto-detects via `lipgloss.HasDarkBackground(os.Stdin, os.Stdout)`, honors `CATPPUCCIN_THEME=latte` or `macchiato`, and components read global colors such as `theme.Primary` and `theme.AddedLine`.
 
-Force a theme in tests with `lipgloss.SetHasDarkBackground(true)`.
+Force a theme in tests with `t.Setenv("CATPPUCCIN_THEME", "macchiato")` followed by `theme.Init()`. Lip Gloss v2 has no global background override, so the environment variable is the only seam.

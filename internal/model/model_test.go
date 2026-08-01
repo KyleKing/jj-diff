@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 var errTest = errors.New("test error")
@@ -669,7 +669,7 @@ func TestAllModalsOpenAndClose(t *testing.T) {
 
 	m = Update(t, m, KeyPress('/'))
 	Assert(t, m).SearchIsVisible()
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	m = Update(t, m, SpecialKey(tea.KeyEnter))
 	Assert(t, m).SearchIsNotVisible()
 
 	m = Update(t, m, KeyPress('f'))
@@ -686,11 +686,11 @@ func TestVimScrolling(t *testing.T) {
 	m.height = 24
 	m.focusedPanel = PanelDiffView
 
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlF})
-	Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlB})
+	m = Update(t, m, CtrlKey('d'))
+	m = Update(t, m, CtrlKey('u'))
+	m = Update(t, m, CtrlKey('u'))
+	m = Update(t, m, CtrlKey('f'))
+	Update(t, m, CtrlKey('b'))
 }
 
 // TestScrollingOnlyInDiffPanel tests that scrolling only works when diff panel is focused.
@@ -701,8 +701,8 @@ func TestScrollingOnlyInDiffPanel(t *testing.T) {
 	m.height = 24
 	m.focusedPanel = PanelFileList
 
-	m = Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
+	m = Update(t, m, CtrlKey('d'))
 
 	m.focusedPanel = PanelDiffView
-	Update(t, m, tea.KeyMsg{Type: tea.KeyCtrlD})
+	Update(t, m, CtrlKey('d'))
 }

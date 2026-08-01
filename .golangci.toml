@@ -171,7 +171,7 @@ enable-all = true
 disable = ["shadow"]
 
 [linters.settings.ireturn]
-allow = ["error", "empty", "stdlib", "github.com/charmbracelet/bubbletea.Model"]
+allow = ["error", "empty", "stdlib", "charm.land/bubbletea/v2.Model"]
 
 [linters.settings.lll]
 line-length = 120

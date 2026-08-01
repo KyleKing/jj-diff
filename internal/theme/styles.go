@@ -3,22 +3,26 @@
 // startup and treated as immutable afterwards.
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 // Exported color variables.
 var (
-	Primary         lipgloss.Color
-	Accent          lipgloss.Color
-	Secondary       lipgloss.Color
-	Text            lipgloss.Color
-	SelectedBg      lipgloss.Color
-	MutedBg         lipgloss.Color
-	SoftMutedBg     lipgloss.Color
-	ModalBg         lipgloss.Color
-	AddedLine       lipgloss.Color
-	DeletedLine     lipgloss.Color
-	WordDiffAddedBg lipgloss.Color
-	WordDiffDelBg   lipgloss.Color
+	Primary         color.Color
+	Accent          color.Color
+	Secondary       color.Color
+	Text            color.Color
+	SelectedBg      color.Color
+	MutedBg         color.Color
+	SoftMutedBg     color.Color
+	ModalBg         color.Color
+	AddedLine       color.Color
+	DeletedLine     color.Color
+	WordDiffAddedBg color.Color
+	WordDiffDelBg   color.Color
 )
 
 // Exported style variables.

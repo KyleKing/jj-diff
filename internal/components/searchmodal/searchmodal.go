@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -159,7 +159,7 @@ func renderModal(content string, width, height int) string {
 		lipgloss.Center,
 		modal,
 		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(theme.ModalBg),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(theme.ModalBg)),
 	)
 
 	return overlay

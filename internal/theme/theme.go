@@ -1,26 +1,27 @@
 package theme
 
 import (
+	"image/color"
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Theme defines semantic color roles.
 type Theme struct {
-	Primary         lipgloss.Color
-	Accent          lipgloss.Color
-	Secondary       lipgloss.Color
-	Text            lipgloss.Color
-	SelectedBg      lipgloss.Color
-	MutedBg         lipgloss.Color
-	SoftMutedBg     lipgloss.Color
-	ModalBg         lipgloss.Color
-	AddedLine       lipgloss.Color
-	DeletedLine     lipgloss.Color
-	WordDiffAddedBg lipgloss.Color
-	WordDiffDelBg   lipgloss.Color
+	Primary         color.Color
+	Accent          color.Color
+	Secondary       color.Color
+	Text            color.Color
+	SelectedBg      color.Color
+	MutedBg         color.Color
+	SoftMutedBg     color.Color
+	ModalBg         color.Color
+	AddedLine       color.Color
+	DeletedLine     color.Color
+	WordDiffAddedBg color.Color
+	WordDiffDelBg   color.Color
 }
 
 // Latte returns Catppuccin Latte (light theme).
@@ -70,7 +71,7 @@ func Detect() Theme {
 		}
 	}
 
-	if lipgloss.HasDarkBackground() {
+	if lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
 		return Macchiato()
 	}
 

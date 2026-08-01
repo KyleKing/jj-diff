@@ -3,7 +3,7 @@ package model
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -43,13 +43,19 @@ func (m Model) WithDestination(dest string) Model {
 }
 
 // KeyPress builds the message Bubble Tea sends for a printable key.
-func KeyPress(key rune) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}}
+func KeyPress(key rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: key, Text: string(key)}
 }
 
-// SpecialKey builds the message Bubble Tea sends for a named key such as tea.KeyEsc.
-func SpecialKey(keyType tea.KeyType) tea.KeyMsg {
-	return tea.KeyMsg{Type: keyType}
+// SpecialKey builds the message Bubble Tea sends for a named key such as tea.KeyEsc. Text stays
+// empty, which is how Bubble Tea marks a key that does not produce a printable character.
+func SpecialKey(code rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: code}
+}
+
+// CtrlKey builds the message Bubble Tea sends for key held with control, such as ctrl+d.
+func CtrlKey(key rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: key, Mod: tea.ModCtrl}
 }
 
 // Update runs one Update round and asserts the result is still a Model, discarding the command.

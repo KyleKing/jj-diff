@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/kyleking/jj-diff/internal/components/commitmsg"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
@@ -115,6 +115,7 @@ const (
 	keyCtrlC     = "ctrl+c"
 	keyDown      = "down"
 	keyEnter     = "enter"
+	keySpace     = "space"
 )
 
 // Sentinel errors the apply paths return when the model's own state, rather than jj or the
@@ -405,7 +406,7 @@ func (m Model) loadRevisions() tea.Cmd {
 // callers chaining updates can assert it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 
 	case tea.WindowSizeMsg:
@@ -461,7 +462,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	key := msg.String()
 
 	if key == "esc" {
@@ -607,7 +608,7 @@ func (m *Model) handleActionKey(key string) (Model, tea.Cmd, bool) {
 		model = m.enterVisualMode()
 	case "r":
 		return *m, m.loadDiff(), true
-	case " ":
+	case keySpace:
 		model = m.toggleCurrentSelection()
 	case "a":
 		model, cmd = m.applyCurrentMode()
@@ -998,7 +999,7 @@ func (m Model) toggleHelp() (Model, tea.Cmd) {
 
 // routeToOverlay hands the key to whichever overlay is visible. The third result reports whether one
 // took the key, because an overlay handler may legitimately return a nil command.
-func (m Model) routeToOverlay(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
+func (m Model) routeToOverlay(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	var (
 		model Model
 		cmd   tea.Cmd
@@ -1026,7 +1027,7 @@ func (m Model) routeToOverlay(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	return model, cmd, true
 }
 
-func (m Model) handleDestPickerKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleDestPickerKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
 		m.destPicker.Hide()
@@ -1054,7 +1055,7 @@ func (m Model) handleDestPickerKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 //nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
-func (m Model) handleSplitAssignKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleSplitAssignKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
 		m.splitAssign.Hide()
@@ -1087,7 +1088,7 @@ func (m Model) handleSplitAssignKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleSplitPreviewKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleSplitPreviewKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
 		m.splitPreview.Hide()
@@ -1105,7 +1106,7 @@ func (m Model) handleSplitPreviewKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 //nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
-func (m Model) handleCommitMsgKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleCommitMsgKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
 		m.commitMsg.Hide()
@@ -1129,8 +1130,8 @@ func (m Model) handleCommitMsgKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		if len(msg.String()) == 1 {
-			m.commitMsg.AppendChar(rune(msg.String()[0]))
+		for _, r := range msg.Key().Text {
+			m.commitMsg.AppendChar(r)
 		}
 
 		return m, nil
@@ -1357,7 +1358,7 @@ func (m Model) enterSearchMode() (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleSearchKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case keyEnter:
 		m.searchModal.Hide()
@@ -1380,8 +1381,8 @@ func (m Model) handleSearchKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		if len(msg.String()) == 1 {
-			m.searchState.Query += msg.String()
+		if text := msg.Key().Text; text != "" {
+			m.searchState.Query += text
 			m.searchModal.SetQuery(m.searchState.Query)
 
 			return m.executeSearch()
@@ -1477,7 +1478,7 @@ func (m Model) getLineContentMatches(filePath string, hunkIdx, lineIdx int) []di
 }
 
 //nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
-func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleFileListFilterKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.fileList.SetFilterMode(false)
@@ -1500,9 +1501,9 @@ func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		if len(msg.String()) == 1 {
+		if text := msg.Key().Text; text != "" {
 			query := m.fileList.FilterQuery()
-			query += msg.String()
+			query += text
 			m.fileList.SetFilterQuery(query)
 		}
 
@@ -1511,7 +1512,7 @@ func (m Model) handleFileListFilterKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 //nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
-func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleFileFinderKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case keyEnter:
 		if fileIdx, ok := m.fileFinder.GetSelected().(int); ok {
@@ -1546,9 +1547,9 @@ func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		if len(msg.String()) == 1 {
+		if text := msg.Key().Text; text != "" {
 			query := m.fileFinder.Query()
-			query += msg.String()
+			query += text
 			m.fileFinder.SetQuery(query)
 		}
 
@@ -1556,9 +1557,18 @@ func (m Model) handleFileFinderKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 }
 
-// View renders the two panels, or the overlay that is up. It returns the empty string until the
+// View wraps the rendered content in the alternate screen buffer, which the program stays in for
+// its whole run.
+func (m Model) View() tea.View {
+	view := tea.NewView(m.render())
+	view.AltScreen = true
+
+	return view
+}
+
+// render draws the two panels, or the overlay that is up. It returns the empty string until the
 // first tea.WindowSizeMsg arrives, because every width is derived from m.width.
-func (m Model) View() string {
+func (m Model) render() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit", m.err)
 	}
