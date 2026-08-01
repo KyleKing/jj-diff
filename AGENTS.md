@@ -1,139 +1,138 @@
 # AI Agent Guidelines for jj-diff
 
-Guidelines for AI coding assistants working on this Go project. Project-specific
-architecture, patterns, and domain context live in [DESIGN.md](DESIGN.md).
+How to work in this Go project. Architecture and domain context live in
+[DESIGN.md](DESIGN.md); task and release mechanics live in
+[CONTRIBUTING.md](CONTRIBUTING.md). This file covers only what those two do not.
 
-## Package Structure
+## Verify before you report
+
+CI runs four jobs and `mise run ci` is only the first, so a green `mise run ci` is not
+a green build. Reproduce all four locally:
+
+```bash
+hk check --all                            # every hook step; also re-runs `mise run ci`
+mise exec -- golangci-lint run ./...      # separate CI job, not an hk step
+mise exec -- golangci-lint config verify  # `run` accepts v1 schema keys silently
+mise run bench                            # compiles and runs the benchmarks
+```
+
+Run linters to completion rather than stopping at the first hit: add
+`--max-issues-per-linter=0 --max-same-issues=0`. A local run that passes while CI fails
+means the two commands differ, so read the workflow step and match its flags.
+
+Known false negatives, each of which has already cost a session:
+
+- **Hooks look uninstalled when they are not.** `hk install --mise` on git 2.55+
+  writes `hook.hk-*.command` into `.git/config` and creates no `.git/hooks/pre-commit`.
+  Check with `git config --get-regexp '^hook\.'` (expect six entries) or
+  `git hook list pre-commit` (expect `hk-pre-commit`). A file-existence check is wrong.
+- **Never pipe or chain `git commit`.** `git commit … | tail` reports the pipe's exit
+  code, so a failing hook looks like success and the follow-up push ships nothing.
+  Commit as its own command, then confirm with `git log -1`. Hooks rewrite files here;
+  when one fails that way, `git add -A` its edits and commit again.
+- **A release is verified by distinct hashes, not asset count.** Ten assets can be one
+  binary published ten times. Confirm with
+  `gh release download <tag> -p checksums.txt -O - | awk '{print $1}' | sort -u | wc -l`
+  and expect the same number as there are binaries.
+
+When a check fails, fix the cause. Do not skip a test, widen a timeout, or disable a
+linter to get to green. Three fix-and-push rounds with no new root cause means stop and
+report what you found.
+
+## Layout
 
 ```
 jj-diff/
-├── cmd/jj-diff/      # CLI entry point
+├── cmd/jj-diff/          # main package, kept thin
 ├── internal/
-│   ├── model/        # Core TEA model (orchestrator)
-│   ├── jj/           # jj CLI integration
-│   ├── diff/         # Parser and patch generator
-│   ├── search/       # Search functionality
-│   ├── fuzzy/        # Fuzzy matching
-│   ├── components/   # UI components
-│   ├── config/       # Configuration
-│   └── theme/        # Catppuccin themes
+│   ├── model/            # core TEA model (orchestrator)
+│   ├── jj/               # jj CLI integration
+│   ├── diff/             # parser and patch generator
+│   ├── search/           # search functionality
+│   ├── fuzzy/            # fuzzy matching
+│   ├── components/       # UI components
+│   ├── config/           # configuration
+│   └── theme/            # Catppuccin themes
+├── tests/integration/    # end-to-end tests
 └── go.mod
 ```
 
-- One package, one purpose; short lowercase names with no underscores (`httputil`, not `http_util`)
-- Avoid grab-bag packages (`util`, `common`, `misc`)
-- `internal/` prevents external imports at the compiler level
-- Group related types and their methods in one file named after the primary type (`user.go`, `user_test.go`); keep `main.go` thin
+One package, one purpose. Short lowercase names, no underscores (`httputil`, not
+`http_util`), and no grab-bags (`util`, `common`, `misc`). Name a file after the
+primary type it holds (`user.go`, `user_test.go`). `internal/` blocks outside imports at
+the compiler level.
 
-## Code Style
+## Go conventions
 
-- Favor small, composable, single-responsibility functions and composition over inheritance
-- Define interfaces where they are consumed, not where implemented, and keep them to 1-3 methods
-- Accept a `context.Context` as the first argument for cancellable or I/O-bound work
-- Name with MixedCaps and keep acronyms uppercase (`ServeHTTP`, `userID`, `GetHTTPClient`)
-- Use the functional-options pattern for constructors with optional configuration:
+- Define interfaces where they are consumed, not where implemented; keep them to 1-3
+  methods and add one only once a consumer needs it
+- Take `context.Context` as the first argument for cancellable or I/O-bound work
+- MixedCaps naming with uppercase acronyms (`ServeHTTP`, `userID`, `GetHTTPClient`)
+- Functional options for constructors with optional configuration (`WithTimeout(d)`)
+- Return errors instead of panicking outside truly unrecoverable states, and wrap with
+  context: `fmt.Errorf("loading config: %w", err)`
+- Inspect with `errors.Is` / `errors.As`; define types for domain-specific errors
+- Validate at boundaries and trust internal code (parse, don't validate)
+- Doc-comment exported symbols, starting with the symbol name, describing non-obvious
+  behavior and invariants rather than restating the types
 
-```go
-type Option func(*Server)
-
-func WithTimeout(d time.Duration) Option {
-    return func(s *Server) { s.timeout = d }
-}
-
-func NewServer(addr string, opts ...Option) *Server {
-    s := &Server{addr: addr, timeout: 30 * time.Second}
-    for _, opt := range opts {
-        opt(s)
-    }
-    return s
-}
-```
-
-## Error Handling
-
-- Return errors rather than panicking outside truly unrecoverable states
-- Wrap with context: `fmt.Errorf("doing something: %w", err)`
-- Inspect with `errors.Is` / `errors.As`; define custom types for domain-specific errors
-- Validate at system boundaries and trust internal code (parse, don't validate)
-
-## Comments and Documentation
-
-- Code should be self-explanatory; do not comment what the code plainly does
-- Doc-comment exported symbols, describing non-obvious behavior and invariants rather than restating types
-- Skip docstrings on self-explanatory private helpers
+Avoid: naked returns, functions past ~50 lines, deep nesting (return early), ignored
+errors (`_ = doThing()` is almost always wrong), and shared global state (pass
+dependencies explicitly).
 
 ## Testing
 
-- Prefer table-driven tests with subtests via `t.Run`
-- Use the `_test` package suffix for black-box tests and place tests next to the code they cover
+Table-driven tests with subtests via `t.Run`, placed next to the code they cover, in a
+`_test` package for black-box coverage. `mise run test:coverage-min` enforces the 70%
+floor.
 
-```go
-func TestAdd(t *testing.T) {
-    tests := []struct {
-        name     string
-        a, b     int
-        expected int
-    }{
-        {"positive", 2, 3, 5},
-        {"negative", -1, -1, -2},
-    }
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            if got := Add(tt.a, tt.b); got != tt.expected {
-                t.Errorf("Add(%d, %d) = %d; want %d", tt.a, tt.b, got, tt.expected)
-            }
-        })
-    }
-}
-```
+Golden fixtures are byte-exact: regenerate with `go test ./... -update` and review the
+diff, never hand-edit. `hk.pkl` excludes `**/*.golden` from the whitespace fixers, so a
+fixture under any other name (`testdata/golden_*.txt`) will be silently rewritten on
+commit; either rename it or add its glob to that exclude.
 
-## TUI Testing
+## TUI testing
 
-For interactive terminal UIs (e.g. Bubble Tea, tview), a plain subprocess pipe won't trigger real
-rendering — the program detects a non-tty and falls back to non-interactive behavior. Exploratory
-"does it work" testing needs a real PTY:
+A subprocess pipe is not a terminal, so the program detects a non-tty and never renders.
+Exploratory checks need a real PTY: run it under `tmux new -d -x 80 -y 24 <cmd>`, drive
+it with `tmux send-keys`, and read what actually rendered with `tmux capture-pane -p`
+(`-e` keeps ANSI codes). This is the fastest way to answer "does it look right" without
+writing test code first. For scripted tests prefer
+`github.com/charmbracelet/x/exp/teatest`, which drives the `tea.Model` directly and
+diffs golden frames; fall back to `github.com/creack/pty`, or
+`github.com/Netflix/go-expect` for expect-style send/wait-for-pattern interaction, on
+non-Bubble Tea binaries.
 
-- Manual/exploratory: run the binary inside `tmux` (`tmux new -d -x 80 -y 24 <cmd>`), drive it with
-  `tmux send-keys`, and inspect what actually rendered with `tmux capture-pane -p` (plain text) or
-  `-e` (with ANSI/color codes preserved). This is the fastest way to answer "does it look right"
-  without writing test code first.
-- Scripted/automated: `github.com/creack/pty` to spawn the process attached to a pseudo-terminal, or
-  `github.com/Netflix/go-expect` for expect-style send/wait-for-pattern interaction. For Bubble Tea
-  specifically, prefer `github.com/charmbracelet/x/exp/teatest`, which drives the `tea.Model` directly
-  without a real PTY and supports golden-file output comparison.
+Judging whether it looks right means checking wrapping and truncation at the target
+width, no overlapping or stale content between re-renders, cursor and alt-screen state
+restored on every quit path, and no ANSI escapes bleeding into piped output.
 
-Evaluating whether it "looks right": check for correct wrapping/truncation at the target terminal
-width, no overlapping or stale content between re-renders, cursor and alt-screen state restored on
-every quit path (not just the happy one), and no leftover ANSI escape sequences bleeding into
-piped/non-tty output.
+Exercise deliberately, because each of these renders fine in the happy path and breaks
+elsewhere: resize mid-session (`SIGWINCH`) and the minimum supported size; every quit
+path independently (`q`, `ctrl-c`, `esc`); full keyboard navigation including tab focus
+order and wraparound at list boundaries; empty and single-item states; rapid repeated
+keypresses against a debounced action; multi-byte and unicode paste; and piped non-tty
+stdout degrading instead of hanging.
 
-Corner cases worth exercising deliberately:
-- Terminal resize mid-session (`SIGWINCH`) and minimum supported dimensions
-- Every quit path independently (`q`, `ctrl-c`, `esc`) — each must restore terminal state
-- Full keyboard navigation: tab/shift-tab focus order, arrow keys, and wraparound at list boundaries
-- Empty/zero-item and single-item states, not just the populated case
-- Rapid repeated keypresses (double-fire on a debounced action) and paste of multi-byte/unicode input
-- Piped stdin/stdout (non-tty) — the program should degrade gracefully, not hang or panic
+Turn every bug found this way into a test named for its trigger
+(`TestQuit_RestoresCursorOnCtrlC`), parametrized over terminal size rather than
+hardcoding one.
 
-When exploratory testing turns up a bug, translate it into a regression test before moving on rather
-than just fixing it ad hoc:
-- Golden-file/snapshot tests (`teatest.RequireEqualOutput`, regenerated with `-update` only when the
-  render intentionally changed) lock down the exact rendered frame for a given input sequence
-- Scripted PTY/expect tests assert on the specific prompt or output pattern that was missing or wrong
-- Name the test after the bug's trigger condition (e.g. `TestResize_MinHeight`,
-  `TestQuit_RestoresCursorOnCtrlC`) so a future regression is traceable to what broke
-- Prefer parametrizing over terminal size rather than hardcoding one width/height, since layout bugs
-  are usually size-dependent
+## Template-managed files
 
-## Anti-Patterns to Avoid
+This project is generated from
+[my_go_template](https://github.com/KyleKing/my_go_template). Edit the template, not the
+render, for anything under `.github/workflows/`, `.golangci.toml`, `hk.pkl`,
+`.goreleaser.yml`, or `.config/mise/conf.d/template.toml` — a `copier update` overwrites
+local edits there. Project-specific mise tasks belong in a sibling conf.d file
+(CONTRIBUTING.md explains the load order that makes the filename matter).
 
-- Naked returns, functions over ~50 lines, and deep nesting (prefer early returns)
-- Interface pollution (define interfaces only once a consumer needs them)
-- Ignored errors (`_ = doThing()` is almost always wrong)
-- Shared global state; pass dependencies explicitly
+After `copier update --UNSAFE --conflict=rej --defaults`, re-apply real local content
+from each `.rej`, discard hunks the new template supersedes, and delete the files (a
+hook blocks committing them). Two specifics:
 
-## Workflow
-
-- Run `mise run ci` (tests + build) before committing; `mise run format` or `hk fix` auto-fixes lint and formatting
-- Conventional commits are enforced by commitizen
-- Do not stage, commit, or push without explicit instruction
+- `.cz.toml` is re-rendered with `version = "0.0.0"`. Restore the real version by hand
+  or the next release cuts `v0.0.1`.
+- **The same file conflicting on two consecutive updates means an answer is wrong, not
+  that the patch needs re-applying.** Read `.copier-answers.yml` first and fix the
+  answer; a typo there gets faithfully re-rendered every pass.
