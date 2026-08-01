@@ -15,6 +15,15 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Row layout of the unified view, in terminal cells. A rendered row is the cursor indicator, the
+// line-number gutter when it is drawn, the +/-/space marker, and a space, so the content that fits
+// is the pane width less that chrome.
+const (
+	halfDivisor             = 2
+	numberedLineChromeWidth = 8
+	plainLineChromeWidth    = 4
+)
+
 // MatchRange is a half-open byte range within one line's raw content, used to underlay search hits.
 // Offsets are byte offsets rather than rune or column positions.
 type MatchRange struct {
@@ -50,22 +59,29 @@ type LineIndex struct {
 	TotalLines     int
 }
 
-// FindHunkForOffset maps a rendered row to its hunk and the row within that hunk, where row 0 is the
-// hunk header. An offset past the last row clamps to the end of the final hunk, and an empty index
-// returns zeroes.
-func (idx *LineIndex) FindHunkForOffset(offset int) (hunkIdx, lineInHunk int) {
+// HunkPosition locates a rendered row. HunkIdx is the hunk the row belongs to and LineInHunk is the
+// row within it, where row 0 is the hunk header.
+type HunkPosition struct {
+	HunkIdx    int
+	LineInHunk int
+}
+
+// FindHunkForOffset maps a rendered row to its hunk and the row within that hunk. An offset past the
+// last row clamps to the end of the final hunk, and an empty index returns the zero position.
+func (idx *LineIndex) FindHunkForOffset(offset int) HunkPosition {
 	if len(idx.HunkOffsets) == 0 {
-		return 0, 0
+		return HunkPosition{}
 	}
 
 	if offset >= idx.TotalLines {
 		lastHunk := len(idx.HunkOffsets) - 1
-		return lastHunk, idx.HunkLineCounts[lastHunk]
+
+		return HunkPosition{HunkIdx: lastHunk, LineInHunk: idx.HunkLineCounts[lastHunk]}
 	}
 
 	left, right := 0, len(idx.HunkOffsets)-1
 	for left < right {
-		mid := (left + right + 1) / 2
+		mid := (left + right + 1) / halfDivisor
 		if idx.HunkOffsets[mid] <= offset {
 			left = mid
 		} else {
@@ -73,10 +89,7 @@ func (idx *LineIndex) FindHunkForOffset(offset int) (hunkIdx, lineInHunk int) {
 		}
 	}
 
-	hunkIdx = left
-	lineInHunk = offset - idx.HunkOffsets[hunkIdx]
-
-	return hunkIdx, lineInHunk
+	return HunkPosition{HunkIdx: left, LineInHunk: offset - idx.HunkOffsets[left]}
 }
 
 // Model is the diff pane. It holds no cursor authority of its own: the parent model pushes the
@@ -286,12 +299,12 @@ func (m *Model) Scroll(delta int) {
 
 // ScrollHalfPageDown scrolls down half of viewHeight. Pass the pane's height, not the terminal's.
 func (m *Model) ScrollHalfPageDown(viewHeight int) {
-	m.Scroll(viewHeight / 2)
+	m.Scroll(viewHeight / halfDivisor)
 }
 
 // ScrollHalfPageUp scrolls up half of viewHeight. Pass the pane's height, not the terminal's.
 func (m *Model) ScrollHalfPageUp(viewHeight int) {
-	m.Scroll(-viewHeight / 2)
+	m.Scroll(-viewHeight / halfDivisor)
 }
 
 // ScrollFullPageDown scrolls down viewHeight lines. Pass the pane's height, not the terminal's.
@@ -304,7 +317,7 @@ func (m *Model) ScrollFullPageUp(viewHeight int) {
 	m.Scroll(-viewHeight)
 }
 
-func (m Model) calculateTotalLines() int {
+func (m *Model) calculateTotalLines() int {
 	if m.fileChange == nil {
 		return 0
 	}
@@ -320,7 +333,7 @@ func (m Model) calculateTotalLines() int {
 
 // View renders the pane at the given size, padding out to it when the content is shorter. The
 // focused flag only changes cursor styling, so an unfocused pane still shows where the cursor sits.
-func (m Model) View(width, height int, focused bool) string {
+func (m *Model) View(width, height int, focused bool) string {
 	if m.fileChange == nil {
 		return padToSize("No file selected", width, height)
 	}
@@ -346,13 +359,13 @@ func (m Model) View(width, height int, focused bool) string {
 		}
 		sbs := NewSideBySideView()
 
-		return sbs.Render(m.fileChange, ctx)
+		return sbs.Render(m.fileChange, &ctx)
 	}
 
-	return m.renderUnified(width, height, focused)
+	return m.renderUnified(width, height)
 }
 
-func (m Model) renderUnified(width, height int, focused bool) string {
+func (m *Model) renderUnified(width, height int) string {
 	var lines []string
 
 	if m.lineIndex == nil || len(m.fileChange.Hunks) == 0 {
@@ -363,9 +376,10 @@ func (m Model) renderUnified(width, height int, focused bool) string {
 		return strings.Join(lines, "\n")
 	}
 
-	startHunkIdx, lineInHunk := m.lineIndex.FindHunkForOffset(m.offset)
+	start := m.lineIndex.FindHunkForOffset(m.offset)
+	lineInHunk := start.LineInHunk
 
-	for hunkIdx := startHunkIdx; hunkIdx < len(m.fileChange.Hunks) && len(lines) < height; hunkIdx++ {
+	for hunkIdx := start.HunkIdx; hunkIdx < len(m.fileChange.Hunks) && len(lines) < height; hunkIdx++ {
 		hunk := m.fileChange.Hunks[hunkIdx]
 
 		if lineInHunk == 0 {
@@ -402,84 +416,117 @@ func (m Model) renderUnified(width, height int, focused bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
-	lineNumStr := ""
-	if m.showLineNumbers {
-		switch line.Type {
-		case diff.LineAddition:
-			lineNumStr = fmt.Sprintf("%4d ", line.NewLineNum)
-		case diff.LineDeletion:
-			lineNumStr = fmt.Sprintf("%4d ", line.OldLineNum)
-		default:
-			lineNumStr = fmt.Sprintf("%4d ", line.NewLineNum)
-		}
-	}
+func (m *Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
+	isCurrentLine := m.lineCursor == lineIdx && hunkIdx == m.selectedHunk
+	isInVisualRange := m.isVisualMode && hunkIdx == m.selectedHunk && m.isLineInVisualRange(lineIdx)
+	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
 
-	prefix := line.Type.String()
-	content := line.Content
+	lineText := fmt.Sprintf(
+		"%s%s%s %s",
+		lineIndicator(isInVisualRange, isSelected, isCurrentLine),
+		m.lineNumberGutter(line),
+		line.Type.String(),
+		m.decorateContent(line, width, hunkIdx, lineIdx),
+	)
 
-	maxContentWidth := width - 8
+	style := lineStyle(line.Type, isInVisualRange, isCurrentLine)
+
+	return style.Render(truncateOrPad(lineText, width))
+}
+
+func (m *Model) lineNumberGutter(line diff.Line) string {
 	if !m.showLineNumbers {
-		maxContentWidth = width - 4
+		return ""
 	}
+
+	if line.Type == diff.LineDeletion {
+		return fmt.Sprintf("%4d ", line.OldLineNum)
+	}
+
+	return fmt.Sprintf("%4d ", line.NewLineNum)
+}
+
+func (m *Model) decorateContent(line diff.Line, width, hunkIdx, lineIdx int) string {
+	maxContentWidth := width - numberedLineChromeWidth
+	if !m.showLineNumbers {
+		maxContentWidth = width - plainLineChromeWidth
+	}
+
+	content := line.Content
 	if len(content) > maxContentWidth {
 		content = content[:maxContentWidth]
 	}
 
-	if m.wordLevelDiff && m.wordDiffCache != nil && line.Type != diff.LineContext {
-		if hunkDiffs, ok := m.wordDiffCache.HunkDiffs[hunkIdx]; ok {
-			if wordDiff, ok := hunkDiffs[lineIdx]; ok {
-				content = m.applyWordDiffHighlight(line.Content, line.Type, wordDiff)
-			}
-		}
+	if wordDiff, ok := m.lookupWordDiff(line.Type, hunkIdx, lineIdx); ok {
+		content = applyWordDiffHighlight(line.Content, line.Type, wordDiff)
 	} else if m.enableHighlight && m.fileChange != nil && line.Type == diff.LineContext {
-		highlighted := m.highlighter.HighlightLine(m.fileChange.Path, content)
-		if highlighted != "" {
+		if highlighted := m.highlighter.HighlightLine(m.fileChange.Path, content); highlighted != "" {
 			content = highlighted
 		}
 	}
 
 	if m.isSearching && m.getMatches != nil {
-		matches := m.getMatches(hunkIdx, lineIdx)
-		if len(matches) > 0 {
-			content = m.highlightMatches(content, matches)
+		if matches := m.getMatches(hunkIdx, lineIdx); len(matches) > 0 {
+			content = highlightMatches(content, matches)
 		}
 	}
 
-	isCurrentLine := m.lineCursor == lineIdx && hunkIdx == m.selectedHunk
-	isInVisualRange := m.isVisualMode && hunkIdx == m.selectedHunk && m.isLineInVisualRange(lineIdx)
-	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
+	return content
+}
 
-	lineIndicator := "  "
-	if isInVisualRange {
-		lineIndicator = "█ "
-	} else if isSelected {
-		lineIndicator = "• "
-	} else if isCurrentLine {
-		lineIndicator = "> "
+func (m *Model) lookupWordDiff(
+	lineType diff.LineType,
+	hunkIdx, lineIdx int,
+) (diff.WordDiffResult, bool) {
+	if !m.wordLevelDiff || m.wordDiffCache == nil || lineType == diff.LineContext {
+		return diff.WordDiffResult{}, false
 	}
 
-	lineText := fmt.Sprintf("%s%s%s %s", lineIndicator, lineNumStr, prefix, content)
+	hunkDiffs, ok := m.wordDiffCache.HunkDiffs[hunkIdx]
+	if !ok {
+		return diff.WordDiffResult{}, false
+	}
 
-	// Apply styling
+	wordDiff, ok := hunkDiffs[lineIdx]
+
+	return wordDiff, ok
+}
+
+func lineIndicator(isInVisualRange, isSelected, isCurrentLine bool) string {
+	switch {
+	case isInVisualRange:
+		return "█ "
+	case isSelected:
+		return "• "
+	case isCurrentLine:
+		return "> "
+	default:
+		return "  "
+	}
+}
+
+func lineStyle(lineType diff.LineType, isInVisualRange, isCurrentLine bool) lipgloss.Style {
 	style := lipgloss.NewStyle()
-	switch line.Type {
+
+	switch lineType {
+	case diff.LineContext:
 	case diff.LineAddition:
 		style = style.Foreground(theme.AddedLine)
 	case diff.LineDeletion:
 		style = style.Foreground(theme.DeletedLine)
 	}
 
-	if isInVisualRange {
-		style = style.Background(theme.SelectedBg)
-	} else if isCurrentLine {
-		style = style.Background(theme.MutedBg)
+	switch {
+	case isInVisualRange:
+		return style.Background(theme.SelectedBg)
+	case isCurrentLine:
+		return style.Background(theme.MutedBg)
 	}
 
-	return style.Render(truncateOrPad(lineText, width))
+	return style
 }
 
-func (m Model) isLineInVisualRange(lineIdx int) bool {
+func (m *Model) isLineInVisualRange(lineIdx int) bool {
 	if !m.isVisualMode {
 		return false
 	}
@@ -492,7 +539,7 @@ func (m Model) isLineInVisualRange(lineIdx int) bool {
 	return lineIdx >= start && lineIdx <= end
 }
 
-func (m Model) highlightMatches(content string, matches []MatchRange) string {
+func highlightMatches(content string, matches []MatchRange) string {
 	if len(matches) == 0 {
 		return content
 	}
@@ -530,7 +577,7 @@ func (m Model) highlightMatches(content string, matches []MatchRange) string {
 	return strings.Join(segments, "")
 }
 
-func (m Model) applyWordDiffHighlight(
+func applyWordDiffHighlight(
 	content string,
 	lineType diff.LineType,
 	wordDiff diff.WordDiffResult,
@@ -567,7 +614,7 @@ func (m Model) applyWordDiffHighlight(
 	return result.String()
 }
 
-func (m Model) renderHunkHeader(
+func (m *Model) renderHunkHeader(
 	text string,
 	width, hunkIdx int,
 	isCurrent, isSelected bool,

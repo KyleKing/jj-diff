@@ -11,6 +11,8 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+const panelFiles = "files"
+
 // Context is what the footer describes. Destination is omitted from the render when empty, and
 // FocusedPanel is "files" or the diff pane, which selects which hints are shown.
 type Context struct {
@@ -37,7 +39,7 @@ func (m Model) View(width int, modeText, source, destination string, isVisualMod
 		Source:       source,
 		Destination:  destination,
 		IsVisualMode: isVisualMode,
-		FocusedPanel: "files",
+		FocusedPanel: panelFiles,
 	})
 }
 
@@ -68,20 +70,20 @@ func (m Model) ViewWithContext(width int, ctx Context) string {
 	return style.Render(truncateOrPad(content, width))
 }
 
-func (m Model) getContextHints(ctx Context) string {
+func (Model) getContextHints(ctx Context) string {
 	if ctx.IsVisualMode {
 		return "j/k:select | Space:confirm | Esc:cancel"
 	}
 
 	if ctx.Mode == "Diff-Editor" {
-		if ctx.FocusedPanel == "files" {
+		if ctx.FocusedPanel == panelFiles {
 			return "j/k:nav | Tab:diff | a:apply | ?:help"
 		}
 
 		return "j/k:scroll | Space:keep/drop | a:apply | ?:help"
 	}
 
-	if ctx.FocusedPanel == "files" {
+	if ctx.FocusedPanel == panelFiles {
 		return "j/k:nav | Tab:diff | /:search | f:find | ?:help"
 	}
 

@@ -14,6 +14,22 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Layout of the centered modal, in terminal cells. The modal shrinks with the terminal until it
+// hits minModalWidth and stops growing at maxModalWidth. The two panels split that width evenly
+// minus the " | " separator between them.
+const (
+	changeIDReserve     = 10
+	descriptionReserve  = 15
+	ellipsisWidth       = 3
+	maxModalWidth       = 100
+	minModalWidth       = 60
+	modalPaddingX       = 2
+	modalPaddingY       = 1
+	modalWidthMargin    = 20
+	panelCount          = 2
+	panelSeparatorWidth = 3
+)
+
 // SplitTag is the single character a hunk carries while a multi-way split is being assembled.
 // It is declared here rather than shared with the parent model so this component imports nothing
 // from it.
@@ -171,52 +187,36 @@ func (m *Model) AssignNewCommitToTag(tag SplitTag, description string) {
 
 // GetDestinations returns the tag-to-destination map by reference, so later assignments are visible
 // through a map the caller already holds. A tag the user never assigned is absent.
-func (m Model) GetDestinations() map[SplitTag]*DestinationSpec {
+func (m *Model) GetDestinations() map[SplitTag]*DestinationSpec {
 	return m.destinations
 }
 
 // View renders the modal centered in the given terminal size, returning the empty string while hidden.
-func (m Model) View(width, height int) string {
+func (m *Model) View(width, height int) string {
 	if !m.visible {
 		return ""
 	}
 
-	maxHeight := height - 6
-	if maxHeight < 10 {
-		maxHeight = 10
-	}
+	modalWidth := clamp(width-modalWidthMargin, minModalWidth, maxModalWidth)
+	leftWidth := modalWidth / panelCount
+	rightWidth := modalWidth - leftWidth - panelSeparatorWidth
 
-	modalWidth := width - 20
-	if modalWidth < 60 {
-		modalWidth = 60
-	}
-	if modalWidth > 100 {
-		modalWidth = 100
-	}
-
-	var lines []string
-	lines = append(lines, styleHeader("Assign Destinations to Tags", modalWidth))
-	lines = append(lines, "")
-
-	leftWidth := modalWidth / 2
-	rightWidth := modalWidth - leftWidth - 3
-
-	lines = append(lines, m.renderSplitView(leftWidth, rightWidth, maxHeight))
-
-	lines = append(lines, "")
-	lines = append(
-		lines,
+	lines := []string{
+		styleHeader("Assign Destinations to Tags", modalWidth),
+		"",
+		m.renderSplitView(leftWidth, rightWidth),
+		"",
 		styleFooter("Tab: Switch Panel | Enter: Assign | N: New Commit | Esc: Cancel", modalWidth),
-	)
+	}
 
 	content := strings.Join(lines, "\n")
 
 	return renderModal(content, width, height)
 }
 
-func (m Model) renderSplitView(leftWidth, rightWidth, maxHeight int) string {
-	tagLines := m.renderTagList(leftWidth, maxHeight)
-	revLines := m.renderRevisionList(rightWidth, maxHeight)
+func (m *Model) renderSplitView(leftWidth, rightWidth int) string {
+	tagLines := m.renderTagList(leftWidth)
+	revLines := m.renderRevisionList(rightWidth)
 
 	maxLines := len(tagLines)
 	if len(revLines) > maxLines {
@@ -230,7 +230,7 @@ func (m Model) renderSplitView(leftWidth, rightWidth, maxHeight int) string {
 		revLines = append(revLines, strings.Repeat(" ", rightWidth))
 	}
 
-	var combined []string
+	combined := make([]string, 0, maxLines)
 	for i := range maxLines {
 		combined = append(combined, fmt.Sprintf("%s │ %s", tagLines[i], revLines[i]))
 	}
@@ -238,7 +238,7 @@ func (m Model) renderSplitView(leftWidth, rightWidth, maxHeight int) string {
 	return strings.Join(combined, "\n")
 }
 
-func (m Model) renderTagList(width, maxHeight int) []string {
+func (m *Model) renderTagList(width int) []string {
 	var lines []string
 
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(theme.Primary)
@@ -256,10 +256,10 @@ func (m Model) renderTagList(width, maxHeight int) []string {
 				line = fmt.Sprintf(
 					"[%s] → NEW: %s",
 					string(tag),
-					truncate(dest.Description, width-15),
+					truncate(dest.Description, width-descriptionReserve),
 				)
 			} else {
-				line = fmt.Sprintf("[%s] → %s", string(tag), truncate(dest.ChangeID, width-10))
+				line = fmt.Sprintf("[%s] → %s", string(tag), truncate(dest.ChangeID, width-changeIDReserve))
 			}
 		} else {
 			line = fmt.Sprintf("[%s] (unassigned)", string(tag))
@@ -275,7 +275,7 @@ func (m Model) renderTagList(width, maxHeight int) []string {
 	return lines
 }
 
-func (m Model) renderRevisionList(width, maxHeight int) []string {
+func (m *Model) renderRevisionList(width int) []string {
 	var lines []string
 
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(theme.Primary)
@@ -286,7 +286,7 @@ func (m Model) renderRevisionList(width, maxHeight int) []string {
 
 	for i, rev := range m.revisions {
 		isSelected := i == m.selectedRev
-		desc := truncate(rev.Description, width-15)
+		desc := truncate(rev.Description, width-descriptionReserve)
 		line := fmt.Sprintf("%-10s %s", rev.ChangeID, desc)
 
 		if isSelected && !m.focusOnTags {
@@ -297,6 +297,10 @@ func (m Model) renderRevisionList(width, maxHeight int) []string {
 	}
 
 	return lines
+}
+
+func clamp(value, lower, upper int) int {
+	return min(max(value, lower), upper)
 }
 
 func styleHeader(text string, width int) string {
@@ -327,8 +331,8 @@ func styleSelected(text string) string {
 
 func truncate(text string, width int) string {
 	if len(text) > width {
-		if width > 3 {
-			return text[:width-3] + "..."
+		if width > ellipsisWidth {
+			return text[:width-ellipsisWidth] + "..."
 		}
 
 		return text[:width]
@@ -339,8 +343,8 @@ func truncate(text string, width int) string {
 
 func truncateOrPad(text string, width int) string {
 	if len(text) > width {
-		if width > 3 {
-			return text[:width-3] + "..."
+		if width > ellipsisWidth {
+			return text[:width-ellipsisWidth] + "..."
 		}
 
 		return text[:width]
@@ -353,7 +357,7 @@ func renderModal(content string, termWidth, termHeight int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(1, 2)
+		Padding(modalPaddingY, modalPaddingX)
 
 	modal := borderStyle.Render(content)
 

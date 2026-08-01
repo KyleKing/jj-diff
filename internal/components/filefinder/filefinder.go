@@ -13,13 +13,22 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+const (
+	ellipsis            = "..."
+	matchTextMargin     = 2
+	maxResults          = 10
+	modalWidthMargin    = 4
+	preferredModalWidth = 80
+	viewChromeLines     = 8
+)
+
 // Model is the picker's state. The item and data slices are parallel, so a caller passing lists of
 // different lengths gets matches whose Original is missing.
 type Model struct {
 	query       string
 	matches     []fuzzy.Match
 	items       []string
-	itemData    []interface{}
+	itemData    []any
 	selectedIdx int
 	visible     bool
 }
@@ -34,7 +43,7 @@ func New() Model {
 
 // Show opens the picker over items, pairing each with the value at the same index in data, which is
 // what GetSelected returns. The query is cleared and every item matches until SetQuery narrows it.
-func (m *Model) Show(items []string, data []interface{}) {
+func (m *Model) Show(items []string, data []any) {
 	m.visible = true
 	m.query = ""
 	m.items = items
@@ -49,7 +58,7 @@ func (m *Model) Hide() {
 }
 
 // IsVisible reports whether the picker is open, which is how the parent decides to route keys here.
-func (m Model) IsVisible() bool {
+func (m *Model) IsVisible() bool {
 	return m.visible
 }
 
@@ -64,7 +73,7 @@ func (m *Model) SetQuery(query string) {
 }
 
 // Query returns the current search text.
-func (m Model) Query() string {
+func (m *Model) Query() string {
 	return m.query
 }
 
@@ -86,7 +95,7 @@ func (m *Model) SelectPrev() {
 }
 
 // GetSelected returns the data value paired with the highlighted match, or nil when nothing matches.
-func (m Model) GetSelected() interface{} {
+func (m *Model) GetSelected() any {
 	if m.selectedIdx >= 0 && m.selectedIdx < len(m.matches) {
 		return m.matches[m.selectedIdx].Original
 	}
@@ -96,67 +105,50 @@ func (m Model) GetSelected() interface{} {
 
 // View renders the picker centered in the given terminal size, returning the empty string while
 // hidden.
-func (m Model) View(width, height int) string {
+func (m *Model) View(width, height int) string {
 	if !m.visible {
 		return ""
 	}
 
-	modalWidth := 80
-	if modalWidth > width-4 {
-		modalWidth = width - 4
-	}
+	modalWidth := min(preferredModalWidth, width-modalWidthMargin)
 
-	var lines []string
-
-	// Title
 	title := "Find File"
-	lines = append(lines, styleTitle(title, modalWidth))
-	lines = append(lines, "")
-
-	// Search input
 	inputLine := fmt.Sprintf("Filter: %s█", m.query)
-	lines = append(lines, styleInput(inputLine, modalWidth))
-	lines = append(lines, "")
-
-	// Results
-	maxResults := 10
-	resultCount := len(m.matches)
-	if resultCount > maxResults {
-		resultCount = maxResults
-	}
-
-	if len(m.matches) == 0 {
-		if m.query == "" {
-			lines = append(lines, styleHint("Type to filter files...", modalWidth))
-		} else {
-			lines = append(lines, styleHint("No matches", modalWidth))
-		}
-	} else {
-		for i := range resultCount {
-			match := m.matches[i]
-			isSelected := i == m.selectedIdx
-			lines = append(lines, m.renderMatch(match, isSelected, modalWidth))
-		}
-
-		if len(m.matches) > maxResults {
-			remaining := len(m.matches) - maxResults
-			lines = append(lines, "")
-			lines = append(lines, styleHint(fmt.Sprintf("... and %d more", remaining), modalWidth))
-		}
-	}
-
-	lines = append(lines, "")
-
-	// Footer
 	footer := "↑↓: navigate | Enter: select | Esc: cancel"
-	lines = append(lines, styleFooter(footer, modalWidth))
+
+	lines := make([]string, 0, viewChromeLines+maxResults)
+	lines = append(lines, styleTitle(title, modalWidth), "", styleInput(inputLine, modalWidth), "")
+	lines = append(lines, m.renderResults(modalWidth)...)
+	lines = append(lines, "", styleFooter(footer, modalWidth))
 
 	content := strings.Join(lines, "\n")
 
 	return renderModal(content, width, height)
 }
 
-func (m Model) renderMatch(match fuzzy.Match, isSelected bool, width int) string {
+func (m *Model) renderResults(width int) []string {
+	if len(m.matches) == 0 {
+		if m.query == "" {
+			return []string{styleHint("Type to filter files...", width)}
+		}
+
+		return []string{styleHint("No matches", width)}
+	}
+
+	lines := make([]string, 0, min(len(m.matches), maxResults))
+	for i := range min(len(m.matches), maxResults) {
+		lines = append(lines, renderMatch(m.matches[i], i == m.selectedIdx, width))
+	}
+
+	if len(m.matches) > maxResults {
+		remaining := len(m.matches) - maxResults
+		lines = append(lines, "", styleHint(fmt.Sprintf("... and %d more", remaining), width))
+	}
+
+	return lines
+}
+
+func renderMatch(match fuzzy.Match, isSelected bool, width int) string {
 	prefix := "  "
 	if isSelected {
 		prefix = "> "
@@ -165,10 +157,9 @@ func (m Model) renderMatch(match fuzzy.Match, isSelected bool, width int) string
 	text := match.Text
 	displayText := prefix + text
 
-	// Truncate if too long
-	maxWidth := width - 2
+	maxWidth := width - matchTextMargin
 	if len(displayText) > maxWidth {
-		displayText = displayText[:maxWidth-3] + "..."
+		displayText = displayText[:maxWidth-len(ellipsis)] + ellipsis
 	}
 
 	style := lipgloss.NewStyle().
@@ -181,17 +172,15 @@ func (m Model) renderMatch(match fuzzy.Match, isSelected bool, width int) string
 			Bold(true)
 	}
 
-	// Highlight matched characters
 	if match.Matched && len(match.Indices) > 0 && !isSelected {
-		displayText = m.highlightMatches(displayText, match.Indices, len(prefix))
+		displayText = highlightMatches(displayText, match.Indices, len(prefix))
 	}
 
 	return style.Render(displayText)
 }
 
-func (m Model) highlightMatches(text string, indices []int, prefixLen int) string {
-	// Convert indices to a map for quick lookup (adjust for prefix)
-	matchedPositions := make(map[int]bool)
+func highlightMatches(text string, indices []int, prefixLen int) string {
+	matchedPositions := make(map[int]bool, len(indices))
 	for _, idx := range indices {
 		matchedPositions[idx+prefixLen] = true
 	}

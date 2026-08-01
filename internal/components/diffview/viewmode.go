@@ -28,6 +28,6 @@ type RenderContext struct {
 // ViewMode is one diff layout. Render must pad its output to ctx.Width by ctx.Height, because the
 // caller composites it against a fixed pane.
 type ViewMode interface {
-	Render(file *diff.FileChange, ctx RenderContext) string
+	Render(file *diff.FileChange, ctx *RenderContext) string
 	SupportsSelection() bool
 }

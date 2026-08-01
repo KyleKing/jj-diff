@@ -1,9 +1,10 @@
-package filelist
+package filelist_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/kyleking/jj-diff/internal/components/filelist"
 	"github.com/kyleking/jj-diff/internal/diff"
 )
 
@@ -24,7 +25,7 @@ func generateFiles(n int) []diff.FileChange {
 // BenchmarkFileListRender_10Files benchmarks rendering with 10 files.
 func BenchmarkFileListRender_10Files(b *testing.B) {
 	files := generateFiles(10)
-	m := New()
+	m := filelist.New()
 	m.SetFiles(files)
 
 	b.ResetTimer()
@@ -36,7 +37,7 @@ func BenchmarkFileListRender_10Files(b *testing.B) {
 // BenchmarkFileListRender_100Files benchmarks rendering with 100 files.
 func BenchmarkFileListRender_100Files(b *testing.B) {
 	files := generateFiles(100)
-	m := New()
+	m := filelist.New()
 	m.SetFiles(files)
 
 	b.ResetTimer()
@@ -48,7 +49,7 @@ func BenchmarkFileListRender_100Files(b *testing.B) {
 // BenchmarkFileListRender_500Files benchmarks rendering with 500 files.
 func BenchmarkFileListRender_500Files(b *testing.B) {
 	files := generateFiles(500)
-	m := New()
+	m := filelist.New()
 	m.SetFiles(files)
 
 	b.ResetTimer()
@@ -60,7 +61,7 @@ func BenchmarkFileListRender_500Files(b *testing.B) {
 // BenchmarkFileListRender_1000Files benchmarks rendering with 1000 files.
 func BenchmarkFileListRender_1000Files(b *testing.B) {
 	files := generateFiles(1000)
-	m := New()
+	m := filelist.New()
 	m.SetFiles(files)
 
 	b.ResetTimer()
@@ -72,7 +73,7 @@ func BenchmarkFileListRender_1000Files(b *testing.B) {
 // BenchmarkFileListRender_5000Files benchmarks rendering with 5000 files (stress test).
 func BenchmarkFileListRender_5000Files(b *testing.B) {
 	files := generateFiles(5000)
-	m := New()
+	m := filelist.New()
 	m.SetFiles(files)
 
 	b.ResetTimer()
@@ -84,13 +85,13 @@ func BenchmarkFileListRender_5000Files(b *testing.B) {
 // BenchmarkFileListRenderWithSearch_1000Files benchmarks rendering with search matches.
 func BenchmarkFileListRenderWithSearch_1000Files(b *testing.B) {
 	files := generateFiles(1000)
-	m := New()
+	m := filelist.New()
 	m.SetFiles(files)
 
 	// Simulate search matches on every 10th file
-	m.SetSearchState(true, func(fileIdx int) []MatchRange {
+	m.SetSearchState(true, func(fileIdx int) []filelist.MatchRange {
 		if fileIdx%10 == 0 {
-			return []MatchRange{{Start: 0, End: 3}}
+			return []filelist.MatchRange{{Start: 0, End: 3}}
 		}
 
 		return nil

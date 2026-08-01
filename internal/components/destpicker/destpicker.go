@@ -13,6 +13,23 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Layout of the centered modal, in terminal cells. The modal shrinks with the terminal until it
+// hits the minimums, and stops growing at the maximums. Three rows are chrome (the header, the
+// blank line under it, and the footer), so the scrolling window of revisions fits in the rest.
+const (
+	halfDivisor       = 2
+	listChromeHeight  = 3
+	maxModalHeight    = 20
+	maxModalWidth     = 80
+	minModalHeight    = 5
+	minModalWidth     = 40
+	modalHeightMargin = 4
+	modalPaddingX     = 2
+	modalPaddingY     = 1
+	modalWidthMargin  = 20
+	rowIndentWidth    = 2
+)
+
 // Model is the destination picker. Mutators take a pointer receiver, so a parent holding it
 // by value must keep the same field rather than a copy.
 type Model struct {
@@ -86,60 +103,51 @@ func (m Model) View(width, height int) string {
 		return ""
 	}
 
-	maxHeight := height - 4
-	if maxHeight < 5 {
-		maxHeight = 5
-	}
-	if maxHeight > 20 {
-		maxHeight = 20
+	maxHeight := clamp(height-modalHeightMargin, minModalHeight, maxModalHeight)
+	modalWidth := clamp(width-modalWidthMargin, minModalWidth, maxModalWidth)
+
+	lines := []string{
+		styleHeader("Select Destination", modalWidth),
+		"",
 	}
 
-	modalWidth := width - 20
-	if modalWidth < 40 {
-		modalWidth = 40
-	}
-	if modalWidth > 80 {
-		modalWidth = 80
-	}
-
-	var lines []string
-	lines = append(lines, styleHeader("Select Destination", modalWidth))
-	lines = append(lines, "")
-
-	startIdx := 0
-	endIdx := len(m.revisions)
-
-	if len(m.revisions) > maxHeight-3 {
-		startIdx = m.selected - (maxHeight-3)/2
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		endIdx = startIdx + maxHeight - 3
-		if endIdx > len(m.revisions) {
-			endIdx = len(m.revisions)
-			startIdx = endIdx - (maxHeight - 3)
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		}
-	}
+	visibleRows := maxHeight - listChromeHeight
+	startIdx := m.scrollStart(visibleRows)
+	endIdx := min(startIdx+visibleRows, len(m.revisions))
 
 	for i := startIdx; i < endIdx; i++ {
 		rev := m.revisions[i]
 		isSelected := i == m.selected
-		line := m.renderRevisionLine(rev, isSelected, modalWidth-2)
+		line := renderRevisionLine(rev, isSelected, modalWidth-rowIndentWidth)
 		lines = append(lines, "  "+line)
 	}
 
-	lines = append(lines, "")
-	lines = append(lines, styleFooter("Enter: Select | Esc: Cancel | j/k: Navigate", modalWidth))
+	lines = append(
+		lines,
+		"",
+		styleFooter("Enter: Select | Esc: Cancel | j/k: Navigate", modalWidth),
+	)
 
 	content := strings.Join(lines, "\n")
 
 	return renderModal(content, width, height)
 }
 
-func (m Model) renderRevisionLine(rev jj.RevisionEntry, selected bool, width int) string {
+func (m Model) scrollStart(visibleRows int) int {
+	if len(m.revisions) <= visibleRows {
+		return 0
+	}
+
+	centered := max(m.selected-visibleRows/halfDivisor, 0)
+
+	return min(centered, len(m.revisions)-visibleRows)
+}
+
+func clamp(value, lower, upper int) int {
+	return min(max(value, lower), upper)
+}
+
+func renderRevisionLine(rev jj.RevisionEntry, selected bool, width int) string {
 	desc := rev.Description
 	if len(desc) > width-15 {
 		desc = desc[:width-18] + "..."
@@ -192,7 +200,7 @@ func renderModal(content string, termWidth, termHeight int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(1, 2)
+		Padding(modalPaddingY, modalPaddingX)
 
 	modal := borderStyle.Render(content)
 

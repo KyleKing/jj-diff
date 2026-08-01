@@ -12,6 +12,15 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+const (
+	inputBoxMargin     = 4
+	maxModalWidth      = 80
+	minModalWidth      = 50
+	modalHorizontalPad = 2
+	modalWidthMargin   = 20
+	viewLineCount      = 5
+)
+
 // SplitTag names one destination of a multi-split by its display letter ('A', 'B', ...).
 type SplitTag rune
 
@@ -63,7 +72,7 @@ func (m *Model) AppendChar(ch rune) {
 // Backspace drops the final byte of the message, so a multi-byte rune is removed one byte at
 // a time. An empty message is left alone.
 func (m *Model) Backspace() {
-	if len(m.message) > 0 {
+	if m.message != "" {
 		m.message = m.message[:len(m.message)-1]
 	}
 }
@@ -85,26 +94,19 @@ func (m Model) View(width, height int) string {
 		return ""
 	}
 
-	modalWidth := width - 20
-	if modalWidth < 50 {
-		modalWidth = 50
-	}
-	if modalWidth > 80 {
-		modalWidth = 80
-	}
+	modalWidth := min(max(width-modalWidthMargin, minModalWidth), maxModalWidth)
 
-	var lines []string
+	inputBox := styleInput(m.message, modalWidth-inputBoxMargin)
+
+	lines := make([]string, 0, viewLineCount)
 	lines = append(
 		lines,
 		styleHeader(fmt.Sprintf("Commit Message for Tag [%s]", string(m.tag)), modalWidth),
+		"",
+		"  "+inputBox,
+		"",
+		styleFooter("Enter: Confirm | Esc: Cancel | Type to edit", modalWidth),
 	)
-	lines = append(lines, "")
-
-	inputBox := styleInput(m.message, modalWidth-4)
-	lines = append(lines, "  "+inputBox)
-
-	lines = append(lines, "")
-	lines = append(lines, styleFooter("Enter: Confirm | Esc: Cancel | Type to edit", modalWidth))
 
 	content := strings.Join(lines, "\n")
 
@@ -132,7 +134,7 @@ func styleFooter(text string, width int) string {
 
 func styleInput(text string, width int) string {
 	displayText := text
-	if len(displayText) == 0 {
+	if displayText == "" {
 		displayText = "(enter message...)"
 	}
 
@@ -153,7 +155,7 @@ func renderModal(content string, termWidth, termHeight int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(1, 2)
+		Padding(1, modalHorizontalPad)
 
 	modal := borderStyle.Render(content)
 

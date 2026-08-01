@@ -10,6 +10,14 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Column layout of the two-column view, in terminal cells. The " │ " between the panes costs
+// paneSeparatorWidth, and each pane reserves paneContentPadding beside its line number.
+const (
+	paneContentPadding = 2
+	paneCount          = 2
+	paneSeparatorWidth = 3
+)
+
 // SideBySideView renders old and new content in two columns. It is stateless, so one instance can
 // serve every file.
 type SideBySideView struct{}
@@ -20,45 +28,40 @@ func NewSideBySideView() *SideBySideView {
 }
 
 // SupportsSelection reports false, because the two-column layout draws no selection markers.
-func (v *SideBySideView) SupportsSelection() bool {
+func (*SideBySideView) SupportsSelection() bool {
 	return false
 }
 
 // Render draws the file into ctx.Width by ctx.Height, splitting the width between the two columns
 // and padding out when the content is shorter. A nil file renders the empty-state placeholder.
-func (v *SideBySideView) Render(file *diff.FileChange, ctx RenderContext) string {
+func (*SideBySideView) Render(file *diff.FileChange, ctx *RenderContext) string {
 	if file == nil {
 		return padToSize("No file selected", ctx.Width, ctx.Height)
 	}
 
-	var lines []string
-
-	paneWidth := (ctx.Width - 3) / 2
+	paneWidth := (ctx.Width - paneSeparatorWidth) / paneCount
 	leftHeader := truncateOrPad("OLD", paneWidth)
 	rightHeader := truncateOrPad("NEW", paneWidth)
 	headerStyle := lipgloss.NewStyle().Foreground(theme.Secondary).Bold(true)
-	lines = append(lines, headerStyle.Render(leftHeader)+" │ "+headerStyle.Render(rightHeader))
+	lines := []string{headerStyle.Render(leftHeader) + " │ " + headerStyle.Render(rightHeader)}
 
 	for hunkIdx, hunk := range file.Hunks {
-		hunkHeader := v.renderSideBySideHunkHeader(
+		lines = append(lines, renderSideBySideHunkHeader(
 			hunk.Header,
 			ctx.Width,
 			hunkIdx == ctx.SelectedHunk,
-		)
-		lines = append(lines, hunkHeader)
+		))
 
-		// Process hunk lines to hide whitespace changes if enabled
 		hunkLines := hunk.Lines
 		if ctx.ShowWhitespace {
 			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
 		}
 
-		pairedLines := v.pairLines(hunkLines)
-		for _, pair := range pairedLines {
+		for _, pair := range pairLines(hunkLines) {
 			if len(lines) >= ctx.Height {
 				break
 			}
-			lines = append(lines, v.renderPairedLine(pair, paneWidth, ctx))
+			lines = append(lines, renderPairedLine(pair, paneWidth, ctx))
 		}
 	}
 
@@ -74,10 +77,10 @@ type linePair struct {
 	Right *diff.Line
 }
 
-func (v *SideBySideView) pairLines(lines []diff.Line) []linePair {
+func pairLines(lines []diff.Line) []linePair {
 	var pairs []linePair
-	i := 0
 
+	i := 0
 	for i < len(lines) {
 		line := &lines[i]
 
@@ -87,35 +90,10 @@ func (v *SideBySideView) pairLines(lines []diff.Line) []linePair {
 			i++
 
 		case diff.LineDeletion:
-			delStart := i
-			for i < len(lines) && lines[i].Type == diff.LineDeletion {
-				i++
-			}
-			delEnd := i
-
-			addStart := i
-			for i < len(lines) && lines[i].Type == diff.LineAddition {
-				i++
-			}
-			addEnd := i
-
-			delCount := delEnd - delStart
-			addCount := addEnd - addStart
-			maxCount := delCount
-			if addCount > maxCount {
-				maxCount = addCount
-			}
-
-			for j := range maxCount {
-				pair := linePair{}
-				if delStart+j < delEnd {
-					pair.Left = &lines[delStart+j]
-				}
-				if addStart+j < addEnd {
-					pair.Right = &lines[addStart+j]
-				}
-				pairs = append(pairs, pair)
-			}
+			delEnd := runEnd(lines, i, diff.LineDeletion)
+			addEnd := runEnd(lines, delEnd, diff.LineAddition)
+			pairs = append(pairs, pairRuns(lines[i:delEnd], lines[delEnd:addEnd])...)
+			i = addEnd
 
 		case diff.LineAddition:
 			pairs = append(pairs, linePair{Left: nil, Right: line})
@@ -126,17 +104,44 @@ func (v *SideBySideView) pairLines(lines []diff.Line) []linePair {
 	return pairs
 }
 
-func (v *SideBySideView) renderPairedLine(pair linePair, paneWidth int, ctx RenderContext) string {
-	leftContent := v.renderSinglePane(pair.Left, paneWidth, ctx, false)
-	rightContent := v.renderSinglePane(pair.Right, paneWidth, ctx, true)
+func runEnd(lines []diff.Line, start int, lineType diff.LineType) int {
+	end := start
+	for end < len(lines) && lines[end].Type == lineType {
+		end++
+	}
+
+	return end
+}
+
+func pairRuns(deletions, additions []diff.Line) []linePair {
+	maxCount := max(len(deletions), len(additions))
+	pairs := make([]linePair, 0, maxCount)
+
+	for j := range maxCount {
+		pair := linePair{}
+		if j < len(deletions) {
+			pair.Left = &deletions[j]
+		}
+		if j < len(additions) {
+			pair.Right = &additions[j]
+		}
+		pairs = append(pairs, pair)
+	}
+
+	return pairs
+}
+
+func renderPairedLine(pair linePair, paneWidth int, ctx *RenderContext) string {
+	leftContent := renderSinglePane(pair.Left, paneWidth, ctx, false)
+	rightContent := renderSinglePane(pair.Right, paneWidth, ctx, true)
 
 	return leftContent + " │ " + rightContent
 }
 
-func (v *SideBySideView) renderSinglePane(
+func renderSinglePane(
 	line *diff.Line,
 	paneWidth int,
-	ctx RenderContext,
+	ctx *RenderContext,
 	isRight bool,
 ) string {
 	if line == nil {
@@ -153,10 +158,7 @@ func (v *SideBySideView) renderSinglePane(
 	}
 
 	content := line.Content
-	maxContentWidth := paneWidth - len(lineNumStr) - 2
-	if maxContentWidth < 0 {
-		maxContentWidth = 0
-	}
+	maxContentWidth := max(paneWidth-len(lineNumStr)-paneContentPadding, 0)
 	if len(content) > maxContentWidth {
 		content = content[:maxContentWidth]
 	}
@@ -165,6 +167,7 @@ func (v *SideBySideView) renderSinglePane(
 
 	style := lipgloss.NewStyle()
 	switch line.Type {
+	case diff.LineContext:
 	case diff.LineAddition:
 		style = style.Foreground(theme.AddedLine)
 	case diff.LineDeletion:
@@ -174,7 +177,7 @@ func (v *SideBySideView) renderSinglePane(
 	return style.Render(truncateOrPad(text, paneWidth))
 }
 
-func (v *SideBySideView) renderSideBySideHunkHeader(text string, width int, isCurrent bool) string {
+func renderSideBySideHunkHeader(text string, width int, isCurrent bool) string {
 	style := lipgloss.NewStyle().Foreground(theme.Accent)
 	if isCurrent {
 		style = style.Background(theme.MutedBg)

@@ -10,6 +10,22 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+const (
+	descriptionGap      = 3
+	ellipsis            = "..."
+	estimatedLineCount  = 48
+	keyColumnWidth      = 20
+	modalHorizontalPad  = 2
+	modalWidthMargin    = 10
+	preferredModalWidth = 60
+	wrapTextMargin      = 4
+)
+
+const (
+	modeDiffEditor  = "Diff-Editor"
+	modeInteractive = "Interactive"
+)
+
 // Model is the overlay's state. The mode selects which mode-specific bindings are listed and must
 // match the mode strings the parent passes to Show.
 type Model struct {
@@ -48,82 +64,104 @@ func (m Model) View(width, height int) string {
 		return ""
 	}
 
-	modalWidth := 60
-	if modalWidth > width-10 {
-		modalWidth = width - 10
-	}
+	modalWidth := min(preferredModalWidth, width-modalWidthMargin)
 
-	var lines []string
-	lines = append(lines, styleHeader("Keybindings", modalWidth))
-	lines = append(lines, "")
-
-	lines = append(lines, styleSection("Navigation", modalWidth))
-	lines = append(lines, keyBinding("j/k or ↓/↑", "Move down/up", modalWidth))
-	lines = append(lines, keyBinding("Ctrl-d/Ctrl-u", "Half-page down/up", modalWidth))
-	lines = append(lines, keyBinding("Ctrl-f/Ctrl-b", "Full-page down/up", modalWidth))
-	lines = append(lines, keyBinding("g", "Go to first file/hunk", modalWidth))
-	lines = append(lines, keyBinding("G", "Go to last file/hunk", modalWidth))
-	lines = append(lines, keyBinding("n", "Next hunk (when in diff view)", modalWidth))
-	lines = append(lines, keyBinding("N/p", "Previous hunk (when in diff view)", modalWidth))
-	lines = append(lines, keyBinding("[/]", "Previous/next file (when in diff view)", modalWidth))
-	lines = append(lines, keyBinding("Tab", "Switch focus (file list ↔ diff view)", modalWidth))
-	lines = append(lines, "")
-
-	lines = append(lines, styleSection("Actions", modalWidth))
-	lines = append(lines, keyBinding("r", "Refresh diff from jj", modalWidth))
-	lines = append(lines, keyBinding("/", "Search in files and diff content", modalWidth))
-	lines = append(lines, keyBinding("f", "Filter files (type to search)", modalWidth))
-
-	if m.mode == "Diff-Editor" {
-		lines = append(lines, keyBinding("Space", "Keep or drop the current hunk", modalWidth))
-		lines = append(lines, keyBinding("a", "Apply and return to jj", modalWidth))
-	}
-
-	lines = append(lines, "")
-
-	lines = append(lines, styleSection("View Options", modalWidth))
-	lines = append(lines, keyBinding("w", "Hide whitespace-only changes", modalWidth))
-	lines = append(lines, keyBinding("W", "Toggle word-level diff highlighting", modalWidth))
-	lines = append(lines, keyBinding("s", "Toggle side-by-side view", modalWidth))
-	lines = append(lines, keyBinding("l", "Toggle line numbers", modalWidth))
-	lines = append(lines, "")
-
-	if m.mode == "Interactive" {
-		lines = append(lines, keyBinding("d", "Select destination revision", modalWidth))
-		lines = append(lines, keyBinding("Space", "Toggle hunk selection", modalWidth))
-		lines = append(lines, keyBinding("v", "Enter visual mode (line selection)", modalWidth))
-		lines = append(
-			lines,
-			keyBinding("j/k in visual", "Extend/contract line selection", modalWidth),
-		)
-		lines = append(lines, keyBinding("Space in visual", "Confirm line selection", modalWidth))
-		lines = append(lines, keyBinding("Esc", "Exit visual mode", modalWidth))
-		lines = append(lines, keyBinding("a", "Apply selected changes to destination", modalWidth))
-	}
-	lines = append(lines, keyBinding("?", "Toggle this help", modalWidth))
-	lines = append(lines, keyBinding("q or Ctrl-C", "Quit", modalWidth))
-	lines = append(lines, "")
-
-	if m.mode == "Interactive" {
-		lines = append(lines, styleSection("Interactive Mode", modalWidth))
-		lines = append(lines, wrapText("1. Press 'd' to select a destination revision", modalWidth))
-		lines = append(lines, wrapText("2. Navigate to hunks with 'n'/'p'", modalWidth))
-		lines = append(lines, wrapText("3. Press Space to select whole hunks", modalWidth))
-		lines = append(
-			lines,
-			wrapText("4. Press 'v' for line-level selection (visual mode)", modalWidth),
-		)
-		lines = append(lines, wrapText("   - Use j/k to extend selection range", modalWidth))
-		lines = append(lines, wrapText("   - Press Space to confirm selection", modalWidth))
-		lines = append(lines, wrapText("5. Press 'a' to apply selected hunks/lines", modalWidth))
-		lines = append(lines, "")
-	}
-
+	lines := make([]string, 0, estimatedLineCount)
+	lines = append(lines, styleHeader("Keybindings", modalWidth), "")
+	lines = append(lines, navigationSection(modalWidth)...)
+	lines = append(lines, actionSection(m.mode, modalWidth)...)
+	lines = append(lines, viewOptionSection(modalWidth)...)
+	lines = append(lines, globalSection(m.mode, modalWidth)...)
+	lines = append(lines, interactiveGuideSection(m.mode, modalWidth)...)
 	lines = append(lines, styleFooter("Press ? or Esc to close", modalWidth))
 
 	content := strings.Join(lines, "\n")
 
 	return renderModal(content, width, height)
+}
+
+func navigationSection(width int) []string {
+	return []string{
+		styleSection("Navigation", width),
+		keyBinding("j/k or ↓/↑", "Move down/up", width),
+		keyBinding("Ctrl-d/Ctrl-u", "Half-page down/up", width),
+		keyBinding("Ctrl-f/Ctrl-b", "Full-page down/up", width),
+		keyBinding("g", "Go to first file/hunk", width),
+		keyBinding("G", "Go to last file/hunk", width),
+		keyBinding("n", "Next hunk (when in diff view)", width),
+		keyBinding("N/p", "Previous hunk (when in diff view)", width),
+		keyBinding("[/]", "Previous/next file (when in diff view)", width),
+		keyBinding("Tab", "Switch focus (file list ↔ diff view)", width),
+		"",
+	}
+}
+
+func actionSection(mode string, width int) []string {
+	lines := []string{
+		styleSection("Actions", width),
+		keyBinding("r", "Refresh diff from jj", width),
+		keyBinding("/", "Search in files and diff content", width),
+		keyBinding("f", "Filter files (type to search)", width),
+	}
+
+	if mode == modeDiffEditor {
+		lines = append(lines,
+			keyBinding("Space", "Keep or drop the current hunk", width),
+			keyBinding("a", "Apply and return to jj", width),
+		)
+	}
+
+	return append(lines, "")
+}
+
+func viewOptionSection(width int) []string {
+	return []string{
+		styleSection("View Options", width),
+		keyBinding("w", "Hide whitespace-only changes", width),
+		keyBinding("W", "Toggle word-level diff highlighting", width),
+		keyBinding("s", "Toggle side-by-side view", width),
+		keyBinding("l", "Toggle line numbers", width),
+		"",
+	}
+}
+
+func globalSection(mode string, width int) []string {
+	var lines []string
+	if mode == modeInteractive {
+		lines = append(lines,
+			keyBinding("d", "Select destination revision", width),
+			keyBinding("Space", "Toggle hunk selection", width),
+			keyBinding("v", "Enter visual mode (line selection)", width),
+			keyBinding("j/k in visual", "Extend/contract line selection", width),
+			keyBinding("Space in visual", "Confirm line selection", width),
+			keyBinding("Esc", "Exit visual mode", width),
+			keyBinding("a", "Apply selected changes to destination", width),
+		)
+	}
+
+	return append(lines,
+		keyBinding("?", "Toggle this help", width),
+		keyBinding("q or Ctrl-C", "Quit", width),
+		"",
+	)
+}
+
+func interactiveGuideSection(mode string, width int) []string {
+	if mode != modeInteractive {
+		return nil
+	}
+
+	return []string{
+		styleSection("Interactive Mode", width),
+		wrapText("1. Press 'd' to select a destination revision", width),
+		wrapText("2. Navigate to hunks with 'n'/'p'", width),
+		wrapText("3. Press Space to select whole hunks", width),
+		wrapText("4. Press 'v' for line-level selection (visual mode)", width),
+		wrapText("   - Use j/k to extend selection range", width),
+		wrapText("   - Press Space to confirm selection", width),
+		wrapText("5. Press 'a' to apply selected hunks/lines", width),
+		"",
+	}
 }
 
 func styleHeader(text string, width int) string {
@@ -162,10 +200,9 @@ func keyBinding(key, description string, width int) string {
 	descStyle := lipgloss.NewStyle().
 		Foreground(theme.Text)
 
-	keyWidth := 20
-	descWidth := width - keyWidth - 3
+	descWidth := width - keyColumnWidth - descriptionGap
 
-	keyText := keyStyle.Render(padRight(key, keyWidth))
+	keyText := keyStyle.Render(padRight(key, keyColumnWidth))
 	descText := descStyle.Render(truncate(description, descWidth))
 
 	return "  " + keyText + " " + descText
@@ -183,17 +220,17 @@ func truncate(text string, width int) string {
 	}
 
 	runes := []rune(text)
-	if width <= 3 {
+	if width <= len(ellipsis) {
 		return string(runes[:width])
 	}
 
-	return string(runes[:width-3]) + "..."
+	return string(runes[:width-len(ellipsis)]) + ellipsis
 }
 
 func wrapText(text string, width int) string {
 	style := lipgloss.NewStyle().
 		Foreground(theme.Text).
-		Width(width - 4)
+		Width(width - wrapTextMargin)
 
 	return "  " + style.Render(text)
 }
@@ -211,7 +248,7 @@ func renderModal(content string, termWidth, termHeight int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(1, 2)
+		Padding(1, modalHorizontalPad)
 
 	modal := borderStyle.Render(content)
 

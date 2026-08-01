@@ -41,11 +41,11 @@ var (
 // Init detects the appropriate theme and initializes all colors and styles.
 func Init() {
 	t := Detect()
-	applyTheme(t)
+	applyTheme(&t)
 }
 
 // applyTheme sets color variables and recomputes all styles.
-func applyTheme(t Theme) {
+func applyTheme(t *Theme) {
 	Primary = t.Primary
 	Accent = t.Accent
 	Secondary = t.Secondary

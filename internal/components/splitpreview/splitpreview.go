@@ -11,6 +11,21 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Layout of the centered modal, in terminal cells. The modal shrinks with the terminal until it
+// hits minModalWidth and stops growing at maxModalWidth. A summary row is drawn with a two-cell
+// indent and a matching gap after it, which is what rowInsetWidth accounts for.
+const (
+	ellipsisWidth      = 3
+	existingDescWidth  = 20
+	maxModalWidth      = 100
+	minModalWidth      = 60
+	modalPaddingX      = 2
+	modalPaddingY      = 1
+	modalWidthMargin   = 20
+	newCommitDescWidth = 30
+	rowInsetWidth      = 4
+)
+
 // SplitTag is the single character a hunk carries while a multi-way split is being assembled. It is
 // declared here rather than shared with the parent model so this component imports nothing from it.
 type SplitTag rune
@@ -84,43 +99,45 @@ func (m Model) View(width, height int) string {
 		return ""
 	}
 
-	modalWidth := width - 20
-	if modalWidth < 60 {
-		modalWidth = 60
-	}
-	if modalWidth > 100 {
-		modalWidth = 100
-	}
+	modalWidth := clamp(width-modalWidthMargin, minModalWidth, maxModalWidth)
 
-	var lines []string
-	lines = append(lines, styleHeader("Split Preview", modalWidth))
-	lines = append(lines, "")
+	lines := []string{
+		styleHeader("Split Preview", modalWidth),
+		"",
+	}
 
 	if len(m.summaries) == 0 {
 		lines = append(lines, styleInfo("No tags assigned", modalWidth))
 	} else {
 		for _, summary := range m.summaries {
-			lines = append(lines, m.renderSummaryLine(summary, modalWidth))
+			lines = append(lines, renderSummaryLine(summary, modalWidth))
 		}
 	}
 
-	lines = append(lines, "")
-	lines = append(lines, styleFooter("Enter: Apply | e: Edit | Esc: Cancel", modalWidth))
+	lines = append(
+		lines,
+		"",
+		styleFooter("Enter: Apply | e: Edit | Esc: Cancel", modalWidth),
+	)
 
 	content := strings.Join(lines, "\n")
 
 	return renderModal(content, width, height)
 }
 
-func (m Model) renderSummaryLine(summary SplitSummary, width int) string {
+func clamp(value, lower, upper int) int {
+	return min(max(value, lower), upper)
+}
+
+func renderSummaryLine(summary SplitSummary, width int) string {
 	var destStr string
 	if summary.Destination.Type == DestNewCommit {
-		destStr = "NEW: " + truncate(summary.Destination.Description, 30)
+		destStr = "NEW: " + truncate(summary.Destination.Description, newCommitDescWidth)
 	} else {
 		destStr = fmt.Sprintf(
 			"%s (%s)",
 			summary.Destination.ChangeID,
-			truncate(summary.Destination.Description, 20),
+			truncate(summary.Destination.Description, existingDescWidth),
 		)
 	}
 
@@ -131,7 +148,7 @@ func (m Model) renderSummaryLine(summary SplitSummary, width int) string {
 		summary.HunkCount,
 	)
 
-	return "  " + truncateOrPad(line, width-4)
+	return "  " + truncateOrPad(line, width-rowInsetWidth)
 }
 
 func styleHeader(text string, width int) string {
@@ -164,8 +181,8 @@ func styleInfo(text string, width int) string {
 
 func truncate(text string, width int) string {
 	if len(text) > width {
-		if width > 3 {
-			return text[:width-3] + "..."
+		if width > ellipsisWidth {
+			return text[:width-ellipsisWidth] + "..."
 		}
 
 		return text[:width]
@@ -177,8 +194,8 @@ func truncate(text string, width int) string {
 func truncateOrPad(text string, width int) string {
 	visibleLen := len(text)
 	if visibleLen > width {
-		if width > 3 {
-			return text[:width-3] + "..."
+		if width > ellipsisWidth {
+			return text[:width-ellipsisWidth] + "..."
 		}
 
 		return text[:width]
@@ -191,7 +208,7 @@ func renderModal(content string, termWidth, termHeight int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(1, 2)
+		Padding(modalPaddingY, modalPaddingX)
 
 	modal := borderStyle.Render(content)
 

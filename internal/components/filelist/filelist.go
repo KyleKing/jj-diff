@@ -4,6 +4,7 @@ package filelist
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -11,6 +12,15 @@ import (
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
 	"github.com/kyleking/jj-diff/internal/theme"
+)
+
+const (
+	centerDivisor = 2
+	filterRows    = 2
+	headerRows    = 2
+	statsColWidth = 12
+	tableGutter   = 4
+	typeColWidth  = 4
 )
 
 // MatchRange is a search hit inside a file path, as byte offsets with End exclusive.
@@ -125,21 +135,8 @@ func (m Model) renderCollapsed(width int, focused bool) string {
 	changeType := file.ChangeType.String()
 	path := file.Path
 
-	// Calculate stats
-	var additions, deletions int
-	for _, hunk := range file.Hunks {
-		for _, line := range hunk.Lines {
-			switch line.Type {
-			case diff.LineAddition:
-				additions++
-			case diff.LineDeletion:
-				deletions++
-			case diff.LineContext:
-			}
-		}
-	}
-
-	stats := fmt.Sprintf("+%d -%d", additions, deletions)
+	counts := countChanges(file.Hunks)
+	stats := fmt.Sprintf("+%d -%d", counts.additions, counts.deletions)
 
 	// Format: [M] path/to/file.go +10 -5 [3/10]
 	// Match diff header styling: Primary color, bold
@@ -156,181 +153,161 @@ func (m Model) renderCollapsed(width int, focused bool) string {
 }
 
 func (m Model) renderExpanded(width, height int, focused bool) string {
-	var lines []string
-
-	// Determine which files to display
-	var displayFiles []diff.FileChange
-	var displayIndices []int
-
-	if m.filterMode && m.filterQuery != "" {
-		// Filter files by query
-		filePaths := make([]string, len(m.files))
-		fileData := make([]interface{}, len(m.files))
-		for i, f := range m.files {
-			filePaths[i] = f.Path
-			fileData[i] = i
-		}
-
-		matches := fuzzy.FilterWithData(m.filterQuery, filePaths, fileData)
-		displayFiles = make([]diff.FileChange, 0, len(matches))
-		displayIndices = make([]int, 0, len(matches))
-		for _, match := range matches {
-			idx, ok := match.Original.(int)
-			if !ok || idx < 0 || idx >= len(m.files) {
-				continue
-			}
-			displayFiles = append(displayFiles, m.files[idx])
-			displayIndices = append(displayIndices, idx)
-		}
-	} else {
-		displayFiles = m.files
-		displayIndices = make([]int, len(m.files))
-		for i := range m.files {
-			displayIndices[i] = i
-		}
-	}
-
-	// Header with file counter
-	totalFiles := len(m.files)
-	filteredCount := len(displayFiles)
-	var header string
-	if m.filterMode && filteredCount < totalFiles {
-		header = fmt.Sprintf("Files (%d/%d filtered)", filteredCount, totalFiles)
-	} else {
-		header = fmt.Sprintf("Files (%d/%d)", m.selected+1, totalFiles)
-	}
-	lines = append(lines, styleHeader(header, width))
-
-	// Table header
-	typeColWidth := 4
-	statsColWidth := 12
-	pathColWidth := max(width-typeColWidth-statsColWidth-4, len(ellipsis)+1)
+	displayIndices := m.visibleIndices()
+	pathColWidth := max(width-typeColWidth-statsColWidth-tableGutter, len(ellipsis)+1)
 
 	headerLine := fmt.Sprintf("%-*s  %-*s  %*s",
 		typeColWidth, "Type",
 		pathColWidth, "Path",
 		statsColWidth, "Stats")
-	lines = append(
-		lines,
+
+	lines := []string{
+		styleHeader(m.headerText(len(displayIndices)), width),
 		lipgloss.NewStyle().Foreground(theme.Secondary).Bold(true).Render(headerLine),
-	)
+	}
 
-	// Calculate visible range
-	visibleHeight := height - 2 // Subtract header rows
+	visibleHeight := height - headerRows
 	if m.filterMode {
-		visibleHeight -= 2 // Subtract filter input + blank line
+		visibleHeight -= filterRows
 	}
 
-	// Find selected row in display list
-	selectedDisplayIdx := -1
-	for i, idx := range displayIndices {
-		if idx == m.selected {
-			selectedDisplayIdx = i
-			break
-		}
-	}
+	startIdx := m.scrollStart(displayIndices, visibleHeight, len(displayIndices))
+	endIdx := min(startIdx+visibleHeight, len(displayIndices))
 
-	// Calculate scroll offset to center the selected row
-	var startIdx int
-	if selectedDisplayIdx >= 0 {
-		// Center the selected row
-		centerOffset := selectedDisplayIdx - visibleHeight/2
-		if centerOffset < 0 {
-			startIdx = 0
-		} else if centerOffset+visibleHeight > len(displayFiles) {
-			// Don't scroll past the end
-			startIdx = len(displayFiles) - visibleHeight
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		} else {
-			startIdx = centerOffset
-		}
-	} else {
-		startIdx = m.scrollOffset
-	}
-
-	endIdx := startIdx + visibleHeight
-	if endIdx > len(displayFiles) {
-		endIdx = len(displayFiles)
-	}
-
-	// Render files
 	for i := startIdx; i < endIdx; i++ {
-		file := displayFiles[i]
-		originalIdx := displayIndices[i]
-		isSelected := originalIdx == m.selected
-
-		var additions, deletions int
-		for _, hunk := range file.Hunks {
-			for _, line := range hunk.Lines {
-				switch line.Type {
-				case diff.LineAddition:
-					additions++
-				case diff.LineDeletion:
-					deletions++
-				case diff.LineContext:
-				}
-			}
-		}
-
-		changeType := file.ChangeType.String()
-		path := file.Path
-		if len(path) > pathColWidth {
-			path = path[:pathColWidth-3] + "..."
-		}
-
-		stats := fmt.Sprintf("+%-3d -%-3d", additions, deletions)
-
-		line := fmt.Sprintf(
-			"%-*s  %-*s  %*s",
-			typeColWidth,
-			changeType,
-			pathColWidth,
-			path,
-			statsColWidth,
-			stats,
-		)
-
-		// Apply selection styling to content only, not padding
-		if isSelected {
-			if focused {
-				styledLine := lipgloss.NewStyle().
-					Background(theme.ModalBg).
-					Foreground(theme.Primary).
-					Render(line)
-				lines = append(lines, styledLine+strings.Repeat(" ", max(width-len(line), 0)))
-			} else {
-				styledLine := lipgloss.NewStyle().
-					Background(theme.MutedBg).
-					Foreground(theme.Text).
-					Render(line)
-				lines = append(lines, styledLine+strings.Repeat(" ", max(width-len(line), 0)))
-			}
-		} else {
-			lines = append(lines, truncateOrPad(line, width))
-		}
+		lines = append(lines, m.renderRow(displayIndices[i], pathColWidth, width, focused))
 	}
 
-	// Fill remaining space
 	targetHeight := height
 	if m.filterMode {
-		targetHeight -= 2 // Leave space for filter input
+		targetHeight -= filterRows
 	}
 	for len(lines) < targetHeight {
 		lines = append(lines, strings.Repeat(" ", max(width, 0)))
 	}
 
-	// Add filter input at bottom if in filter mode
 	if m.filterMode {
-		lines = append(lines, "")
-		filterLine := fmt.Sprintf("Filter: %s█", m.filterQuery)
-		lines = append(lines, lipgloss.NewStyle().
+		filterLine := fmt.Sprintf("Filter: %s\u2588", m.filterQuery)
+		lines = append(lines, "", lipgloss.NewStyle().
 			Foreground(theme.Accent).
 			Render(truncateOrPad(filterLine, width)))
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// visibleIndices returns the rows to draw, in display order, as indices into the unfiltered file
+// slice. Every index is in range, so callers may subscript m.files with one directly.
+func (m Model) visibleIndices() []int {
+	if !m.filterMode || m.filterQuery == "" {
+		indices := make([]int, len(m.files))
+		for i := range m.files {
+			indices[i] = i
+		}
+
+		return indices
+	}
+
+	filePaths := make([]string, len(m.files))
+	fileData := make([]any, len(m.files))
+	for i, f := range m.files {
+		filePaths[i] = f.Path
+		fileData[i] = i
+	}
+
+	matches := fuzzy.FilterWithData(m.filterQuery, filePaths, fileData)
+	indices := make([]int, 0, len(matches))
+	for _, match := range matches {
+		idx, ok := match.Original.(int)
+		if !ok || idx < 0 || idx >= len(m.files) {
+			continue
+		}
+		indices = append(indices, idx)
+	}
+
+	return indices
+}
+
+func (m Model) headerText(filteredCount int) string {
+	if m.filterMode && filteredCount < len(m.files) {
+		return fmt.Sprintf("Files (%d/%d filtered)", filteredCount, len(m.files))
+	}
+
+	return fmt.Sprintf("Files (%d/%d)", m.selected+1, len(m.files))
+}
+
+// scrollStart centers the selected row in the visible window, falling back to the stored scroll
+// offset when the selection is filtered out of the display list.
+func (m Model) scrollStart(displayIndices []int, visibleHeight, total int) int {
+	selectedDisplayIdx := slices.Index(displayIndices, m.selected)
+	if selectedDisplayIdx < 0 {
+		return m.scrollOffset
+	}
+
+	centerOffset := selectedDisplayIdx - visibleHeight/centerDivisor
+	switch {
+	case centerOffset < 0:
+		return 0
+	case centerOffset+visibleHeight > total:
+		return max(total-visibleHeight, 0)
+	default:
+		return centerOffset
+	}
+}
+
+func (m Model) renderRow(originalIdx, pathColWidth, width int, focused bool) string {
+	file := m.files[originalIdx]
+	counts := countChanges(file.Hunks)
+
+	path := file.Path
+	if len(path) > pathColWidth {
+		path = path[:pathColWidth-len(ellipsis)] + ellipsis
+	}
+
+	line := fmt.Sprintf(
+		"%-*s  %-*s  %*s",
+		typeColWidth,
+		file.ChangeType.String(),
+		pathColWidth,
+		path,
+		statsColWidth,
+		fmt.Sprintf("+%-3d -%-3d", counts.additions, counts.deletions),
+	)
+
+	if originalIdx != m.selected {
+		return truncateOrPad(line, width)
+	}
+
+	background, foreground := theme.MutedBg, theme.Text
+	if focused {
+		background, foreground = theme.ModalBg, theme.Primary
+	}
+
+	styled := lipgloss.NewStyle().Background(background).Foreground(foreground).Render(line)
+
+	return styled + strings.Repeat(" ", max(width-len(line), 0))
+}
+
+type changeCounts struct {
+	additions int
+	deletions int
+}
+
+func countChanges(hunks []diff.Hunk) changeCounts {
+	var counts changeCounts
+	for _, hunk := range hunks {
+		for _, line := range hunk.Lines {
+			switch line.Type {
+			case diff.LineAddition:
+				counts.additions++
+			case diff.LineDeletion:
+				counts.deletions++
+			case diff.LineContext:
+			}
+		}
+	}
+
+	return counts
 }
 
 func styleHeader(text string, width int) string {

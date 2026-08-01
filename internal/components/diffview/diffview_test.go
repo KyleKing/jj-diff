@@ -1,9 +1,10 @@
-package diffview
+package diffview_test
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 )
@@ -30,7 +31,7 @@ func TestNewWithDefaultConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultConfig()
-	m := New(cfg)
+	m := diffview.New(cfg)
 
 	if m.IsSideBySide() {
 		t.Error("Expected unified mode by default")
@@ -56,7 +57,7 @@ func TestNewWithSideBySideConfig(t *testing.T) {
 		TabWidth:        8,
 		WordLevelDiff:   true,
 	}
-	m := New(cfg)
+	m := diffview.New(cfg)
 
 	if !m.IsSideBySide() {
 		t.Error("Expected side-by-side mode")
@@ -75,7 +76,7 @@ func TestNewWithSideBySideConfig(t *testing.T) {
 func TestViewUnifiedMode(t *testing.T) {
 	t.Parallel()
 
-	m := New(config.DefaultConfig())
+	m := diffview.New(config.DefaultConfig())
 	m.SetFileChange(testFileChange())
 
 	output := m.View(80, 20, false)
@@ -93,7 +94,7 @@ func TestViewSideBySideMode(t *testing.T) {
 		ShowLineNumbers: true,
 		TabWidth:        4,
 	}
-	m := New(cfg)
+	m := diffview.New(cfg)
 	m.SetFileChange(testFileChange())
 
 	output := m.View(80, 20, false)
@@ -117,7 +118,7 @@ func TestViewWithWhitespaceHiding(t *testing.T) {
 		ShowLineNumbers: true,
 		TabWidth:        4,
 	}
-	m := New(cfg)
+	m := diffview.New(cfg)
 
 	fc := diff.FileChange{
 		Path:       "test.go",
@@ -154,11 +155,13 @@ func TestViewWithWhitespaceHiding(t *testing.T) {
 }
 
 func TestViewWithoutLineNumbers(t *testing.T) {
+	t.Parallel()
+
 	cfg := config.Config{
 		ShowLineNumbers: false,
 		TabWidth:        4,
 	}
-	m := New(cfg)
+	m := diffview.New(cfg)
 	m.SetFileChange(testFileChange())
 
 	output := m.View(80, 20, false)
@@ -177,7 +180,7 @@ func TestViewWithoutLineNumbers(t *testing.T) {
 func TestToggleMethods(t *testing.T) {
 	t.Parallel()
 
-	m := New(config.DefaultConfig())
+	m := diffview.New(config.DefaultConfig())
 
 	m.ToggleWhitespace()
 	if !m.ShowWhitespace() {
@@ -198,7 +201,7 @@ func TestToggleMethods(t *testing.T) {
 func TestWordDiffToggle(t *testing.T) {
 	t.Parallel()
 
-	m := New(config.DefaultConfig())
+	m := diffview.New(config.DefaultConfig())
 	m.SetFileChange(testFileChange())
 
 	if m.WordLevelDiff() {
@@ -219,7 +222,7 @@ func TestWordDiffToggle(t *testing.T) {
 func TestScrolling(t *testing.T) {
 	t.Parallel()
 
-	m := New(config.DefaultConfig())
+	m := diffview.New(config.DefaultConfig())
 
 	fc := diff.FileChange{
 		Path:       "test.go",
@@ -259,7 +262,7 @@ func TestScrolling(t *testing.T) {
 func TestNoFileSelected(t *testing.T) {
 	t.Parallel()
 
-	m := New(config.DefaultConfig())
+	m := diffview.New(config.DefaultConfig())
 
 	output := m.View(80, 20, false)
 

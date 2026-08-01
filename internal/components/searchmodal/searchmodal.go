@@ -12,6 +12,12 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+const (
+	modalWidthMargin    = 4
+	preferredModalWidth = 60
+	viewLineCount       = 7
+)
+
 // Model is the search prompt. It mirrors state the parent model owns, so the query and counts
 // it displays are only as current as the last SetQuery and UpdateResults call.
 type Model struct {
@@ -67,44 +73,38 @@ func (m Model) View(width, height int) string {
 		return ""
 	}
 
-	modalWidth := 60
-	if modalWidth > width-4 {
-		modalWidth = width - 4
-	}
+	modalWidth := min(preferredModalWidth, width-modalWidthMargin)
 
-	var lines []string
-
-	// Title
 	title := "Search"
-	lines = append(lines, styleTitle(title, modalWidth))
-	lines = append(lines, "")
-
-	// Search input
 	inputLine := fmt.Sprintf("Query: %s█", m.query)
-	lines = append(lines, styleInput(inputLine, modalWidth))
-	lines = append(lines, "")
-
-	// Match count
-	var status string
-	if m.matchCount == 0 {
-		if m.query == "" {
-			status = "Type to search..."
-		} else {
-			status = "No matches"
-		}
-	} else {
-		status = fmt.Sprintf("Match %d of %d", m.currentIdx+1, m.matchCount)
-	}
-	lines = append(lines, styleStatus(status, modalWidth))
-	lines = append(lines, "")
-
-	// Footer
 	footer := "Enter: close search | Esc: cancel | Ctrl-N/P: next/prev"
-	lines = append(lines, styleFooter(footer, modalWidth))
+
+	lines := make([]string, 0, viewLineCount)
+	lines = append(lines,
+		styleTitle(title, modalWidth),
+		"",
+		styleInput(inputLine, modalWidth),
+		"",
+		styleStatus(m.statusText(), modalWidth),
+		"",
+		styleFooter(footer, modalWidth),
+	)
 
 	content := strings.Join(lines, "\n")
 
 	return renderModal(content, width, height)
+}
+
+func (m Model) statusText() string {
+	if m.matchCount > 0 {
+		return fmt.Sprintf("Match %d of %d", m.currentIdx+1, m.matchCount)
+	}
+
+	if m.query == "" {
+		return "Type to search..."
+	}
+
+	return "No matches"
 }
 
 func styleTitle(text string, width int) string {
