@@ -97,9 +97,10 @@ A subprocess pipe is not a terminal, so the program detects a non-tty and never 
 Exploratory checks need a real PTY: run it under `tmux new -d -x 80 -y 24 <cmd>`, drive
 it with `tmux send-keys`, and read what actually rendered with `tmux capture-pane -p`
 (`-e` keeps ANSI codes). This is the fastest way to answer "does it look right" without
-writing test code first. Note that `tmux capture-pane` collapses a run of spaces into a
-tab, so a tab in captured output is an artifact rather than a rendering bug; check the
-column the text lands on before chasing one. For scripted tests prefer
+writing test code first. A tab in captured output is not proof the program emitted one:
+`tmux capture-pane` re-emits a tab wherever the cursor was advanced across cells that
+were never written. Check which column the text actually lands on before chasing it as
+a rendering bug. For scripted tests prefer
 `github.com/charmbracelet/x/exp/teatest/v2`, which drives the `tea.Model` directly and
 diffs golden frames. The unsuffixed `teatest` targets Bubble Tea v1 and will not compile
 against this project. Fall back to `github.com/creack/pty`, or
