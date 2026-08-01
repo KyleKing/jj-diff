@@ -1,7 +1,7 @@
 package model
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -182,7 +182,7 @@ func TestModelDiffLoaded(t *testing.T) {
 func TestModelErrorHandling(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse)
 
-	testErr := fmt.Errorf("test error")
+	testErr := errors.New("test error")
 	m = Update(t, m, errMsg{err: testErr})
 
 	Assert(t, m).HasError()

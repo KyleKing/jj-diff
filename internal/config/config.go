@@ -21,9 +21,9 @@ const (
 // zero-value replacement from DefaultConfig, so callers never build one by hand.
 type Config struct {
 	ViewMode        ViewModeType
+	TabWidth        int
 	ShowWhitespace  bool
 	ShowLineNumbers bool
-	TabWidth        int
 	WordLevelDiff   bool
 }
 
@@ -89,9 +89,9 @@ func parseBool(s string) bool {
 // RenderOptions carries the per-line rendering settings without the layout
 // choice, so a renderer can be handed only what affects a single line of output.
 type RenderOptions struct {
+	TabWidth        int
 	ShowWhitespace  bool
 	ShowLineNumbers bool
-	TabWidth        int
 	WordLevelDiff   bool
 }
 

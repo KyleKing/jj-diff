@@ -7,21 +7,21 @@ import (
 // RenderContext is everything a ViewMode needs for one render pass. The callbacks are invoked per
 // visible hunk or line, so they must be cheap, and a nil callback means that decoration is off.
 type RenderContext struct {
-	Focused         bool
-	Height          int
-	IsLineSelected  func(hunkIdx, lineIdx int) bool
-	IsSearching     bool
 	IsSelected      func(hunkIdx int) bool
-	IsVisualMode    bool
+	WordDiffCache   *WordDiffCache
+	IsLineSelected  func(hunkIdx, lineIdx int) bool
 	GetMatches      func(hunkIdx, lineIdx int) []MatchRange
-	LineCursor      int
 	SelectedHunk    int
-	ShowLineNumbers bool
-	ShowWhitespace  bool
+	LineCursor      int
 	TabWidth        int
 	VisualAnchor    int
 	Width           int
-	WordDiffCache   *WordDiffCache
+	Height          int
+	IsVisualMode    bool
+	IsSearching     bool
+	Focused         bool
+	ShowLineNumbers bool
+	ShowWhitespace  bool
 	WordLevelDiff   bool
 }
 

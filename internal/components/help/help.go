@@ -13,8 +13,8 @@ import (
 // Model is the overlay's state. The mode selects which mode-specific bindings are listed and must
 // match the mode strings the parent passes to Show.
 type Model struct {
-	visible bool
 	mode    string
+	visible bool
 }
 
 // New returns a hidden overlay.

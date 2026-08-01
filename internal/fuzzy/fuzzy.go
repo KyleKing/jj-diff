@@ -11,11 +11,11 @@ import (
 // matched, and Original carries whatever value the caller paired with the candidate. Matched is
 // false on the unranked passthrough Filter returns for an empty query.
 type Match struct {
+	Original interface{}
 	Text     string
+	Indices  []int
 	Score    int
 	Matched  bool
-	Indices  []int
-	Original interface{}
 }
 
 // Score calculates fuzzy match score for a query against text

@@ -17,8 +17,8 @@ const (
 // WhitespaceRenderer replaces whitespace with visible glyphs and styles only the run at the end of a
 // line, so trailing whitespace reads differently from the whitespace inside a line.
 type WhitespaceRenderer struct {
-	tabWidth          int
 	trailingHighlight lipgloss.Style
+	tabWidth          int
 }
 
 // NewWhitespaceRenderer builds a renderer that draws a tab as one glyph padded out to tabWidth

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -285,7 +286,7 @@ func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
 	cmd := exec.Command("jj", "log",
 		"--no-graph",
-		"--limit", fmt.Sprintf("%d", limit),
+		"--limit", strconv.Itoa(limit),
 		"--template", template)
 	cmd.Dir = c.baseDir
 
@@ -317,17 +318,17 @@ const (
 // SplitDestination is where one split plan's patch lands. ChangeID is empty for SplitDestNewCommit,
 // where Description becomes the message of the commit that gets created.
 type SplitDestination struct {
-	Type        SplitDestinationType
 	ChangeID    string
 	Description string
+	Type        SplitDestinationType
 }
 
 // SplitPlan is one tag's patch and the destination it goes to. Tag is carried through for error
 // messages and has no meaning to jj.
 type SplitPlan struct {
-	Tag         rune
-	Patch       string
 	Destination SplitDestination
+	Patch       string
+	Tag         rune
 }
 
 // FileStatus is one entry from jj status.
@@ -522,7 +523,7 @@ func (c *Client) restoreOperation(opID string) error {
 // to where it started rather than keeping the plans that already succeeded.
 func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 	if len(plans) == 0 {
-		return fmt.Errorf("no split plans provided")
+		return errors.New("no split plans provided")
 	}
 
 	opID, err := c.getCurrentOperationID()

@@ -17,11 +17,11 @@ import (
 // different lengths gets matches whose Original is missing.
 type Model struct {
 	query       string
-	visible     bool
 	matches     []fuzzy.Match
-	selectedIdx int
 	items       []string
 	itemData    []interface{}
+	selectedIdx int
+	visible     bool
 }
 
 // New returns a hidden picker with no items.

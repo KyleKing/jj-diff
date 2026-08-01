@@ -33,20 +33,20 @@ const (
 // DestinationSpec is where one tag's hunks land. ChangeID is empty for DestNewCommit, where
 // Description becomes the message of the commit that gets created.
 type DestinationSpec struct {
-	Type        DestinationType
 	ChangeID    string
 	Description string
+	Type        DestinationType
 }
 
 // Model is the two-panel assignment modal, tags on the left and candidate revisions on the right,
 // with one cursor per panel. It owns the destination map for the whole split, so the parent model
 // keeps a single instance alive across openings.
 type Model struct {
+	destinations map[SplitTag]*DestinationSpec
 	tags         []SplitTag
 	revisions    []jj.RevisionEntry
 	selectedTag  int
 	selectedRev  int
-	destinations map[SplitTag]*DestinationSpec
 	visible      bool
 	focusOnTags  bool
 }

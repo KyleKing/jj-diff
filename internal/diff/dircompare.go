@@ -330,7 +330,7 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 				if line.oldNum > 0 {
 					oldStart = line.oldNum
 				} else {
-					for k := range len(hunkLines) {
+					for k := range hunkLines {
 						if hunkLines[k].oldNum > 0 {
 							oldStart = hunkLines[k].oldNum
 							break
@@ -343,7 +343,7 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 				if line.newNum > 0 {
 					newStart = line.newNum
 				} else {
-					for k := range len(hunkLines) {
+					for k := range hunkLines {
 						if hunkLines[k].newNum > 0 {
 							newStart = hunkLines[k].newNum
 							break

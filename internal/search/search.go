@@ -11,13 +11,13 @@ import (
 // MatchLocation is one hit. StartCol and EndCol are byte offsets into MatchText with EndCol
 // exclusive, and HunkIdx and LineIdx are -1 on a hit in a file path rather than a diff line.
 type MatchLocation struct {
+	FilePath  string
+	MatchText string
 	FileIdx   int
 	HunkIdx   int
 	LineIdx   int
-	FilePath  string
 	StartCol  int
 	EndCol    int
-	MatchText string
 }
 
 // NavigationState is the view position a search moves away from, held so canceling can put the

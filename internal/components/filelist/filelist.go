@@ -22,14 +22,14 @@ type MatchRange struct {
 // Model is the file list's state. Every mutator takes a pointer receiver, so a caller holding a
 // value must copy the result back into its own state.
 type Model struct {
+	getMatches   func(fileIdx int) []MatchRange
+	filterQuery  string
 	files        []diff.FileChange
 	selected     int
-	getMatches   func(fileIdx int) []MatchRange
+	scrollOffset int
 	isSearching  bool
 	expanded     bool
-	scrollOffset int
 	filterMode   bool
-	filterQuery  string
 }
 
 // New returns a collapsed, unfiltered list with no files.

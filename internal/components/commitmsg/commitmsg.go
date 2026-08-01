@@ -18,8 +18,8 @@ type SplitTag rune
 // Model is the commit message prompt. Keystrokes reach it through the parent model, which
 // must copy it back into its own state because every mutator takes a pointer receiver.
 type Model struct {
-	tag     SplitTag
 	message string
+	tag     SplitTag
 	visible bool
 }
 

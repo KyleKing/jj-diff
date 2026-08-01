@@ -12,8 +12,8 @@ import (
 // diff header, so a renamed file carries its new path.
 type FileChange struct {
 	Path       string
-	ChangeType ChangeType
 	Hunks      []Hunk
+	ChangeType ChangeType
 }
 
 // ChangeType is what a diff header says happened to a file. String returns the one-letter status
@@ -48,19 +48,19 @@ func (ct ChangeType) String() string {
 // and Lines interleaves context, additions, and deletions in diff order.
 type Hunk struct {
 	Header   string
+	Lines    []Line
 	OldStart int
 	OldLines int
 	NewStart int
 	NewLines int
-	Lines    []Line
 }
 
 // Line is one diff line with the leading +, -, or space stripped from Content. OldLineNum and
 // NewLineNum are 1-based and both are always set, so an addition still records where it falls on
 // the old side.
 type Line struct {
-	Type       LineType
 	Content    string
+	Type       LineType
 	OldLineNum int
 	NewLineNum int
 }

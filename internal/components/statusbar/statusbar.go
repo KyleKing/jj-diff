@@ -16,9 +16,9 @@ import (
 type Context struct {
 	Destination  string
 	FocusedPanel string
-	IsVisualMode bool
 	Mode         string
 	Source       string
+	IsVisualMode bool
 }
 
 // Model is stateless: the footer is rendered entirely from the Context passed to each call.
@@ -50,10 +50,10 @@ func (m Model) ViewWithContext(width int, ctx Context) string {
 	} else {
 		parts = append(parts, fmt.Sprintf("[Mode: %s]", ctx.Mode))
 	}
-	parts = append(parts, fmt.Sprintf("Source: %s", ctx.Source))
+	parts = append(parts, "Source: "+ctx.Source)
 
 	if ctx.Destination != "" {
-		parts = append(parts, fmt.Sprintf("→ Dest: %s", ctx.Destination))
+		parts = append(parts, "→ Dest: "+ctx.Destination)
 	}
 
 	parts = append(parts, m.getContextHints(ctx))

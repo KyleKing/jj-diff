@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -151,7 +152,7 @@ func initRevisionMode(f flags, cfg config.Config) (tea.Model, error) {
 	}
 
 	if f.scmInput != "" {
-		return nil, fmt.Errorf("scm-record compatibility mode not yet implemented")
+		return nil, errors.New("scm-record compatibility mode not yet implemented")
 	}
 
 	mode := model.ModeBrowse

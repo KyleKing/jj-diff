@@ -3,6 +3,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -51,8 +52,8 @@ const (
 // HunkSelection is one hunk's selection. WholeHunk wins over SelectedLines, and selecting the whole
 // hunk discards the per-line set, so the two are never both meaningful.
 type HunkSelection struct {
-	WholeHunk     bool
 	SelectedLines map[int]bool
+	WholeHunk     bool
 }
 
 // FileSelection holds one file's selected hunks, keyed by the hunk's index in the parsed file. The
@@ -91,18 +92,18 @@ const (
 // DestinationSpec is where one tag's hunks land. ChangeID is empty for DestNewCommit, where
 // Description becomes the message of the commit that gets created.
 type DestinationSpec struct {
-	Type        DestinationType
 	ChangeID    string
 	Description string
+	Type        DestinationType
 }
 
 // MultiSplitState is an in-progress multi-way split: one selection and one destination per tag. A tag
 // with a selection but no destination is incomplete and blocks the split from being applied.
 type MultiSplitState struct {
-	Active       bool
 	Selections   map[SplitTag]*SelectionState
 	Destinations map[SplitTag]*DestinationSpec
 	CurrentTag   SplitTag
+	Active       bool
 }
 
 // NewMultiSplitState returns an inactive split with 'A' as the current tag.
@@ -233,45 +234,35 @@ func (s *SelectionState) HasPartialSelection(filePath string, hunkIdx int) bool 
 // Model is the whole application state. Bubble Tea passes it by value, so Update returns the updated
 // copy and mutating a Model a handler received has no effect unless that copy is returned.
 type Model struct {
-	client      *jj.Client
-	diffSource  diff.Source
-	mode        OperatingMode
-	source      string
-	destination string
-	cfg         config.Config
-
-	changes      []diff.FileChange
-	selectedFile int
-	selectedHunk int
-	focusedPanel FocusedPanel
-
-	// Visual mode state for line-level selection
-	isVisualMode bool
-	visualAnchor int
-	lineCursor   int
-
-	selection       *SelectionState
-	multiSplitState *MultiSplitState
-	fileList        filelist.Model
-	diffView        diffview.Model
 	statusBar       statusbar.Model
-	destPicker      destpicker.Model
+	diffView        diffview.Model
+	diffSource      diff.Source
+	err             error
+	client          *jj.Client
+	selection       *SelectionState
+	searchState     *search.State
+	multiSplitState *MultiSplitState
 	splitAssign     splitassign.Model
-	splitPreview    splitpreview.Model
-	commitMsg       commitmsg.Model
+	fileList        filelist.Model
 	help            help.Model
-
-	// Search state
-	searchModal searchmodal.Model
-	searchState *search.State
-
-	// File finder
-	fileFinder filefinder.Model
-
-	width  int
-	height int
-
-	err error
+	destination     string
+	source          string
+	fileFinder      filefinder.Model
+	commitMsg       commitmsg.Model
+	changes         []diff.FileChange
+	splitPreview    splitpreview.Model
+	destPicker      destpicker.Model
+	searchModal     searchmodal.Model
+	cfg             config.Config
+	lineCursor      int
+	focusedPanel    FocusedPanel
+	selectedHunk    int
+	selectedFile    int
+	visualAnchor    int
+	width           int
+	height          int
+	mode            OperatingMode
+	isVisualMode    bool
 }
 
 type errMsg struct {
@@ -846,7 +837,7 @@ func (m Model) applySelection() tea.Cmd {
 		}
 
 		if !hasSelection {
-			return errMsg{fmt.Errorf("no hunks or lines selected")}
+			return errMsg{errors.New("no hunks or lines selected")}
 		}
 
 		patch := diff.GeneratePatch(m.changes, m.selection)
@@ -868,7 +859,7 @@ func (m Model) applyDiffEditorSelection() tea.Cmd {
 	return func() tea.Msg {
 		dirSource, ok := m.diffSource.(*diff.DirectorySource)
 		if !ok {
-			return errMsg{fmt.Errorf("diff-editor mode requires directory source")}
+			return errMsg{errors.New("diff-editor mode requires directory source")}
 		}
 
 		applier := diff.NewApplier(dirSource.LeftPath, dirSource.RightPath)
@@ -1050,7 +1041,7 @@ func (m Model) applySplit() tea.Cmd {
 	return func() tea.Msg {
 		destinations := m.splitAssign.GetDestinations()
 		if len(destinations) == 0 {
-			return errMsg{fmt.Errorf("no destinations assigned")}
+			return errMsg{errors.New("no destinations assigned")}
 		}
 
 		var plans []jj.SplitPlan
@@ -1079,7 +1070,7 @@ func (m Model) applySplit() tea.Cmd {
 		}
 
 		if len(plans) == 0 {
-			return errMsg{fmt.Errorf("no valid split plans generated")}
+			return errMsg{errors.New("no valid split plans generated")}
 		}
 
 		if err := m.client.ApplySplit(plans, m.source); err != nil {

@@ -45,9 +45,9 @@ type SplitTag rune
 // rendered rows, and each hunk's first row is its header, so HunkLineCounts is one more than the
 // hunk's line count. Hiding whitespace changes the row counts, so the index is rebuilt on that toggle.
 type LineIndex struct {
-	TotalLines     int
 	HunkOffsets    []int
 	HunkLineCounts []int
+	TotalLines     int
 }
 
 // FindHunkForOffset maps a rendered row to its hunk and the row within that hunk, where row 0 is the
@@ -82,27 +82,26 @@ func (idx *LineIndex) FindHunkForOffset(offset int) (hunkIdx, lineInHunk int) {
 // Model is the diff pane. It holds no cursor authority of its own: the parent model pushes the
 // selected hunk, line cursor, search state, and tag state in before each render.
 type Model struct {
+	getHunkTags     func(hunkIdx int) []SplitTag
+	lineIndex       *LineIndex
+	wordDiffCache   *WordDiffCache
+	highlighter     *highlight.Highlighter
 	fileChange      *diff.FileChange
-	offset          int
-	selectedHunk    int
-	lineCursor      int
-	isVisualMode    bool
-	visualAnchor    int
 	isSelected      func(hunkIdx int) bool
 	isLineSelected  func(hunkIdx, lineIdx int) bool
 	getMatches      func(hunkIdx, lineIdx int) []MatchRange
-	isSearching     bool
-	getHunkTags     func(hunkIdx int) []SplitTag
-	highlighter     *highlight.Highlighter
-	enableHighlight bool
-
 	viewMode        ViewModeType
+	visualAnchor    int
+	lineCursor      int
+	tabWidth        int
+	selectedHunk    int
+	offset          int
+	isSearching     bool
+	isVisualMode    bool
+	enableHighlight bool
 	showWhitespace  bool
 	showLineNumbers bool
-	tabWidth        int
 	wordLevelDiff   bool
-	wordDiffCache   *WordDiffCache
-	lineIndex       *LineIndex
 }
 
 // New builds a pane with no file loaded, so View renders a placeholder until SetFileChange is called.
@@ -587,9 +586,11 @@ func (m Model) renderHunkHeader(
 		tags := m.getHunkTags(hunkIdx)
 		if len(tags) > 0 {
 			tagStr := ""
+			var tagStrSb590 strings.Builder
 			for _, tag := range tags {
-				tagStr += " [" + string(tag) + "]"
+				tagStrSb590.WriteString(" [" + string(tag) + "]")
 			}
+			tagStr += tagStrSb590.String()
 			suffix = tagStr + suffix
 		}
 	}

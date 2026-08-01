@@ -18,10 +18,10 @@ const (
 // IntraLineSpan is a run of one line's content. Start and End are byte offsets into that line's
 // Content with End exclusive, so a span's byte width is not its column width.
 type IntraLineSpan struct {
+	Text  string
 	Start int
 	End   int
 	Type  SpanType
-	Text  string
 }
 
 // WordDiffResult holds the spans for one deleted and added line pair. Each side's spans are
@@ -140,10 +140,10 @@ func FindLinePairs(hunk *Hunk) []LinePair {
 // LinePair links a deletion to the addition it is compared against. Both indices are positions in
 // the hunk's Lines slice, and OldLine and NewLine point into that same slice.
 type LinePair struct {
-	OldLineIdx int
-	NewLineIdx int
 	OldLine    *Line
 	NewLine    *Line
+	OldLineIdx int
+	NewLineIdx int
 }
 
 // ComputeHunkWordDiffs keys word diffs by hunk line index, storing one pair's result under both of

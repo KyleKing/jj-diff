@@ -28,18 +28,18 @@ const (
 // DestinationSpec is where one tag's hunks land. ChangeID is empty for DestNewCommit, where
 // Description becomes the message of the commit that gets created.
 type DestinationSpec struct {
-	Type        DestinationType
 	ChangeID    string
 	Description string
+	Type        DestinationType
 }
 
 // SplitSummary is one row of the preview. FileCount and HunkCount are what the tag currently holds,
 // so they are recomputed by the parent rather than tracked here.
 type SplitSummary struct {
-	Tag         SplitTag
 	Destination DestinationSpec
 	FileCount   int
 	HunkCount   int
+	Tag         SplitTag
 }
 
 // Model is the preview modal. It only displays what the parent hands it and has no cursor of its own.
@@ -115,7 +115,7 @@ func (m Model) View(width, height int) string {
 func (m Model) renderSummaryLine(summary SplitSummary, width int) string {
 	var destStr string
 	if summary.Destination.Type == DestNewCommit {
-		destStr = fmt.Sprintf("NEW: %s", truncate(summary.Destination.Description, 30))
+		destStr = "NEW: " + truncate(summary.Destination.Description, 30)
 	} else {
 		destStr = fmt.Sprintf(
 			"%s (%s)",
