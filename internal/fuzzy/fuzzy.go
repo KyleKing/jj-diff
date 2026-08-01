@@ -11,12 +11,24 @@ import (
 // matched, and Original carries whatever value the caller paired with the candidate. Matched is
 // false on the unranked passthrough Filter returns for an empty query.
 type Match struct {
-	Original interface{}
+	Original any
 	Text     string
 	Indices  []int
 	Score    int
 	Matched  bool
 }
+
+// Scoring weights. The consecutive bonus compounds across a run, so characters matched together
+// outscore the same characters spread apart, and the position penalty keeps an early match ahead of a
+// late one.
+const (
+	matchScore             = 100
+	consecutiveStep        = 25
+	caseMatchBonus         = 10
+	wordBoundaryBonus      = 50
+	startOfTextBonus       = 40
+	positionPenaltyDivisor = 3
+)
 
 // Score calculates fuzzy match score for a query against text
 // Higher score is better. Returns 0 if no match.
@@ -26,6 +38,8 @@ type Match struct {
 // - Case-sensitive matches get bonus points
 // - Matches at word boundaries get bonus points
 // - Earlier matches get higher scores.
+//
+//nolint:gocritic // unnamedResult asks for names that nonamedreturns, also enabled, rejects.
 func Score(text, query string) (int, []int) {
 	if query == "" {
 		return 0, nil
@@ -34,70 +48,63 @@ func Score(text, query string) (int, []int) {
 	textLower := strings.ToLower(text)
 	queryLower := strings.ToLower(query)
 
-	// Quick check: all query chars must exist in text
 	if !containsAllChars(textLower, queryLower) {
 		return 0, nil
 	}
 
 	score := 0
 	indices := []int{}
-	textIdx := 0
+	next := 0
 	consecutiveBonus := 0
 
 	for _, qChar := range queryLower {
-		// Find next occurrence of query character
-		found := false
-		for textIdx < len(textLower) {
-			if rune(textLower[textIdx]) == qChar {
-				found = true
-				indices = append(indices, textIdx)
-
-				// Base score for match
-				baseScore := 100
-
-				// Bonus for consecutive matches (higher bonus as streak continues)
-				if len(indices) > 1 && indices[len(indices)-1] == indices[len(indices)-2]+1 {
-					consecutiveBonus += 25
-					baseScore += consecutiveBonus
-				} else {
-					consecutiveBonus = 0
-				}
-
-				// Bonus for case match
-				if textIdx < len(text) && rune(text[textIdx]) == qChar {
-					baseScore += 10
-				}
-
-				// Bonus for word boundary (after /, _, -, or space)
-				if textIdx > 0 {
-					prevChar := text[textIdx-1]
-					if prevChar == '/' || prevChar == '_' || prevChar == '-' ||
-						unicode.IsSpace(rune(prevChar)) {
-						baseScore += 50
-					}
-				} else {
-					// Start of string bonus
-					baseScore += 40
-				}
-
-				// Penalty for later matches (prefer matches near start)
-				penalty := textIdx / 3
-				baseScore -= penalty
-
-				score += baseScore
-				textIdx++
-
-				break
-			}
-			textIdx++
-		}
-
-		if !found {
+		matchIdx := indexOfByteRune(textLower, next, qChar)
+		if matchIdx < 0 {
 			return 0, nil
 		}
+
+		if len(indices) > 0 && matchIdx == indices[len(indices)-1]+1 {
+			consecutiveBonus += consecutiveStep
+		} else {
+			consecutiveBonus = 0
+		}
+
+		indices = append(indices, matchIdx)
+		score += matchScore + consecutiveBonus + positionScore(text, matchIdx, qChar)
+		next = matchIdx + 1
 	}
 
 	return score, indices
+}
+
+func indexOfByteRune(text string, from int, target rune) int {
+	for i := from; i < len(text); i++ {
+		if rune(text[i]) == target {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func positionScore(text string, idx int, qChar rune) int {
+	score := 0
+	if idx < len(text) && rune(text[idx]) == qChar {
+		score += caseMatchBonus
+	}
+
+	switch {
+	case idx == 0:
+		score += startOfTextBonus
+	case isWordBoundary(text[idx-1]):
+		score += wordBoundaryBonus
+	}
+
+	return score - idx/positionPenaltyDivisor
+}
+
+func isWordBoundary(prev byte) bool {
+	return prev == '/' || prev == '_' || prev == '-' || unicode.IsSpace(rune(prev))
 }
 
 func containsAllChars(text, query string) bool {
@@ -166,7 +173,7 @@ func Filter(query string, items []string) []Match {
 }
 
 // FilterWithData is like Filter but preserves arbitrary data with each item.
-func FilterWithData(query string, items []string, data []interface{}) []Match {
+func FilterWithData(query string, items []string, data []any) []Match {
 	if len(items) != len(data) {
 		return nil
 	}

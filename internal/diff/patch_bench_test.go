@@ -1,29 +1,31 @@
-package diff
+package diff_test
 
 import (
 	"fmt"
 	"testing"
+
+	"github.com/kyleking/jj-diff/internal/diff"
 )
 
 // generateBenchmarkFiles creates test files for patch generation benchmarking.
-func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileChange {
-	files := make([]FileChange, fileCount)
+func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []diff.FileChange {
+	files := make([]diff.FileChange, fileCount)
 
 	for i := range fileCount {
-		hunks := make([]Hunk, hunksPerFile)
+		hunks := make([]diff.Hunk, hunksPerFile)
 
 		for j := range hunksPerFile {
-			lines := make([]Line, linesPerHunk)
+			lines := make([]diff.Line, linesPerHunk)
 
 			for k := range linesPerHunk {
-				lineType := LineContext
+				lineType := diff.LineContext
 				if k%3 == 0 {
-					lineType = LineAddition
+					lineType = diff.LineAddition
 				} else if k%5 == 0 {
-					lineType = LineDeletion
+					lineType = diff.LineDeletion
 				}
 
-				lines[k] = Line{
+				lines[k] = diff.Line{
 					Type: lineType,
 					Content: fmt.Sprintf(
 						"This is line %d with realistic content for benchmarking",
@@ -34,7 +36,7 @@ func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileCha
 				}
 			}
 
-			hunks[j] = Hunk{
+			hunks[j] = diff.Hunk{
 				Header: fmt.Sprintf(
 					"@@ -%d,%d +%d,%d @@",
 					j*linesPerHunk+1,
@@ -46,9 +48,9 @@ func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileCha
 			}
 		}
 
-		files[i] = FileChange{
+		files[i] = diff.FileChange{
 			Path:       fmt.Sprintf("src/file%d.go", i),
-			ChangeType: ChangeTypeModified,
+			ChangeType: diff.ChangeTypeModified,
 			Hunks:      hunks,
 		}
 	}
@@ -57,7 +59,7 @@ func generateBenchmarkFiles(fileCount, hunksPerFile, linesPerHunk int) []FileCha
 }
 
 // createFullSelection creates a selection with all hunks selected.
-func createFullSelection(files []FileChange) *mockSelectionState {
+func createFullSelection(files []diff.FileChange) *mockSelectionState {
 	selections := make(map[string]map[int]bool)
 
 	for _, file := range files {
@@ -71,7 +73,7 @@ func createFullSelection(files []FileChange) *mockSelectionState {
 }
 
 // createPartialSelection creates a selection with 50% of hunks selected.
-func createPartialSelection(files []FileChange) *mockSelectionState {
+func createPartialSelection(files []diff.FileChange) *mockSelectionState {
 	selections := make(map[string]map[int]bool)
 
 	for _, file := range files {
@@ -87,7 +89,7 @@ func createPartialSelection(files []FileChange) *mockSelectionState {
 }
 
 // createLineSelection creates a selection with line-level selections.
-func createLineSelection(files []FileChange) *mockSelectionState {
+func createLineSelection(files []diff.FileChange) *mockSelectionState {
 	mock := &mockSelectionState{
 		selections:     make(map[string]map[int]bool),
 		lineSelections: make(map[string]map[int]map[int]bool),
@@ -123,7 +125,7 @@ func BenchmarkPatchGeneration_SmallDiff(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }
 
@@ -134,7 +136,7 @@ func BenchmarkPatchGeneration_MediumDiff(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }
 
@@ -145,7 +147,7 @@ func BenchmarkPatchGeneration_LargeDiff(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }
 
@@ -156,7 +158,7 @@ func BenchmarkPatchGeneration_PartialSelection(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }
 
@@ -167,7 +169,7 @@ func BenchmarkPatchGeneration_LineLevel(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }
 
@@ -178,7 +180,7 @@ func BenchmarkPatchGeneration_SingleFile(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }
 
@@ -189,7 +191,7 @@ func BenchmarkPatchGeneration_ManySmallHunks(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }
 
@@ -200,6 +202,6 @@ func BenchmarkPatchGeneration_FewLargeHunks(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_ = GeneratePatch(files, selection)
+		_ = diff.GeneratePatch(files, selection)
 	}
 }

@@ -1,6 +1,4 @@
-// Package integration drives internal/jj against a real jj binary in a throwaway repository.
-// Every test skips when jj is absent, because the CI runners have none.
-package integration
+package integration_test
 
 import (
 	"path/filepath"
@@ -8,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kyleking/jj-diff/internal/jj"
+	"github.com/kyleking/jj-diff/tests/integration"
 )
 
 // TestMoveChanges_CoreWorkflow tests the basic MoveChanges workflow
@@ -15,7 +14,7 @@ import (
 func TestMoveChanges_CoreWorkflow(t *testing.T) {
 	t.Parallel()
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	// Setup: Create initial commit
 	repo.WriteFile("file1.txt", "line 1\nline 2\nline 3\n")
@@ -59,7 +58,7 @@ func TestMoveChanges_CoreWorkflow(t *testing.T) {
 func TestMoveChanges_RollbackOnError(t *testing.T) {
 	t.Parallel()
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	// Setup: Create initial commit
 	repo.WriteFile("file1.txt", "line 1\nline 2\n")
@@ -115,7 +114,7 @@ func TestMoveChanges_RollbackOnError(t *testing.T) {
 func TestMoveChanges_WorkingCopyPreservation(t *testing.T) {
 	t.Parallel()
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	// Setup: Create simple commit
 	repo.WriteFile("file1.txt", "original content\n")
@@ -167,7 +166,7 @@ func TestMoveChanges_WorkingCopyPreservation(t *testing.T) {
 func TestMoveChanges_LeavesUnselectedChangesAlone(t *testing.T) {
 	t.Parallel()
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	repo.WriteFile("main.go", "line1\nline2\nline3\nline4\nline5\n")
 	repo.WriteFile("other.txt", "a\nb\nc\n")
@@ -224,7 +223,7 @@ func TestMoveChanges_LeavesUnselectedChangesAlone(t *testing.T) {
 func TestMoveChanges_ResolvesDestinationBeforeMoving(t *testing.T) {
 	t.Parallel()
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	repo.WriteFile("file1.txt", "line 1\n")
 	repo.Commit("first")
@@ -257,7 +256,7 @@ func TestMoveChanges_CleansUpScratchWorkspaceOnFailure(t *testing.T) {
 	scratchRoot := t.TempDir()
 	t.Setenv("TMPDIR", scratchRoot)
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	repo.WriteFile("file1.txt", "line 1\nline 2\n")
 	repo.Commit("Initial commit")
@@ -299,7 +298,7 @@ func TestMoveChanges_CleansUpScratchWorkspaceOnFailure(t *testing.T) {
 func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
 	t.Parallel()
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	repo.WriteFile("a.txt", "a1\n")
 	repo.WriteFile("b.txt", "b1\n")
@@ -351,7 +350,7 @@ func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
 func TestGetRevisions_ParsesRealLogOutput(t *testing.T) {
 	t.Parallel()
 
-	repo := NewTestRepo(t)
+	repo := integration.NewTestRepo(t)
 
 	repo.WriteFile("file1.txt", "line 1\n")
 	repo.Commit("feat: first")

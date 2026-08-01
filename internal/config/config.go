@@ -27,6 +27,9 @@ type Config struct {
 	WordLevelDiff   bool
 }
 
+// defaultTabWidth is the column width a tab renders as when JJ_DIFF_TAB_WIDTH is unset.
+const defaultTabWidth = 4
+
 // DefaultConfig returns the settings that apply when no environment variable is
 // set: unified layout, line numbers on, whitespace and word-level diff off, tabs
 // four columns wide.
@@ -35,7 +38,7 @@ func DefaultConfig() Config {
 		ViewMode:        ViewModeUnified,
 		ShowWhitespace:  false,
 		ShowLineNumbers: true,
-		TabWidth:        4,
+		TabWidth:        defaultTabWidth,
 		WordLevelDiff:   false,
 	}
 }

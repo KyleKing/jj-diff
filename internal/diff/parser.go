@@ -120,29 +120,34 @@ func Parse(diffText string) []FileChange {
 	return files
 }
 
+// Submatch counts the header patterns must produce, which is one more than the group count each
+// pattern defines.
+const (
+	diffHeaderGroups = 3
+	hunkHeaderGroups = 5
+)
+
 func parseFileChange(section string) *FileChange {
 	lines := strings.Split(section, "\n")
 	if len(lines) == 0 {
 		return nil
 	}
 
-	file := &FileChange{}
-
 	match := diffHeaderRE.FindStringSubmatch(lines[0])
-	if len(match) < 3 {
+	if len(match) < diffHeaderGroups {
 		return nil
 	}
-	file.Path = match[2]
 
-	file.ChangeType = determineChangeType(section)
+	file := &FileChange{
+		Path:       match[2],
+		ChangeType: determineChangeType(section),
+	}
 
 	var currentHunk *Hunk
 	oldLineNum := 0
 	newLineNum := 0
 
-	for i := 1; i < len(lines); i++ {
-		line := lines[i]
-
+	for _, line := range lines[1:] {
 		if strings.HasPrefix(line, "@@") {
 			if currentHunk != nil {
 				file.Hunks = append(file.Hunks, *currentHunk)
@@ -157,44 +162,16 @@ func parseFileChange(section string) *FileChange {
 			continue
 		}
 
-		if currentHunk == nil {
+		if currentHunk == nil || line == "" || isMetadataLine(line) {
 			continue
 		}
 
-		if strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") ||
-			strings.HasPrefix(line, "index ") || strings.HasPrefix(line, "new file") ||
-			strings.HasPrefix(line, "deleted file") {
-			continue
-		}
+		parsed := classifyLine(line)
+		parsed.OldLineNum = oldLineNum
+		parsed.NewLineNum = newLineNum
+		currentHunk.Lines = append(currentHunk.Lines, parsed)
 
-		if len(line) == 0 {
-			continue
-		}
-
-		lineType := LineContext
-		content := line
-
-		if strings.HasPrefix(line, "+") {
-			lineType = LineAddition
-			content = line[1:]
-		} else if strings.HasPrefix(line, "-") {
-			lineType = LineDeletion
-			content = line[1:]
-		} else if strings.HasPrefix(line, " ") {
-			lineType = LineContext
-			content = line[1:]
-		}
-
-		diffLine := Line{
-			Type:       lineType,
-			Content:    content,
-			OldLineNum: oldLineNum,
-			NewLineNum: newLineNum,
-		}
-
-		currentHunk.Lines = append(currentHunk.Lines, diffLine)
-
-		switch lineType {
+		switch parsed.Type {
 		case LineContext:
 			oldLineNum++
 			newLineNum++
@@ -212,6 +189,30 @@ func parseFileChange(section string) *FileChange {
 	return file
 }
 
+// isMetadataLine reports the header lines that can appear inside a section after a hunk header and
+// carry no diff content, including the ones that start with a + or - marker.
+func isMetadataLine(line string) bool {
+	return strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") ||
+		strings.HasPrefix(line, "index ") || strings.HasPrefix(line, "new file") ||
+		strings.HasPrefix(line, "deleted file")
+}
+
+// classifyLine reads a non-empty diff line into its kind and its content with the marker stripped,
+// leaving the line numbers for the caller. A line whose first byte is not a marker is kept whole as
+// context.
+func classifyLine(line string) Line {
+	switch line[0] {
+	case '+':
+		return Line{Type: LineAddition, Content: line[1:]}
+	case '-':
+		return Line{Type: LineDeletion, Content: line[1:]}
+	case ' ':
+		return Line{Type: LineContext, Content: line[1:]}
+	default:
+		return Line{Type: LineContext, Content: line}
+	}
+}
+
 func atoiOrDefault(value string, fallback int) (int, bool) {
 	if value == "" {
 		return fallback, true
@@ -224,7 +225,7 @@ func atoiOrDefault(value string, fallback int) (int, bool) {
 
 func parseHunkHeader(header string) *Hunk {
 	match := hunkHeaderRE.FindStringSubmatch(header)
-	if len(match) < 5 {
+	if len(match) < hunkHeaderGroups {
 		return nil
 	}
 

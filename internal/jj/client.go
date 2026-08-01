@@ -4,6 +4,7 @@ package jj
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -14,8 +15,16 @@ import (
 	"strings"
 )
 
+// patchFileMode is the permission the temporary patch file is written with. It holds the user's
+// unsquashed changes, so it stays readable only by them.
+const patchFileMode = 0o600
+
+// statusFieldCount is the smallest number of whitespace-separated fields a jj status line carries: a
+// one-letter change type and a path.
+const statusFieldCount = 2
+
 // Client runs jj in one repository. Every call shells out and blocks, so callers in the UI wrap them
-// in a tea.Cmd.
+// in a tea.Cmd. No call is cancellable, so each one runs under a background context.
 type Client struct {
 	baseDir string
 }
@@ -26,10 +35,19 @@ func NewClient(baseDir string) *Client {
 	return &Client{baseDir: baseDir}
 }
 
+// jjCommand builds a jj invocation rooted at the client's repository.
+func (c *Client) jjCommand(args ...string) *exec.Cmd {
+	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
+	cmd := exec.CommandContext(context.Background(), "jj", args...)
+	cmd.Dir = c.baseDir
+
+	return cmd
+}
+
 // CheckInstalled reports whether a jj binary is on PATH. It runs outside the repository, so it says
 // nothing about baseDir being a jj repo.
-func (c *Client) CheckInstalled() error {
-	cmd := exec.Command("jj", "--version")
+func (*Client) CheckInstalled() error {
+	cmd := exec.CommandContext(context.Background(), "jj", "--version")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("jj command not found: %w", err)
 	}
@@ -40,9 +58,7 @@ func (c *Client) CheckInstalled() error {
 // Diff returns the git-format diff for a revset, uncolored. The revset is resolved by jj at call
 // time, so a moving revset such as @ follows the working copy.
 func (c *Client) Diff(revision string) (string, error) {
-	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
-	cmd := exec.Command("jj", "diff", "-r", revision, "--git", "--color=never")
-	cmd.Dir = c.baseDir
+	cmd := c.jjCommand("diff", "-r", revision, "--git", "--color=never")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -55,8 +71,7 @@ func (c *Client) Diff(revision string) (string, error) {
 // Status lists the working copy's changed files. Lines jj prints that are not file entries are
 // dropped, so an unparsable output yields an empty slice rather than an error.
 func (c *Client) Status() ([]FileStatus, error) {
-	cmd := exec.Command("jj", "status", "--no-pager")
-	cmd.Dir = c.baseDir
+	cmd := c.jjCommand("status", "--no-pager")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -69,9 +84,7 @@ func (c *Client) Status() ([]FileStatus, error) {
 // ShowRevision returns one revision's metadata. Fields jj did not print are left empty rather than
 // reported, so the result is never nil on success.
 func (c *Client) ShowRevision(revision string) (*RevisionInfo, error) {
-	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
-	cmd := exec.Command("jj", "show", "-r", revision, "--no-graph", "--summary")
-	cmd.Dir = c.baseDir
+	cmd := c.jjCommand("show", "-r", revision, "--no-graph", "--summary")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -83,8 +96,7 @@ func (c *Client) ShowRevision(revision string) (*RevisionInfo, error) {
 
 // Undo reverts the last jj operation in the repository, whether or not this client caused it.
 func (c *Client) Undo() error {
-	cmd := exec.Command("jj", "undo")
-	cmd.Dir = c.baseDir
+	cmd := c.jjCommand("undo")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -98,7 +110,7 @@ func (c *Client) Undo() error {
 // is touched: the caller's working copy is never read, written, or moved by the sequence, because every
 // write happens in a throwaway workspace. The temp file holding the patch is removed even on failure,
 // and a failure to remove it is joined onto the returned error.
-func (c *Client) MoveChanges(patch, source, destination string) (err error) {
+func (c *Client) MoveChanges(patch, _, destination string) (err error) {
 	tmpDir, err := os.MkdirTemp("", "jj-diff-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
@@ -110,7 +122,7 @@ func (c *Client) MoveChanges(patch, source, destination string) (err error) {
 	}()
 
 	patchFile := filepath.Join(tmpDir, "changes.patch")
-	if err := os.WriteFile(patchFile, []byte(patch), 0o600); err != nil {
+	if err := os.WriteFile(patchFile, []byte(patch), patchFileMode); err != nil {
 		return fmt.Errorf("failed to write patch: %w", err)
 	}
 
@@ -142,6 +154,7 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
 var (
 	errRevsetNoMatch       = errors.New("revset matched no revision")
 	errNewCommitNotFound   = errors.New("jj created a commit that could not be found afterwards")
+	errNoSplitPlans        = errors.New("no split plans provided")
 	errPatchChangedNothing = errors.New("the patch applied cleanly but changed nothing, so there is nothing to move")
 )
 
@@ -228,7 +241,7 @@ func applyPatchFile(dir, ceiling, patchFile string) error {
 	}
 
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
-	cmd := exec.Command("git", "apply", patchFile)
+	cmd := exec.CommandContext(context.Background(), "git", "apply", patchFile)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_CEILING_DIRECTORIES="+ceiling)
 
@@ -283,12 +296,10 @@ func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 		`change_id.shortest(),` +
 		`if(description, description.first_line(), "(no description)")) ++ "\n---\n"`
 
-	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
-	cmd := exec.Command("jj", "log",
+	cmd := c.jjCommand("log",
 		"--no-graph",
 		"--limit", strconv.Itoa(limit),
 		"--template", template)
-	cmd.Dir = c.baseDir
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -326,8 +337,8 @@ type SplitDestination struct {
 // SplitPlan is one tag's patch and the destination it goes to. Tag is carried through for error
 // messages and has no meaning to jj.
 type SplitPlan struct {
-	Destination SplitDestination
 	Patch       string
+	Destination SplitDestination
 	Tag         rune
 }
 
@@ -385,7 +396,7 @@ func parseStatus(output string) []FileStatus {
 		}
 
 		parts := strings.Fields(line)
-		if len(parts) < 2 {
+		if len(parts) < statusFieldCount {
 			continue
 		}
 
@@ -421,13 +432,14 @@ func parseRevisionInfo(output string) *RevisionInfo {
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "Change ID:") {
+		switch {
+		case strings.HasPrefix(line, "Change ID:"):
 			info.ChangeID = strings.TrimSpace(strings.TrimPrefix(line, "Change ID:"))
-		} else if strings.HasPrefix(line, "Author:") {
+		case strings.HasPrefix(line, "Author:"):
 			info.Author = strings.TrimSpace(strings.TrimPrefix(line, "Author:"))
-		} else if strings.HasPrefix(line, "Date:") {
+		case strings.HasPrefix(line, "Date:"):
 			info.Date = strings.TrimSpace(strings.TrimPrefix(line, "Date:"))
-		} else if info.Description == "" && line != "" && !strings.Contains(line, ":") {
+		case info.Description == "" && line != "" && !strings.Contains(line, ":"):
 			info.Description = line
 		}
 	}
@@ -523,7 +535,7 @@ func (c *Client) restoreOperation(opID string) error {
 // to where it started rather than keeping the plans that already succeeded.
 func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 	if len(plans) == 0 {
-		return errors.New("no split plans provided")
+		return errNoSplitPlans
 	}
 
 	opID, err := c.getCurrentOperationID()
@@ -537,7 +549,10 @@ func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 		if plan.Destination.Type == SplitDestNewCommit {
 			changeID, err := c.createNewCommit(plan.Destination.Description)
 			if err != nil {
-				return c.restoreOperationAfter(opID, fmt.Errorf("failed to create new commit for tag %c: %w", plan.Tag, err))
+				return c.restoreOperationAfter(
+					opID,
+					fmt.Errorf("failed to create new commit for tag %c: %w", plan.Tag, err),
+				)
 			}
 			destChangeID = changeID
 		} else {
@@ -545,7 +560,10 @@ func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 		}
 
 		if err := c.MoveChanges(plan.Patch, source, destChangeID); err != nil {
-			return c.restoreOperationAfter(opID, fmt.Errorf("failed to apply patch for tag %c (plan %d): %w", plan.Tag, i+1, err))
+			return c.restoreOperationAfter(
+				opID,
+				fmt.Errorf("failed to apply patch for tag %c (plan %d): %w", plan.Tag, i+1, err),
+			)
 		}
 	}
 
@@ -553,9 +571,7 @@ func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 }
 
 func (c *Client) executeJJ(args ...string) (string, error) {
-	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
-	cmd := exec.Command("jj", args...)
-	cmd.Dir = c.baseDir
+	cmd := c.jjCommand(args...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

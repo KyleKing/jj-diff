@@ -1,7 +1,9 @@
-package diff
+package diff_test
 
 import (
 	"testing"
+
+	"github.com/kyleking/jj-diff/internal/diff"
 )
 
 func TestComputeWordDiff(t *testing.T) {
@@ -55,7 +57,7 @@ func TestComputeWordDiff(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := ComputeWordDiff(tt.oldLine, tt.newLine)
+			result := diff.ComputeWordDiff(tt.oldLine, tt.newLine)
 
 			if len(result.OldSpans) != tt.expectOldSpans {
 				t.Errorf("Expected %d old spans, got %d", tt.expectOldSpans, len(result.OldSpans))
@@ -70,7 +72,7 @@ func TestComputeWordDiff(t *testing.T) {
 func TestComputeWordDiffSpanTypes(t *testing.T) {
 	t.Parallel()
 
-	result := ComputeWordDiff("old_function()", "new_function()")
+	result := diff.ComputeWordDiff("old_function()", "new_function()")
 
 	hasDeleted := false
 	hasAdded := false
@@ -78,15 +80,17 @@ func TestComputeWordDiffSpanTypes(t *testing.T) {
 
 	for _, span := range result.OldSpans {
 		switch span.Type {
-		case SpanDeleted:
+		case diff.SpanDeleted:
 			hasDeleted = true
-		case SpanEqual:
+		case diff.SpanEqual:
 			hasEqual = true
+		case diff.SpanAdded:
+			t.Error("Old line should carry no added span")
 		}
 	}
 
 	for _, span := range result.NewSpans {
-		if span.Type == SpanAdded {
+		if span.Type == diff.SpanAdded {
 			hasAdded = true
 		}
 	}
@@ -105,16 +109,16 @@ func TestComputeWordDiffSpanTypes(t *testing.T) {
 func TestFindLinePairs(t *testing.T) {
 	t.Parallel()
 
-	hunk := &Hunk{
-		Lines: []Line{
-			{Type: LineContext, Content: "context"},
-			{Type: LineDeletion, Content: "old line"},
-			{Type: LineAddition, Content: "new line"},
-			{Type: LineContext, Content: "more context"},
+	hunk := &diff.Hunk{
+		Lines: []diff.Line{
+			{Type: diff.LineContext, Content: "context"},
+			{Type: diff.LineDeletion, Content: "old line"},
+			{Type: diff.LineAddition, Content: "new line"},
+			{Type: diff.LineContext, Content: "more context"},
 		},
 	}
 
-	pairs := FindLinePairs(hunk)
+	pairs := diff.FindLinePairs(hunk)
 
 	if len(pairs) != 1 {
 		t.Fatalf("Expected 1 pair, got %d", len(pairs))
@@ -138,16 +142,16 @@ func TestFindLinePairs(t *testing.T) {
 func TestFindLinePairsMultiplePairs(t *testing.T) {
 	t.Parallel()
 
-	hunk := &Hunk{
-		Lines: []Line{
-			{Type: LineDeletion, Content: "old1"},
-			{Type: LineDeletion, Content: "old2"},
-			{Type: LineAddition, Content: "new1"},
-			{Type: LineAddition, Content: "new2"},
+	hunk := &diff.Hunk{
+		Lines: []diff.Line{
+			{Type: diff.LineDeletion, Content: "old1"},
+			{Type: diff.LineDeletion, Content: "old2"},
+			{Type: diff.LineAddition, Content: "new1"},
+			{Type: diff.LineAddition, Content: "new2"},
 		},
 	}
 
-	pairs := FindLinePairs(hunk)
+	pairs := diff.FindLinePairs(hunk)
 
 	if len(pairs) != 2 {
 		t.Fatalf("Expected 2 pairs, got %d", len(pairs))
@@ -164,16 +168,16 @@ func TestFindLinePairsMultiplePairs(t *testing.T) {
 func TestFindLinePairsUnbalanced(t *testing.T) {
 	t.Parallel()
 
-	hunk := &Hunk{
-		Lines: []Line{
-			{Type: LineDeletion, Content: "old1"},
-			{Type: LineDeletion, Content: "old2"},
-			{Type: LineDeletion, Content: "old3"},
-			{Type: LineAddition, Content: "new1"},
+	hunk := &diff.Hunk{
+		Lines: []diff.Line{
+			{Type: diff.LineDeletion, Content: "old1"},
+			{Type: diff.LineDeletion, Content: "old2"},
+			{Type: diff.LineDeletion, Content: "old3"},
+			{Type: diff.LineAddition, Content: "new1"},
 		},
 	}
 
-	pairs := FindLinePairs(hunk)
+	pairs := diff.FindLinePairs(hunk)
 
 	if len(pairs) != 1 {
 		t.Fatalf("Expected 1 pair (min of 3 del, 1 add), got %d", len(pairs))
@@ -183,15 +187,15 @@ func TestFindLinePairsUnbalanced(t *testing.T) {
 func TestComputeHunkWordDiffs(t *testing.T) {
 	t.Parallel()
 
-	hunk := &Hunk{
-		Lines: []Line{
-			{Type: LineContext, Content: "context"},
-			{Type: LineDeletion, Content: "hello world"},
-			{Type: LineAddition, Content: "hello earth"},
+	hunk := &diff.Hunk{
+		Lines: []diff.Line{
+			{Type: diff.LineContext, Content: "context"},
+			{Type: diff.LineDeletion, Content: "hello world"},
+			{Type: diff.LineAddition, Content: "hello earth"},
 		},
 	}
 
-	results := ComputeHunkWordDiffs(hunk)
+	results := diff.ComputeHunkWordDiffs(hunk)
 
 	if len(results) != 2 {
 		t.Fatalf("Expected 2 results (for indices 1 and 2), got %d", len(results))

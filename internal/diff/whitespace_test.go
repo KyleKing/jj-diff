@@ -1,8 +1,10 @@
-package diff
+package diff_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/kyleking/jj-diff/internal/diff"
 )
 
 func TestRenderWhitespaceSimple(t *testing.T) {
@@ -18,13 +20,13 @@ func TestRenderWhitespaceSimple(t *testing.T) {
 			name:     "spaces become dots",
 			input:    "hello world",
 			tabWidth: 4,
-			contains: []string{"hello", string(SpaceChar), "world"},
+			contains: []string{"hello", string(diff.SpaceChar), "world"},
 		},
 		{
 			name:     "tabs become arrows",
 			input:    "hello\tworld",
 			tabWidth: 4,
-			contains: []string{"hello", string(TabChar), "world"},
+			contains: []string{"hello", string(diff.TabChar), "world"},
 		},
 		{
 			name:     "empty string",
@@ -42,7 +44,7 @@ func TestRenderWhitespaceSimple(t *testing.T) {
 			name:     "multiple spaces",
 			input:    "a  b",
 			tabWidth: 4,
-			contains: []string{"a", string(SpaceChar), string(SpaceChar), "b"},
+			contains: []string{"a", string(diff.SpaceChar), string(diff.SpaceChar), "b"},
 		},
 	}
 
@@ -50,7 +52,7 @@ func TestRenderWhitespaceSimple(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := RenderWhitespaceSimple(tt.input, tt.tabWidth)
+			result := diff.RenderWhitespaceSimple(tt.input, tt.tabWidth)
 			for _, expected := range tt.contains {
 				if !strings.Contains(result, expected) {
 					t.Errorf("Expected result to contain %q, got %q", expected, result)
@@ -63,16 +65,16 @@ func TestRenderWhitespaceSimple(t *testing.T) {
 func TestRenderWhitespaceTabPadding(t *testing.T) {
 	t.Parallel()
 
-	result := RenderWhitespaceSimple("\t", 4)
+	result := diff.RenderWhitespaceSimple("\t", 4)
 	runes := []rune(result)
 	if len(runes) != 4 {
 		t.Errorf("Expected tab to expand to 4 runes, got %d: %q", len(runes), result)
 	}
-	if runes[0] != TabChar {
+	if runes[0] != diff.TabChar {
 		t.Errorf("Expected first rune to be TabChar, got %q", runes[0])
 	}
 
-	result = RenderWhitespaceSimple("\t", 8)
+	result = diff.RenderWhitespaceSimple("\t", 8)
 	runes = []rune(result)
 	if len(runes) != 8 {
 		t.Errorf("Expected tab to expand to 8 runes, got %d: %q", len(runes), result)
@@ -95,7 +97,7 @@ func TestHasTrailingWhitespace(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := HasTrailingWhitespace(tt.input); got != tt.expected {
+		if got := diff.HasTrailingWhitespace(tt.input); got != tt.expected {
 			t.Errorf("HasTrailingWhitespace(%q) = %v, want %v", tt.input, got, tt.expected)
 		}
 	}
@@ -117,7 +119,7 @@ func TestCountTrailingWhitespace(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := CountTrailingWhitespace(tt.input); got != tt.expected {
+		if got := diff.CountTrailingWhitespace(tt.input); got != tt.expected {
 			t.Errorf("CountTrailingWhitespace(%q) = %d, want %d", tt.input, got, tt.expected)
 		}
 	}

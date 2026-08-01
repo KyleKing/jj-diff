@@ -13,6 +13,13 @@ import (
 // was joined to.
 var ErrPathEscapesBase = errors.New("path escapes its base directory")
 
+// Permissions for the tree the diff editor reconstructs. Both directories are temporary and belong
+// to the user running jj, so nothing there is readable by anyone else.
+const (
+	reconstructedDirMode  = 0o750
+	reconstructedFileMode = 0o600
+)
+
 // Applier handles writing user selections back to the right directory.
 // For diff-editor mode, jj expects the right directory to contain
 // only the changes the user wants to keep.
@@ -101,13 +108,13 @@ func (a *Applier) handleAddedFile(
 	hasSelection bool,
 ) error {
 	if !hasSelection {
-		return os.Remove(rightPath)
+		return removeFile(rightPath)
 	}
 
 	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	rightContent, err := os.ReadFile(rightPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading %s: %w", rightPath, err)
 	}
 
 	reconstructed := a.reconstructAddedFile(file, string(rightContent), selection)
@@ -121,25 +128,19 @@ func (a *Applier) handleDeletedFile(
 	selection SelectionState,
 	hasSelection bool,
 ) error {
-	if !hasSelection {
-		//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
-		leftContent, err := os.ReadFile(leftPath)
-		if err != nil {
-			return err
-		}
-
-		return a.writeFile(rightPath, string(leftContent))
-	}
-
 	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	leftContent, err := os.ReadFile(leftPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading %s: %w", leftPath, err)
+	}
+
+	if !hasSelection {
+		return a.writeFile(rightPath, string(leftContent))
 	}
 
 	reconstructed := a.reconstructDeletedFile(file, string(leftContent), selection)
 	if reconstructed == "" {
-		return os.Remove(rightPath)
+		return removeFile(rightPath)
 	}
 
 	return a.writeFile(rightPath, reconstructed)
@@ -153,7 +154,7 @@ func (a *Applier) handleModifiedFile(
 	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	leftContent, err := os.ReadFile(leftPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading %s: %w", leftPath, err)
 	}
 
 	reconstructed := a.reconstructModifiedFile(
@@ -165,7 +166,7 @@ func (a *Applier) handleModifiedFile(
 	return a.writeFile(rightPath, reconstructed)
 }
 
-func (a *Applier) reconstructAddedFile(
+func (*Applier) reconstructAddedFile(
 	file FileChange,
 	rightContent string,
 	selection SelectionState,
@@ -194,7 +195,7 @@ func (a *Applier) reconstructAddedFile(
 	return strings.Join(result, "\n")
 }
 
-func (a *Applier) reconstructDeletedFile(
+func (*Applier) reconstructDeletedFile(
 	file FileChange,
 	leftContent string,
 	selection SelectionState,
@@ -232,7 +233,7 @@ func (a *Applier) reconstructDeletedFile(
 // change only where it is selected. Unselected deletions stay, unselected
 // additions are dropped, so an empty selection reproduces the left file exactly
 // and a full selection reproduces the right file exactly.
-func (a *Applier) reconstructModifiedFile(
+func (*Applier) reconstructModifiedFile(
 	file FileChange,
 	leftContent string,
 	selection SelectionState,
@@ -280,9 +281,9 @@ func (a *Applier) reconstructModifiedFile(
 	return strings.Join(result, "\n")
 }
 
-func (a *Applier) writeFile(path, content string) error {
+func (*Applier) writeFile(path, content string) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, reconstructedDirMode); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
@@ -291,7 +292,19 @@ func (a *Applier) writeFile(path, content string) error {
 	}
 
 	//nolint:gosec // G703: callers resolve path through containedPath first.
-	return os.WriteFile(path, []byte(content), 0o600)
+	if err := os.WriteFile(path, []byte(content), reconstructedFileMode); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+
+	return nil
+}
+
+func removeFile(path string) error {
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("removing %s: %w", path, err)
+	}
+
+	return nil
 }
 
 // SelectAll toggles every hunk in every file, which diff-editor mode calls once on load because

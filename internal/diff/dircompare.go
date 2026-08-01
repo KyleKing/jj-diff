@@ -59,15 +59,18 @@ func walkDirectory(dir string) (map[string]bool, error) {
 
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("resolving %s under %s: %w", path, dir, err)
 		}
 
 		files[relPath] = true
 
 		return nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("walking %s: %w", dir, err)
+	}
 
-	return files, err
+	return files, nil
 }
 
 func mergeFilePaths(left, right map[string]bool) []string {
@@ -116,7 +119,7 @@ func readFileContent(path string) (string, error) {
 	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("reading %s: %w", path, err)
 	}
 
 	return string(content), nil
@@ -187,9 +190,6 @@ func generateDeletedFileHunks(content string) string {
 }
 
 func generateModifiedFileHunks(leftContent, rightContent string) string {
-	leftLines := splitLines(leftContent)
-	rightLines := splitLines(rightContent)
-
 	// Line mode, not DiffMain's checklines heuristic. computeHunks splits every
 	// segment on newlines, so a character-level diff hands it fragments such as
 	// "p" / "fmt.P" / "rintln(" and the reconstructed file comes out corrupt.
@@ -197,7 +197,7 @@ func generateModifiedFileHunks(leftContent, rightContent string) string {
 	leftRunes, rightRunes, lineArray := dmp.DiffLinesToRunes(leftContent, rightContent)
 	diffs := dmp.DiffCharsToLines(dmp.DiffMainRunes(leftRunes, rightRunes, false), lineArray)
 
-	return computeHunks(leftLines, rightLines, diffs)
+	return computeHunks(diffs)
 }
 
 func splitLines(content string) []string {
@@ -212,17 +212,42 @@ func splitLines(content string) []string {
 	return lines
 }
 
-func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
-	var builder strings.Builder
-	const contextLines = 3
+// hunkContextLines is how many unchanged lines are kept on each side of a change, and also the gap
+// below which two nearby changes are merged into one hunk.
+const hunkContextLines = 3
 
-	type diffLine struct {
-		content  string
-		oldNum   int
-		newNum   int
-		lineType rune
+// diffLine is one line of the flattened diff. A deletion carries no newNum and an addition carries no
+// oldNum, so the missing side is left at 0.
+type diffLine struct {
+	content  string
+	oldNum   int
+	newNum   int
+	lineType rune
+}
+
+// hunkRange is an inclusive index range into the flattened diff.
+type hunkRange struct {
+	start int
+	end   int
+}
+
+func computeHunks(diffs []godiff.Diff) string {
+	allLines := flattenDiff(diffs)
+
+	changed := changedIndices(allLines)
+	if len(changed) == 0 {
+		return ""
 	}
 
+	var builder strings.Builder
+	for _, hr := range groupHunkRanges(changed, len(allLines)) {
+		writeHunk(&builder, allLines[hr.start:hr.end+1])
+	}
+
+	return builder.String()
+}
+
+func flattenDiff(diffs []godiff.Diff) []diffLine {
 	var allLines []diffLine
 	oldLine := 1
 	newLine := 1
@@ -233,9 +258,9 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 			lines = []string{d.Text}
 		}
 
-		switch d.Type {
-		case godiff.DiffEqual:
-			for _, line := range lines {
+		for _, line := range lines {
+			switch d.Type {
+			case godiff.DiffEqual:
 				allLines = append(allLines, diffLine{
 					lineType: ' ',
 					content:  line,
@@ -244,9 +269,7 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 				})
 				oldLine++
 				newLine++
-			}
-		case godiff.DiffDelete:
-			for _, line := range lines {
+			case godiff.DiffDelete:
 				allLines = append(allLines, diffLine{
 					lineType: '-',
 					content:  line,
@@ -254,9 +277,7 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 					newNum:   0,
 				})
 				oldLine++
-			}
-		case godiff.DiffInsert:
-			for _, line := range lines {
+			case godiff.DiffInsert:
 				allLines = append(allLines, diffLine{
 					lineType: '+',
 					content:  line,
@@ -268,111 +289,85 @@ func computeHunks(leftLines, rightLines []string, diffs []godiff.Diff) string {
 		}
 	}
 
-	changeIndices := make([]int, 0)
-	for i, line := range allLines {
+	return allLines
+}
+
+func changedIndices(lines []diffLine) []int {
+	indices := make([]int, 0, len(lines))
+	for i, line := range lines {
 		if line.lineType != ' ' {
-			changeIndices = append(changeIndices, i)
+			indices = append(indices, i)
 		}
 	}
 
-	if len(changeIndices) == 0 {
-		return ""
-	}
+	return indices
+}
 
-	type hunkRange struct {
-		start int
-		end   int
-	}
-	var hunkRanges []hunkRange
+// groupHunkRanges pads each change with context and merges the ranges that end up touching, so two
+// changes closer than twice the context land in one hunk rather than two overlapping ones.
+func groupHunkRanges(changed []int, total int) []hunkRange {
+	var ranges []hunkRange
 
 	i := 0
-	for i < len(changeIndices) {
-		start := changeIndices[i] - contextLines
-		if start < 0 {
-			start = 0
-		}
+	for i < len(changed) {
+		start := max(changed[i]-hunkContextLines, 0)
+		end := min(changed[i]+hunkContextLines, total-1)
 
-		end := changeIndices[i] + contextLines
-		if end >= len(allLines) {
-			end = len(allLines) - 1
-		}
-
-		for i < len(changeIndices)-1 {
-			nextStart := changeIndices[i+1] - contextLines
-			if nextStart <= end+1 {
-				newEnd := changeIndices[i+1] + contextLines
-				if newEnd >= len(allLines) {
-					newEnd = len(allLines) - 1
-				}
-				end = newEnd
-				i++
-			} else {
+		for i < len(changed)-1 {
+			if changed[i+1]-hunkContextLines > end+1 {
 				break
 			}
+
+			end = min(changed[i+1]+hunkContextLines, total-1)
+			i++
 		}
 
-		hunkRanges = append(hunkRanges, hunkRange{start: start, end: end})
+		ranges = append(ranges, hunkRange{start: start, end: end})
 		i++
 	}
 
-	for _, hr := range hunkRanges {
-		hunkLines := allLines[hr.start : hr.end+1]
-		if len(hunkLines) == 0 {
-			continue
-		}
+	return ranges
+}
 
-		var oldStart, newStart int
-		oldCount := 0
-		newCount := 0
+func writeHunk(builder *strings.Builder, hunkLines []diffLine) {
+	if len(hunkLines) == 0 {
+		return
+	}
 
-		for j, line := range hunkLines {
-			if j == 0 {
-				if line.oldNum > 0 {
-					oldStart = line.oldNum
-				} else {
-					for k := range hunkLines {
-						if hunkLines[k].oldNum > 0 {
-							oldStart = hunkLines[k].oldNum
-							break
-						}
-					}
-					if oldStart == 0 {
-						oldStart = 1
-					}
-				}
-				if line.newNum > 0 {
-					newStart = line.newNum
-				} else {
-					for k := range hunkLines {
-						if hunkLines[k].newNum > 0 {
-							newStart = hunkLines[k].newNum
-							break
-						}
-					}
-					if newStart == 0 {
-						newStart = 1
-					}
-				}
-			}
+	oldCount := 0
+	newCount := 0
 
-			switch line.lineType {
-			case ' ':
-				oldCount++
-				newCount++
-			case '-':
-				oldCount++
-			case '+':
-				newCount++
-			}
-		}
-
-		fmt.Fprintf(&builder, "@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount)
-		for _, line := range hunkLines {
-			builder.WriteRune(line.lineType)
-			builder.WriteString(line.content)
-			builder.WriteString("\n")
+	for _, line := range hunkLines {
+		switch line.lineType {
+		case ' ':
+			oldCount++
+			newCount++
+		case '-':
+			oldCount++
+		case '+':
+			newCount++
 		}
 	}
 
-	return builder.String()
+	oldStart := firstLineNum(hunkLines, func(l diffLine) int { return l.oldNum })
+	newStart := firstLineNum(hunkLines, func(l diffLine) int { return l.newNum })
+
+	fmt.Fprintf(builder, "@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount)
+	for _, line := range hunkLines {
+		builder.WriteRune(line.lineType)
+		builder.WriteString(line.content)
+		builder.WriteString("\n")
+	}
+}
+
+// firstLineNum returns the first line number pick reports for the hunk, falling back to 1 for a hunk
+// that exists on only one side and therefore has none.
+func firstLineNum(lines []diffLine, pick func(diffLine) int) int {
+	for _, line := range lines {
+		if num := pick(line); num > 0 {
+			return num
+		}
+	}
+
+	return 1
 }

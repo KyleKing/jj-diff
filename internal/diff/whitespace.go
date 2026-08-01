@@ -57,7 +57,7 @@ func (r *WhitespaceRenderer) Render(content string) string {
 		}
 	}
 
-	if len(trailing) > 0 {
+	if trailing != "" {
 		trailingRendered := r.renderTrailingWhitespace(trailing)
 		result.WriteString(trailingRendered)
 	}
@@ -113,7 +113,7 @@ func RenderWhitespaceSimple(content string, tabWidth int) string {
 // HasTrailingWhitespace reports whether content ends in a space or a tab. An empty string does not,
 // and a line that is entirely whitespace does.
 func HasTrailingWhitespace(content string) bool {
-	if len(content) == 0 {
+	if content == "" {
 		return false
 	}
 	last := content[len(content)-1]
@@ -126,11 +126,10 @@ func HasTrailingWhitespace(content string) bool {
 func CountTrailingWhitespace(content string) int {
 	count := 0
 	for i := len(content) - 1; i >= 0; i-- {
-		if content[i] == ' ' || content[i] == '\t' {
-			count++
-		} else {
+		if content[i] != ' ' && content[i] != '\t' {
 			break
 		}
+		count++
 	}
 
 	return count
@@ -160,46 +159,47 @@ func ProcessHunkHideWhitespace(lines []Line) []Line {
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 
-		// Check if this is a deletion followed by an addition (potential whitespace change)
-		if line.Type == LineDeletion && i+1 < len(lines) && lines[i+1].Type == LineAddition {
-			nextLine := lines[i+1]
+		isReplacement := line.Type == LineDeletion &&
+			i+1 < len(lines) && lines[i+1].Type == LineAddition
+		if !isReplacement {
+			result = append(result, line)
 
-			// Check if only whitespace differs
-			if IsWhitespaceOnlyChange(line.Content, nextLine.Content) {
-				// Skip both lines and render as single context line with new indentation
-				result = append(result, Line{
-					Type:       LineContext,
-					Content:    nextLine.Content,
-					OldLineNum: line.OldLineNum,
-					NewLineNum: nextLine.NewLineNum,
-				})
-				i++ // Skip the addition line
-
-				continue
-			} else {
-				// Content changed - use new indentation for both lines
-				oldIndent := GetLeadingWhitespace(line.Content)
-				newIndent := GetLeadingWhitespace(nextLine.Content)
-
-				if oldIndent != newIndent {
-					// Apply new indentation to old content
-					oldTrimmed := strings.TrimLeft(line.Content, " \t")
-					result = append(result, Line{
-						Type:       LineDeletion,
-						Content:    newIndent + oldTrimmed,
-						OldLineNum: line.OldLineNum,
-						NewLineNum: line.NewLineNum,
-					})
-				} else {
-					result = append(result, line)
-				}
-				// Continue normally, next line will be processed in next iteration
-				continue
-			}
+			continue
 		}
 
-		result = append(result, line)
+		nextLine := lines[i+1]
+
+		if IsWhitespaceOnlyChange(line.Content, nextLine.Content) {
+			result = append(result, Line{
+				Type:       LineContext,
+				Content:    nextLine.Content,
+				OldLineNum: line.OldLineNum,
+				NewLineNum: nextLine.NewLineNum,
+			})
+			i++
+
+			continue
+		}
+
+		result = append(result, reindentDeletion(line, nextLine))
 	}
 
 	return result
+}
+
+// reindentDeletion gives a deletion the indentation of the addition replacing it, so a pair that also
+// changed indentation reads as a content change alone.
+func reindentDeletion(deletion, addition Line) Line {
+	oldIndent := GetLeadingWhitespace(deletion.Content)
+	newIndent := GetLeadingWhitespace(addition.Content)
+	if oldIndent == newIndent {
+		return deletion
+	}
+
+	return Line{
+		Type:       LineDeletion,
+		Content:    newIndent + strings.TrimLeft(deletion.Content, " \t"),
+		OldLineNum: deletion.OldLineNum,
+		NewLineNum: deletion.NewLineNum,
+	}
 }

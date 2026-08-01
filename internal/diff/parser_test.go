@@ -1,13 +1,15 @@
-package diff
+package diff_test
 
 import (
 	"testing"
+
+	"github.com/kyleking/jj-diff/internal/diff"
 )
 
 func TestParse_EmptyDiff(t *testing.T) {
 	t.Parallel()
 
-	result := Parse("")
+	result := diff.Parse("")
 	if len(result) != 0 {
 		t.Errorf("Expected 0 files, got %d", len(result))
 	}
@@ -26,7 +28,7 @@ func TestParse_SimpleDiff(t *testing.T) {
  line 4
 `
 
-	result := Parse(input)
+	result := diff.Parse(input)
 
 	if len(result) != 1 {
 		t.Fatalf("Expected 1 file, got %d", len(result))
@@ -37,7 +39,7 @@ func TestParse_SimpleDiff(t *testing.T) {
 		t.Errorf("Expected path 'file.txt', got '%s'", file.Path)
 	}
 
-	if file.ChangeType != ChangeTypeModified {
+	if file.ChangeType != diff.ChangeTypeModified {
 		t.Errorf("Expected ChangeTypeModified, got %v", file.ChangeType)
 	}
 
@@ -58,7 +60,7 @@ func TestParse_SimpleDiff(t *testing.T) {
 		t.Fatalf("Expected 4 lines, got %d", len(hunk.Lines))
 	}
 
-	expectedTypes := []LineType{LineContext, LineAddition, LineContext, LineContext}
+	expectedTypes := []diff.LineType{diff.LineContext, diff.LineAddition, diff.LineContext, diff.LineContext}
 	for i, expected := range expectedTypes {
 		if hunk.Lines[i].Type != expected {
 			t.Errorf("Line %d: expected type %v, got %v", i, expected, hunk.Lines[i].Type)
@@ -78,14 +80,14 @@ new file mode 100644
 +line 2
 `
 
-	result := Parse(input)
+	result := diff.Parse(input)
 
 	if len(result) != 1 {
 		t.Fatalf("Expected 1 file, got %d", len(result))
 	}
 
 	file := result[0]
-	if file.ChangeType != ChangeTypeAdded {
+	if file.ChangeType != diff.ChangeTypeAdded {
 		t.Errorf("Expected ChangeTypeAdded, got %v", file.ChangeType)
 	}
 }
@@ -102,14 +104,14 @@ deleted file mode 100644
 -line 2
 `
 
-	result := Parse(input)
+	result := diff.Parse(input)
 
 	if len(result) != 1 {
 		t.Fatalf("Expected 1 file, got %d", len(result))
 	}
 
 	file := result[0]
-	if file.ChangeType != ChangeTypeDeleted {
+	if file.ChangeType != diff.ChangeTypeDeleted {
 		t.Errorf("Expected ChangeTypeDeleted, got %v", file.ChangeType)
 	}
 }
@@ -131,7 +133,7 @@ diff --git a/file2.txt b/file2.txt
 +more content
 `
 
-	result := Parse(input)
+	result := diff.Parse(input)
 
 	if len(result) != 2 {
 		t.Fatalf("Expected 2 files, got %d", len(result))
@@ -149,14 +151,14 @@ diff --git a/file2.txt b/file2.txt
 func TestFileChange_AddedLines(t *testing.T) {
 	t.Parallel()
 
-	fc := FileChange{
-		Hunks: []Hunk{
+	fc := diff.FileChange{
+		Hunks: []diff.Hunk{
 			{
-				Lines: []Line{
-					{Type: LineContext},
-					{Type: LineAddition},
-					{Type: LineAddition},
-					{Type: LineDeletion},
+				Lines: []diff.Line{
+					{Type: diff.LineContext},
+					{Type: diff.LineAddition},
+					{Type: diff.LineAddition},
+					{Type: diff.LineDeletion},
 				},
 			},
 		},
@@ -171,14 +173,14 @@ func TestFileChange_AddedLines(t *testing.T) {
 func TestFileChange_DeletedLines(t *testing.T) {
 	t.Parallel()
 
-	fc := FileChange{
-		Hunks: []Hunk{
+	fc := diff.FileChange{
+		Hunks: []diff.Hunk{
 			{
-				Lines: []Line{
-					{Type: LineContext},
-					{Type: LineAddition},
-					{Type: LineDeletion},
-					{Type: LineDeletion},
+				Lines: []diff.Line{
+					{Type: diff.LineContext},
+					{Type: diff.LineAddition},
+					{Type: diff.LineDeletion},
+					{Type: diff.LineDeletion},
 				},
 			},
 		},
@@ -193,10 +195,10 @@ func TestFileChange_DeletedLines(t *testing.T) {
 func TestFileChange_TotalLines(t *testing.T) {
 	t.Parallel()
 
-	fc := FileChange{
-		Hunks: []Hunk{
-			{Lines: []Line{{}, {}, {}}},
-			{Lines: []Line{{}, {}}},
+	fc := diff.FileChange{
+		Hunks: []diff.Hunk{
+			{Lines: []diff.Line{{}, {}, {}}},
+			{Lines: []diff.Line{{}, {}}},
 		},
 	}
 

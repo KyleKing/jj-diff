@@ -1,61 +1,28 @@
-package highlight
+package highlight_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/kyleking/jj-diff/internal/highlight"
 )
 
 func TestNew(t *testing.T) {
 	t.Parallel()
 
-	h := New()
+	h := highlight.New()
 	if h == nil {
 		t.Fatal("Expected highlighter to be created")
 	}
-	if h.style == nil {
+	if !h.HasStyle() {
 		t.Error("Expected style to be initialized")
-	}
-}
-
-func TestDetectLexer(t *testing.T) {
-	t.Parallel()
-
-	h := New()
-
-	testCases := []struct {
-		filePath     string
-		shouldDetect bool
-	}{
-		{"main.go", true},
-		{"script.py", true},
-		{"index.js", true},
-		{"app.tsx", true},
-		{"README.md", true},
-		{"config.json", true},
-		{"style.css", true},
-		{"unknown.xyz", false},
-		{"", false},
-	}
-
-	for _, tc := range testCases {
-		lexer := h.detectLexer(tc.filePath)
-		detected := lexer != nil
-
-		if detected != tc.shouldDetect {
-			t.Errorf(
-				"File %s: expected detected=%v, got %v",
-				tc.filePath,
-				tc.shouldDetect,
-				detected,
-			)
-		}
 	}
 }
 
 func TestHighlightLine_Go(t *testing.T) {
 	t.Parallel()
 
-	h := New()
+	h := highlight.New()
 
 	line := "func main() {"
 	result := h.HighlightLine("main.go", line)
@@ -75,7 +42,7 @@ func TestHighlightLine_Go(t *testing.T) {
 func TestHighlightLine_Python(t *testing.T) {
 	t.Parallel()
 
-	h := New()
+	h := highlight.New()
 
 	line := "def hello_world():"
 	result := h.HighlightLine("script.py", line)
@@ -92,7 +59,7 @@ func TestHighlightLine_Python(t *testing.T) {
 func TestHighlightLine_EmptyLine(t *testing.T) {
 	t.Parallel()
 
-	h := New()
+	h := highlight.New()
 
 	result := h.HighlightLine("main.go", "")
 
@@ -104,7 +71,7 @@ func TestHighlightLine_EmptyLine(t *testing.T) {
 func TestHighlightLine_UnknownLanguage(t *testing.T) {
 	t.Parallel()
 
-	h := New()
+	h := highlight.New()
 
 	line := "some random text"
 	result := h.HighlightLine("unknown.xyz", line)
@@ -118,7 +85,7 @@ func TestHighlightLine_UnknownLanguage(t *testing.T) {
 func TestIsEnabled(t *testing.T) {
 	t.Parallel()
 
-	h := New()
+	h := highlight.New()
 
 	testCases := []struct {
 		filePath string
@@ -126,6 +93,11 @@ func TestIsEnabled(t *testing.T) {
 	}{
 		{"main.go", true},
 		{"script.py", true},
+		{"index.js", true},
+		{"app.tsx", true},
+		{"README.md", true},
+		{"config.json", true},
+		{"style.css", true},
 		{"unknown.xyz", false},
 		{"", false},
 	}
@@ -141,7 +113,7 @@ func TestIsEnabled(t *testing.T) {
 func TestHighlightLine_PreservesContent(t *testing.T) {
 	t.Parallel()
 
-	h := New()
+	h := highlight.New()
 
 	testCases := []struct {
 		filePath string

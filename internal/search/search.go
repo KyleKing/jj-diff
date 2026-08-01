@@ -77,64 +77,69 @@ func (s *State) ExecuteSearch(files []diff.FileChange) {
 		return
 	}
 
-	query := s.Query
-	if !s.IsCaseSensitive {
-		query = strings.ToLower(query)
-	}
+	query := s.normalize(s.Query)
 
 	for fileIdx, file := range files {
-		// Search in file path
-		filePath := file.Path
-		if !s.IsCaseSensitive {
-			filePath = strings.ToLower(filePath)
-		}
-		if idx := strings.Index(filePath, query); idx != -1 {
-			s.Matches = append(s.Matches, MatchLocation{
-				FileIdx:   fileIdx,
-				HunkIdx:   -1,
-				LineIdx:   -1,
-				FilePath:  file.Path,
-				StartCol:  idx,
-				EndCol:    idx + len(s.Query),
-				MatchText: file.Path,
-			})
-		}
-
-		// Search in diff content
-		for hunkIdx, hunk := range file.Hunks {
-			for lineIdx, line := range hunk.Lines {
-				content := line.Content
-				searchContent := content
-				if !s.IsCaseSensitive {
-					searchContent = strings.ToLower(searchContent)
-				}
-
-				idx := 0
-				for {
-					pos := strings.Index(searchContent[idx:], query)
-					if pos == -1 {
-						break
-					}
-					absolutePos := idx + pos
-
-					s.Matches = append(s.Matches, MatchLocation{
-						FileIdx:   fileIdx,
-						HunkIdx:   hunkIdx,
-						LineIdx:   lineIdx,
-						FilePath:  file.Path,
-						StartCol:  absolutePos,
-						EndCol:    absolutePos + len(s.Query),
-						MatchText: content,
-					})
-
-					idx = absolutePos + 1
-				}
-			}
-		}
+		s.appendFileMatches(query, fileIdx, file)
 	}
 
 	if len(s.Matches) > 0 {
 		s.CurrentIdx = 0
+	}
+}
+
+func (s *State) normalize(text string) string {
+	if s.IsCaseSensitive {
+		return text
+	}
+
+	return strings.ToLower(text)
+}
+
+func (s *State) appendFileMatches(query string, fileIdx int, file diff.FileChange) {
+	if idx := strings.Index(s.normalize(file.Path), query); idx != -1 {
+		s.Matches = append(s.Matches, MatchLocation{
+			FileIdx:   fileIdx,
+			HunkIdx:   -1,
+			LineIdx:   -1,
+			FilePath:  file.Path,
+			StartCol:  idx,
+			EndCol:    idx + len(s.Query),
+			MatchText: file.Path,
+		})
+	}
+
+	for hunkIdx, hunk := range file.Hunks {
+		for lineIdx, line := range hunk.Lines {
+			s.appendLineMatches(query, MatchLocation{
+				FileIdx:  fileIdx,
+				HunkIdx:  hunkIdx,
+				LineIdx:  lineIdx,
+				FilePath: file.Path,
+			}, line.Content)
+		}
+	}
+}
+
+// appendLineMatches records every hit in content, resuming one byte past each one so overlapping
+// occurrences are all reported.
+func (s *State) appendLineMatches(query string, at MatchLocation, content string) {
+	searchContent := s.normalize(content)
+
+	for idx := 0; ; {
+		pos := strings.Index(searchContent[idx:], query)
+		if pos == -1 {
+			return
+		}
+
+		absolutePos := idx + pos
+		match := at
+		match.StartCol = absolutePos
+		match.EndCol = absolutePos + len(s.Query)
+		match.MatchText = content
+		s.Matches = append(s.Matches, match)
+
+		idx = absolutePos + 1
 	}
 }
 

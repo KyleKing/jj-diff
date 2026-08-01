@@ -19,11 +19,21 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
+// Sentinel errors main returns on its own rather than wrapping one from a package it calls.
+var (
+	errMissingDir     = errors.New("directory does not exist")
+	errScmRecordUnimp = errors.New("scm-record compatibility mode is not implemented")
+)
+
 var (
 	version = "dev"     //nolint:gochecknoglobals // set by goreleaser ldflags
 	commit  = "none"    //nolint:gochecknoglobals // set by goreleaser ldflags
 	date    = "unknown" //nolint:gochecknoglobals // set by goreleaser ldflags
 )
+
+// diffEditorArgCount is the positional argument count that means jj invoked the program as a diff
+// editor, passing the left and right directories.
+const diffEditorArgCount = 2
 
 type flags struct {
 	revision       string
@@ -115,15 +125,16 @@ func main() {
 		cfg.TabWidth = f.tabWidth
 	}
 
-	var initialModel tea.Model
+	var initialModel model.Model
 	var err error
 
 	args := flag.Args()
-	if len(args) == 2 {
-		initialModel, err = initDiffEditorMode(args[0], args[1], cfg)
-	} else if len(args) == 0 {
+	switch len(args) {
+	case 0:
 		initialModel, err = initRevisionMode(f, cfg)
-	} else {
+	case diffEditorArgCount:
+		initialModel, err = initDiffEditorMode(args[0], args[1], cfg)
+	default:
 		log.Fatalf(
 			"Invalid arguments. Use 'jj-diff' for revision mode or 'jj-diff LEFT RIGHT' for diff-editor mode.",
 		)
@@ -139,20 +150,20 @@ func main() {
 	}
 }
 
-func initRevisionMode(f flags, cfg config.Config) (tea.Model, error) {
+func initRevisionMode(f flags, cfg config.Config) (model.Model, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get working directory: %w", err)
+		return model.Model{}, fmt.Errorf("failed to get working directory: %w", err)
 	}
 
 	client := jj.NewClient(wd)
 
 	if err := client.CheckInstalled(); err != nil {
-		return nil, fmt.Errorf("jj is not installed or not in PATH: %w", err)
+		return model.Model{}, fmt.Errorf("jj is not installed or not in PATH: %w", err)
 	}
 
 	if f.scmInput != "" {
-		return nil, errors.New("scm-record compatibility mode not yet implemented")
+		return model.Model{}, fmt.Errorf("%s: %w", f.scmInput, errScmRecordUnimp)
 	}
 
 	mode := model.ModeBrowse
@@ -162,18 +173,28 @@ func initRevisionMode(f flags, cfg config.Config) (tea.Model, error) {
 
 	source := diff.NewRevisionSource(client, f.revision)
 
-	return model.NewModelWithSource(source, client, f.destination, mode, cfg)
+	m, err := model.NewModelWithSource(source, client, f.destination, mode, cfg)
+	if err != nil {
+		return model.Model{}, fmt.Errorf("building the revision model: %w", err)
+	}
+
+	return m, nil
 }
 
-func initDiffEditorMode(leftDir, rightDir string, cfg config.Config) (tea.Model, error) {
+func initDiffEditorMode(leftDir, rightDir string, cfg config.Config) (model.Model, error) {
 	if _, err := os.Stat(leftDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("left directory does not exist: %s", leftDir)
+		return model.Model{}, fmt.Errorf("left %s: %w", leftDir, errMissingDir)
 	}
 	if _, err := os.Stat(rightDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("right directory does not exist: %s", rightDir)
+		return model.Model{}, fmt.Errorf("right %s: %w", rightDir, errMissingDir)
 	}
 
 	source := diff.NewDirectorySource(leftDir, rightDir)
 
-	return model.NewModelWithSource(source, nil, "", model.ModeDiffEditor, cfg)
+	m, err := model.NewModelWithSource(source, nil, "", model.ModeDiffEditor, cfg)
+	if err != nil {
+		return model.Model{}, fmt.Errorf("building the diff-editor model: %w", err)
+	}
+
+	return m, nil
 }

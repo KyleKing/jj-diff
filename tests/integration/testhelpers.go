@@ -1,11 +1,21 @@
+// Package integration drives internal/jj against a real jj binary in a throwaway repository.
+// Every test skips when jj is absent, because the CI runners have none.
 package integration
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+)
+
+// Permissions for the throwaway repository the fixtures build. Everything lives under the test's own
+// temp directory, so nothing there is readable by anyone else.
+const (
+	fixtureDirMode  = 0o750
+	fixtureFileMode = 0o600
 )
 
 // TestRepo represents a temporary jj repository for testing.
@@ -28,7 +38,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 
 	// Initialize jj repo
 	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
-	cmd := exec.Command("jj", "git", "init", tmpDir)
+	cmd := exec.CommandContext(context.Background(), "jj", "git", "init", tmpDir)
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to init jj repo: %v", err)
 	}
@@ -39,7 +49,7 @@ func NewTestRepo(t *testing.T) *TestRepo {
 name = "Test User"
 email = "test@example.com"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), fixtureFileMode); err != nil {
 		t.Fatalf("Failed to write config: %v", err)
 	}
 
@@ -54,11 +64,11 @@ func (r *TestRepo) WriteFile(path, content string) {
 	r.t.Helper()
 	fullPath := filepath.Join(r.Dir, path)
 
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(fullPath), fixtureDirMode); err != nil {
 		r.t.Fatalf("Failed to create directories: %v", err)
 	}
 
-	if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
+	if err := os.WriteFile(fullPath, []byte(content), fixtureFileMode); err != nil {
 		r.t.Fatalf("Failed to write file %s: %v", path, err)
 	}
 }
@@ -81,7 +91,7 @@ func (r *TestRepo) Commit(message string) {
 	r.t.Helper()
 
 	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
-	cmd := exec.Command("jj", "commit", "-m", message)
+	cmd := exec.CommandContext(context.Background(), "jj", "commit", "-m", message)
 	cmd.Dir = r.Dir
 	if err := cmd.Run(); err != nil {
 		r.t.Fatalf("Failed to commit: %v", err)
@@ -92,7 +102,7 @@ func (r *TestRepo) Commit(message string) {
 func (r *TestRepo) Run(args ...string) (string, error) {
 	r.t.Helper()
 	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
-	cmd := exec.Command("jj", args...)
+	cmd := exec.CommandContext(context.Background(), "jj", args...)
 	cmd.Dir = r.Dir
 	output, err := cmd.CombinedOutput()
 

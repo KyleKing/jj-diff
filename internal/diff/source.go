@@ -1,6 +1,8 @@
 package diff
 
 import (
+	"fmt"
+
 	"github.com/kyleking/jj-diff/internal/jj"
 )
 
@@ -30,7 +32,12 @@ func NewRevisionSource(client *jj.Client, revision string) *RevisionSource {
 // GetDiff shells out to jj for the revision's diff, so it blocks and belongs in a tea.Cmd rather
 // than in Update.
 func (s *RevisionSource) GetDiff() (string, error) {
-	return s.Client.Diff(s.Revision)
+	text, err := s.Client.Diff(s.Revision)
+	if err != nil {
+		return "", fmt.Errorf("reading the diff for %s: %w", s.Revision, err)
+	}
+
+	return text, nil
 }
 
 // GetSourceLabel returns the revset the caller asked for, unresolved, which is what the header
@@ -40,7 +47,7 @@ func (s *RevisionSource) GetSourceLabel() string {
 }
 
 // SupportsRevisions reports true, so interactive mode opens the revision picker.
-func (s *RevisionSource) SupportsRevisions() bool {
+func (*RevisionSource) SupportsRevisions() bool {
 	return true
 }
 
@@ -68,12 +75,12 @@ func (s *DirectorySource) GetDiff() (string, error) {
 
 // GetSourceLabel returns a fixed label, because the directories jj passes are temporary paths that
 // mean nothing to the user.
-func (s *DirectorySource) GetSourceLabel() string {
+func (*DirectorySource) GetSourceLabel() string {
 	return "diff-editor"
 }
 
 // SupportsRevisions reports false, because a diff editor sees two trees and has no revset to resolve
 // against.
-func (s *DirectorySource) SupportsRevisions() bool {
+func (*DirectorySource) SupportsRevisions() bool {
 	return false
 }

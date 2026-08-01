@@ -1,13 +1,15 @@
-package fuzzy
+package fuzzy_test
 
 import (
 	"testing"
+
+	"github.com/kyleking/jj-diff/internal/fuzzy"
 )
 
 func TestScore_ExactMatch(t *testing.T) {
 	t.Parallel()
 
-	score, indices := Score("hello", "hello")
+	score, indices := fuzzy.Score("hello", "hello")
 	if score == 0 {
 		t.Error("Expected exact match to have score > 0")
 	}
@@ -19,7 +21,7 @@ func TestScore_ExactMatch(t *testing.T) {
 func TestScore_NoMatch(t *testing.T) {
 	t.Parallel()
 
-	score, _ := Score("hello", "xyz")
+	score, _ := fuzzy.Score("hello", "xyz")
 	if score != 0 {
 		t.Errorf("Expected no match (score 0), got score %d", score)
 	}
@@ -28,7 +30,7 @@ func TestScore_NoMatch(t *testing.T) {
 func TestScore_PartialMatch(t *testing.T) {
 	t.Parallel()
 
-	score, indices := Score("hello world", "hlo")
+	score, indices := fuzzy.Score("hello world", "hlo")
 	if score == 0 {
 		t.Error("Expected partial match to have score > 0")
 	}
@@ -40,8 +42,8 @@ func TestScore_PartialMatch(t *testing.T) {
 func TestScore_CaseInsensitive(t *testing.T) {
 	t.Parallel()
 
-	score1, _ := Score("Hello", "hello")
-	score2, _ := Score("hello", "HELLO")
+	score1, _ := fuzzy.Score("Hello", "hello")
+	score2, _ := fuzzy.Score("hello", "HELLO")
 
 	if score1 == 0 || score2 == 0 {
 		t.Error("Expected case-insensitive matches to have score > 0")
@@ -52,8 +54,8 @@ func TestScore_ConsecutiveBonus(t *testing.T) {
 	t.Parallel()
 
 	// "hel" in "hello" should score higher than "hel" in "hxexlxlxo"
-	score1, _ := Score("hello", "hel")
-	score2, _ := Score("hxexlxlxo", "hel")
+	score1, _ := fuzzy.Score("hello", "hel")
+	score2, _ := fuzzy.Score("hxexlxlxo", "hel")
 
 	if score1 <= score2 {
 		t.Errorf(
@@ -68,8 +70,8 @@ func TestScore_WordBoundaryBonus(t *testing.T) {
 	t.Parallel()
 
 	// "fc" should match "FileClass" better than "performance"
-	score1, _ := Score("FileClass", "fc")
-	score2, _ := Score("performance", "fc")
+	score1, _ := fuzzy.Score("FileClass", "fc")
+	score2, _ := fuzzy.Score("performance", "fc")
 
 	if score1 <= score2 {
 		t.Errorf(
@@ -91,15 +93,15 @@ func TestScore_PathMatching(t *testing.T) {
 
 	// "mdl" should match "model" files best
 	for _, path := range paths[:2] {
-		score, _ := Score(path, "mdl")
+		score, _ := fuzzy.Score(path, "mdl")
 		if score == 0 {
 			t.Errorf("Expected 'mdl' to match %s", path)
 		}
 	}
 
 	// "cmd" should match cmd/main.go best
-	score1, _ := Score(paths[2], "cmd")
-	score2, _ := Score(paths[0], "cmd")
+	score1, _ := fuzzy.Score(paths[2], "cmd")
+	score2, _ := fuzzy.Score(paths[0], "cmd")
 
 	if score1 <= score2 {
 		t.Errorf(
@@ -114,7 +116,7 @@ func TestFilter_EmptyQuery(t *testing.T) {
 	t.Parallel()
 
 	items := []string{"foo", "bar", "baz"}
-	matches := Filter("", items)
+	matches := fuzzy.Filter("", items)
 
 	if len(matches) != len(items) {
 		t.Errorf("Expected all items with empty query, got %d", len(matches))
@@ -136,7 +138,7 @@ func TestFilter_SortsByScore(t *testing.T) {
 		"internal/diff/patch.go",
 	}
 
-	matches := Filter("diff", items)
+	matches := fuzzy.Filter("diff", items)
 
 	if len(matches) == 0 {
 		t.Fatal("Expected matches for 'diff' query")
@@ -155,7 +157,7 @@ func TestFilter_NoMatches(t *testing.T) {
 	t.Parallel()
 
 	items := []string{"foo", "bar", "baz"}
-	matches := Filter("xyz", items)
+	matches := fuzzy.Filter("xyz", items)
 
 	if len(matches) != 0 {
 		t.Errorf("Expected no matches for 'xyz', got %d", len(matches))
@@ -166,9 +168,9 @@ func TestFilterWithData_PreservesData(t *testing.T) {
 	t.Parallel()
 
 	items := []string{"foo", "bar"}
-	data := []interface{}{42, "hello"}
+	data := []any{42, "hello"}
 
-	matches := FilterWithData("foo", items, data)
+	matches := fuzzy.FilterWithData("foo", items, data)
 
 	if len(matches) != 1 {
 		t.Fatalf("Expected 1 match, got %d", len(matches))
@@ -207,7 +209,7 @@ func TestScore_RealWorldExamples(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		score, _ := Score(tc.text, tc.query)
+		score, _ := fuzzy.Score(tc.text, tc.query)
 		if tc.shouldMatch && score == 0 {
 			t.Errorf("Expected '%s' to match '%s'", tc.query, tc.text)
 		}

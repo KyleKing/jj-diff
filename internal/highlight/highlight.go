@@ -56,63 +56,64 @@ func (h *Highlighter) HighlightLine(filePath, line string) string {
 	return result.String()
 }
 
-func (h *Highlighter) detectLexer(filePath string) chroma.Lexer {
+// Chroma lexer names shared by more than one extension.
+const (
+	bashLexer       = "bash"
+	cLexer          = "c"
+	cppLexer        = "cpp"
+	javascriptLexer = "javascript"
+	typescriptLexer = "typescript"
+	yamlLexer       = "yaml"
+)
+
+// lexerByExtension names the chroma lexer to fall back to for extensions chroma's own filename and
+// extension lookups miss.
+var lexerByExtension = map[string]string{
+	".bash": bashLexer,
+	".c":    cLexer,
+	".cc":   cppLexer,
+	".cpp":  cppLexer,
+	".css":  "css",
+	".go":   "go",
+	".h":    cLexer,
+	".hpp":  cppLexer,
+	".html": "html",
+	".java": "java",
+	".js":   javascriptLexer,
+	".json": "json",
+	".jsx":  javascriptLexer,
+	".md":   "markdown",
+	".py":   "python",
+	".rb":   "ruby",
+	".rs":   "rust",
+	".sh":   bashLexer,
+	".sql":  "sql",
+	".toml": "toml",
+	".ts":   typescriptLexer,
+	".tsx":  typescriptLexer,
+	".yaml": yamlLexer,
+	".yml":  yamlLexer,
+}
+
+//nolint:ireturn // chroma.Lexer is the interface the lexer registry hands back; there is no concrete type to return.
+func (*Highlighter) detectLexer(filePath string) chroma.Lexer {
+	if lexer := lexers.Match(filePath); lexer != nil {
+		return chroma.Coalesce(lexer)
+	}
+
 	ext := filepath.Ext(filePath)
-
-	// Try to get lexer by filename
-	lexer := lexers.Match(filePath)
-	if lexer != nil {
+	if lexer := lexers.Get(ext); lexer != nil {
 		return chroma.Coalesce(lexer)
 	}
 
-	// Try to get lexer by extension
-	lexer = lexers.Get(ext)
-	if lexer != nil {
-		return chroma.Coalesce(lexer)
-	}
-
-	// Special cases for common extensions
-	switch ext {
-	case ".go":
-		return lexers.Get("go")
-	case ".js", ".jsx":
-		return lexers.Get("javascript")
-	case ".ts", ".tsx":
-		return lexers.Get("typescript")
-	case ".py":
-		return lexers.Get("python")
-	case ".rs":
-		return lexers.Get("rust")
-	case ".c", ".h":
-		return lexers.Get("c")
-	case ".cpp", ".hpp", ".cc":
-		return lexers.Get("cpp")
-	case ".java":
-		return lexers.Get("java")
-	case ".rb":
-		return lexers.Get("ruby")
-	case ".sh", ".bash":
-		return lexers.Get("bash")
-	case ".yaml", ".yml":
-		return lexers.Get("yaml")
-	case ".json":
-		return lexers.Get("json")
-	case ".toml":
-		return lexers.Get("toml")
-	case ".md":
-		return lexers.Get("markdown")
-	case ".html":
-		return lexers.Get("html")
-	case ".css":
-		return lexers.Get("css")
-	case ".sql":
-		return lexers.Get("sql")
+	if name, ok := lexerByExtension[ext]; ok {
+		return lexers.Get(name)
 	}
 
 	return nil
 }
 
-func (h *Highlighter) styleToken(token chroma.Token) string {
+func (*Highlighter) styleToken(token chroma.Token) string {
 	value := token.Value
 	tokenType := token.Type
 

@@ -1,17 +1,18 @@
-package search
+package search_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/kyleking/jj-diff/internal/diff"
+	"github.com/kyleking/jj-diff/internal/search"
 )
 
 // TestNewState tests initialization.
 func TestNewState(t *testing.T) {
 	t.Parallel()
 
-	s := NewState()
+	s := search.NewState()
 
 	if s.Query != "" {
 		t.Error("Expected empty query")
@@ -38,7 +39,7 @@ func TestExecuteSearch_EmptyQuery(t *testing.T) {
 		{Path: "file.txt", Hunks: []diff.Hunk{{Lines: []diff.Line{{Content: "hello"}}}}},
 	}
 
-	s := NewState()
+	s := search.NewState()
 	s.Query = ""
 	s.ExecuteSearch(files)
 
@@ -60,7 +61,7 @@ func TestExecuteSearch_FilePathMatch(t *testing.T) {
 		{Path: "pkg/util.go"},
 	}
 
-	s := NewState()
+	s := search.NewState()
 	s.Query = "main"
 	s.ExecuteSearch(files)
 
@@ -100,7 +101,7 @@ func TestExecuteSearch_LineContentMatch(t *testing.T) {
 		},
 	}
 
-	s := NewState()
+	s := search.NewState()
 	s.Query = "world"
 	s.ExecuteSearch(files)
 
@@ -138,7 +139,7 @@ func TestExecuteSearch_MultipleMatchesPerLine(t *testing.T) {
 		},
 	}
 
-	s := NewState()
+	s := search.NewState()
 	s.Query = "test"
 	s.ExecuteSearch(files)
 
@@ -184,7 +185,7 @@ func TestExecuteSearch_CaseInsensitive(t *testing.T) {
 		},
 	}
 
-	s := NewState()
+	s := search.NewState()
 	s.Query = "hello"
 	s.IsCaseSensitive = false
 	s.ExecuteSearch(files)
@@ -211,7 +212,7 @@ func TestExecuteSearch_CaseSensitive(t *testing.T) {
 		},
 	}
 
-	s := NewState()
+	s := search.NewState()
 	s.Query = "hello"
 	s.IsCaseSensitive = true
 	s.ExecuteSearch(files)
@@ -221,72 +222,56 @@ func TestExecuteSearch_CaseSensitive(t *testing.T) {
 	}
 }
 
-// TestNextMatch tests navigation to next match.
-func TestNextMatch(t *testing.T) {
-	s := &State{
-		Matches: []MatchLocation{
+// assertMatchWalk steps a three-match state with move and checks the file index and the cursor after
+// each step, so the last entry of want covers the wrap past the end of the list.
+func assertMatchWalk(
+	t *testing.T,
+	startIdx int,
+	move func(*search.State) *search.MatchLocation,
+	want []int,
+) {
+	t.Helper()
+
+	s := &search.State{
+		Matches: []search.MatchLocation{
 			{FileIdx: 0},
 			{FileIdx: 1},
 			{FileIdx: 2},
 		},
-		CurrentIdx: 0,
+		CurrentIdx: startIdx,
 	}
 
-	// Move to next
-	match := s.NextMatch()
-	if match.FileIdx != 1 || s.CurrentIdx != 1 {
-		t.Error("NextMatch should move to index 1")
+	for step, wantIdx := range want {
+		match := move(s)
+		if match.FileIdx != wantIdx || s.CurrentIdx != wantIdx {
+			t.Errorf(
+				"step %d: got FileIdx=%d CurrentIdx=%d, want %d",
+				step, match.FileIdx, s.CurrentIdx, wantIdx,
+			)
+		}
 	}
+}
 
-	// Move to next again
-	match = s.NextMatch()
-	if match.FileIdx != 2 || s.CurrentIdx != 2 {
-		t.Error("NextMatch should move to index 2")
-	}
+// TestNextMatch tests navigation to next match.
+func TestNextMatch(t *testing.T) {
+	t.Parallel()
 
-	// Wrap around to start
-	match = s.NextMatch()
-	if match.FileIdx != 0 || s.CurrentIdx != 0 {
-		t.Error("NextMatch should wrap to index 0")
-	}
+	assertMatchWalk(t, 0, (*search.State).NextMatch, []int{1, 2, 0})
 }
 
 // TestPrevMatch tests navigation to previous match.
 func TestPrevMatch(t *testing.T) {
-	s := &State{
-		Matches: []MatchLocation{
-			{FileIdx: 0},
-			{FileIdx: 1},
-			{FileIdx: 2},
-		},
-		CurrentIdx: 2,
-	}
+	t.Parallel()
 
-	// Move to previous
-	match := s.PrevMatch()
-	if match.FileIdx != 1 || s.CurrentIdx != 1 {
-		t.Error("PrevMatch should move to index 1")
-	}
-
-	// Move to previous again
-	match = s.PrevMatch()
-	if match.FileIdx != 0 || s.CurrentIdx != 0 {
-		t.Error("PrevMatch should move to index 0")
-	}
-
-	// Wrap around to end
-	match = s.PrevMatch()
-	if match.FileIdx != 2 || s.CurrentIdx != 2 {
-		t.Error("PrevMatch should wrap to index 2")
-	}
+	assertMatchWalk(t, 2, (*search.State).PrevMatch, []int{1, 0, 2})
 }
 
 // TestNextMatch_NoMatches tests navigation with no matches.
 func TestNextMatch_NoMatches(t *testing.T) {
 	t.Parallel()
 
-	s := &State{
-		Matches:    []MatchLocation{},
+	s := &search.State{
+		Matches:    []search.MatchLocation{},
 		CurrentIdx: -1,
 	}
 
@@ -300,8 +285,8 @@ func TestNextMatch_NoMatches(t *testing.T) {
 func TestGetCurrentMatch(t *testing.T) {
 	t.Parallel()
 
-	s := &State{
-		Matches: []MatchLocation{
+	s := &search.State{
+		Matches: []search.MatchLocation{
 			{FileIdx: 0},
 			{FileIdx: 1},
 		},
@@ -318,8 +303,8 @@ func TestGetCurrentMatch(t *testing.T) {
 func TestGetCurrentMatch_Invalid(t *testing.T) {
 	t.Parallel()
 
-	s := &State{
-		Matches:    []MatchLocation{{FileIdx: 0}},
+	s := &search.State{
+		Matches:    []search.MatchLocation{{FileIdx: 0}},
 		CurrentIdx: 5,
 	}
 
@@ -333,8 +318,8 @@ func TestGetCurrentMatch_Invalid(t *testing.T) {
 func TestMatchCount(t *testing.T) {
 	t.Parallel()
 
-	s := &State{
-		Matches: []MatchLocation{
+	s := &search.State{
+		Matches: []search.MatchLocation{
 			{FileIdx: 0},
 			{FileIdx: 1},
 			{FileIdx: 2},
@@ -350,8 +335,8 @@ func TestMatchCount(t *testing.T) {
 func TestIsLineMatch(t *testing.T) {
 	t.Parallel()
 
-	s := &State{
-		Matches: []MatchLocation{
+	s := &search.State{
+		Matches: []search.MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5},
 			{FileIdx: 0, HunkIdx: 1, LineIdx: 3},
 		},
@@ -370,8 +355,8 @@ func TestIsLineMatch(t *testing.T) {
 func TestIsCurrentMatch(t *testing.T) {
 	t.Parallel()
 
-	s := &State{
-		Matches: []MatchLocation{
+	s := &search.State{
+		Matches: []search.MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5},
 			{FileIdx: 0, HunkIdx: 1, LineIdx: 3},
 		},
@@ -391,8 +376,8 @@ func TestIsCurrentMatch(t *testing.T) {
 func TestGetMatchesForLine(t *testing.T) {
 	t.Parallel()
 
-	s := &State{
-		Matches: []MatchLocation{
+	s := &search.State{
+		Matches: []search.MatchLocation{
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5, StartCol: 0, EndCol: 4},
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 5, StartCol: 10, EndCol: 14},
 			{FileIdx: 0, HunkIdx: 0, LineIdx: 6, StartCol: 0, EndCol: 4},
@@ -414,9 +399,9 @@ func TestGetMatchesForLine(t *testing.T) {
 func TestSaveAndRestoreOriginalState(t *testing.T) {
 	t.Parallel()
 
-	s := NewState()
+	s := search.NewState()
 
-	original := NavigationState{
+	original := search.NavigationState{
 		SelectedFile:   5,
 		SelectedHunk:   2,
 		DiffViewOffset: 10,
