@@ -1,3 +1,14 @@
+## v0.2.0 (2026-08-27)
+
+### Feat
+
+- bind F to the fuzzy file finder
+
+### Fix
+
+- clear multi-split state and hide the preview after a split applies
+- skip jj's own JJ-INSTRUCTIONS scratch file in the diff editor
+
 ## v0.1.5 (2026-08-01)
 
 ### Fix
