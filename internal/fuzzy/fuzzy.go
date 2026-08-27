@@ -38,8 +38,6 @@ const (
 // - Case-sensitive matches get bonus points
 // - Matches at word boundaries get bonus points
 // - Earlier matches get higher scores.
-//
-//nolint:gocritic // unnamedResult asks for names that nonamedreturns, also enabled, rejects.
 func Score(text, query string) (int, []int) {
 	if query == "" {
 		return 0, nil
