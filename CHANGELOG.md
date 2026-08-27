@@ -1,3 +1,13 @@
+## v0.2.1 (2026-08-27)
+
+### Fix
+
+- open the split-assign modal from a message so it actually shows
+
+### Refactor
+
+- **model**: convert Model to pointer receivers and re-enable gocritic hugeParam
+
 ## v0.2.0 (2026-08-27)
 
 ### Feat
