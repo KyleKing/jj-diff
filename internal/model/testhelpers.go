@@ -11,7 +11,7 @@ import (
 )
 
 // NewTestModel builds a Model backed by a jj client rooted at a fresh temp dir.
-func NewTestModel(t *testing.T, mode OperatingMode) Model {
+func NewTestModel(t *testing.T, mode OperatingMode) *Model {
 	t.Helper()
 
 	client := jj.NewClient(t.TempDir())
@@ -22,11 +22,11 @@ func NewTestModel(t *testing.T, mode OperatingMode) Model {
 		t.Fatalf("Failed to create model: %v", err)
 	}
 
-	return m
+	return &m
 }
 
 // WithChanges loads changes and selects the first file, mirroring what a real diff load does.
-func (m Model) WithChanges(changes []diff.FileChange) Model {
+func (m *Model) WithChanges(changes []diff.FileChange) *Model {
 	m.changes = changes
 	m.fileList.SetFiles(changes)
 	if len(m.changes) > 0 {
@@ -37,7 +37,7 @@ func (m Model) WithChanges(changes []diff.FileChange) Model {
 }
 
 // WithDestination sets the move destination without going through the picker.
-func (m Model) WithDestination(dest string) Model {
+func (m *Model) WithDestination(dest string) *Model {
 	m.destination = dest
 	return m
 }
@@ -59,19 +59,19 @@ func CtrlKey(key rune) tea.KeyPressMsg {
 }
 
 // Update runs one Update round and asserts the result is still a Model, discarding the command.
-func Update(t *testing.T, m Model, msg tea.Msg) Model {
+func Update(t *testing.T, m *Model, msg tea.Msg) *Model {
 	t.Helper()
 	newModel, _ := m.Update(msg)
 
 	return assertModel(t, newModel)
 }
 
-func assertModel(t *testing.T, model tea.Model) Model {
+func assertModel(t *testing.T, model tea.Model) *Model {
 	t.Helper()
 
-	m, ok := model.(Model)
+	m, ok := model.(*Model)
 	if !ok {
-		t.Fatalf("Update returned %T, want model.Model", model)
+		t.Fatalf("Update returned %T, want *model.Model", model)
 	}
 
 	return m
@@ -86,9 +86,9 @@ type Assertion struct {
 }
 
 // Assert opens a chain of assertions over a snapshot of m. Later mutations of m are not observed.
-func Assert(t *testing.T, m Model) *Assertion {
+func Assert(t *testing.T, m *Model) *Assertion {
 	t.Helper()
-	return &Assertion{t: t, m: m}
+	return &Assertion{t: t, m: *m}
 }
 
 // HasSelectedFile checks the file-list cursor, which is an index into the unfiltered change list.

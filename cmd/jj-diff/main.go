@@ -144,7 +144,7 @@ func main() {
 		log.Fatalf("Failed to initialize: %v", err)
 	}
 
-	p := tea.NewProgram(initialModel)
+	p := tea.NewProgram(&initialModel)
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running program: %v", err)
 	}

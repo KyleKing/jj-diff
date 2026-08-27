@@ -154,8 +154,9 @@ enabled-tags = [
   "experimental",
   "opinionated",
 ]
+# Local override of the template's list: hugeParam stays on because internal/model uses pointer
+# receivers throughout, and re-enabling it is what keeps a value receiver from creeping back in.
 disabled-checks = [
-  "hugeParam",  # BubbleTea root Models are large by design; value receivers keep Update/View copy semantics
   "unnamedResult",  # contradicts nonamedreturns, which is enabled and wins
   "whyNoLint",
 ]

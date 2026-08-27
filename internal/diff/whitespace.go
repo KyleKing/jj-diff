@@ -23,6 +23,8 @@ type WhitespaceRenderer struct {
 
 // NewWhitespaceRenderer builds a renderer that draws a tab as one glyph padded out to tabWidth
 // columns and paints the trailing whitespace run with trailingHighlight.
+//
+//nolint:gocritic // hugeParam: lipgloss.Style is 648 bytes and lipgloss passes it by value everywhere.
 func NewWhitespaceRenderer(tabWidth int, trailingHighlight lipgloss.Style) *WhitespaceRenderer {
 	return &WhitespaceRenderer{
 		tabWidth:          tabWidth,

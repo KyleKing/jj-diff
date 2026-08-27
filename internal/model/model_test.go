@@ -517,43 +517,43 @@ func TestModelViewOptionToggles(t *testing.T) {
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
 
 	tests := []struct {
-		checkFn  func(m Model) bool
+		checkFn  func(m *Model) bool
 		name     string
 		key      rune
 		expected bool
 	}{
 		{
-			checkFn:  func(m Model) bool { return m.diffView.ShowWhitespace() },
+			checkFn:  func(m *Model) bool { return m.diffView.ShowWhitespace() },
 			name:     "toggle whitespace on",
 			key:      'w',
 			expected: true,
 		},
 		{
-			checkFn:  func(m Model) bool { return m.diffView.ShowWhitespace() },
+			checkFn:  func(m *Model) bool { return m.diffView.ShowWhitespace() },
 			name:     "toggle whitespace off",
 			key:      'w',
 			expected: false,
 		},
 		{
-			checkFn:  func(m Model) bool { return m.diffView.WordLevelDiff() },
+			checkFn:  func(m *Model) bool { return m.diffView.WordLevelDiff() },
 			name:     "toggle word diff on",
 			key:      'W',
 			expected: true,
 		},
 		{
-			checkFn:  func(m Model) bool { return m.diffView.WordLevelDiff() },
+			checkFn:  func(m *Model) bool { return m.diffView.WordLevelDiff() },
 			name:     "toggle word diff off",
 			key:      'W',
 			expected: false,
 		},
 		{
-			checkFn:  func(m Model) bool { return m.diffView.ShowLineNumbers() },
+			checkFn:  func(m *Model) bool { return m.diffView.ShowLineNumbers() },
 			name:     "toggle line numbers off",
 			key:      'l',
 			expected: false,
 		},
 		{
-			checkFn:  func(m Model) bool { return m.diffView.ShowLineNumbers() },
+			checkFn:  func(m *Model) bool { return m.diffView.ShowLineNumbers() },
 			name:     "toggle line numbers on",
 			key:      'l',
 			expected: true,
@@ -726,4 +726,30 @@ func TestSplitAssignOpensFromLoadedRevisions(t *testing.T) {
 
 	m = Update(t, m, splitRevisionsLoadedMsg{revisions: []jj.RevisionEntry{{ChangeID: "abc"}}})
 	Assert(t, m).SplitAssignIsVisible()
+}
+
+// TestApplySelectionUsesTheSelectionFromWhenTheKeyWasPressed pins the snapshot the apply command
+// takes. Under pointer receivers a command that read the live model would apply whatever the user
+// did while jj was still running.
+func TestApplySelectionUsesTheSelectionFromWhenTheKeyWasPressed(t *testing.T) {
+	t.Parallel()
+
+	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges()).WithDestination("@-")
+	m.focusedPanel = PanelDiffView
+
+	m = Update(t, m, KeyPress(' '))
+	Assert(t, m).HasHunkSelected("file1.txt", 0)
+
+	_, cmd := m.Update(KeyPress('a'))
+	if cmd == nil {
+		t.Fatal("Expected a to return an apply command")
+	}
+
+	// A later diff load swaps the whole selection state, which is what the snapshot has to survive.
+	m = Update(t, m, diffLoadedMsg{changes: TestChanges()})
+	m.selection = NewSelectionState()
+
+	if err, ok := cmd().(errMsg); ok && errors.Is(err.err, errNoSelection) {
+		t.Error("Apply command read the live selection instead of the one from when a was pressed")
+	}
 }

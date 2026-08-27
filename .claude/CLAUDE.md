@@ -26,10 +26,11 @@ Two things to know when you do write:
 State updates flow through `Update(msg) → (model, cmd)`:
 
 ```go
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     switch msg := msg.(type) {
     case tea.KeyMsg:
-        return m.handleKeyPress(msg)
+        cmd := m.handleKeyPress(msg)
+        return m, cmd
     case diffLoadedMsg:
         m.changes = msg.changes
         return m, nil
@@ -37,6 +38,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     return m, nil
 }
 ```
+
+`Model` is held by pointer, so a handler's mutations are permanent the moment it makes them. A `tea.Cmd` runs off the Update loop, which means a command factory has to copy the state it needs (`snap := *m`) before returning its closure. Reading the model inside the closure both races the loop and lets a key pressed while jj is working change what gets applied. Anything a command needs to write back comes home as a message, never as a mutation inside the closure.
 
 Selection is an interface so patch generation can be tested without a full Model:
 

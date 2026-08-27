@@ -159,38 +159,44 @@ with no grouping by frequency).
 
 ## Deferred lint findings
 
-Re-swept 2026-08-01 with `mise exec -- golangci-lint run ./...
---max-issues-per-linter=0 --max-same-issues=0`. The gate is clean: 0 issues.
+Re-swept 2026-08-27 with `mise exec -- golangci-lint run ./...
+--max-issues-per-linter=0 --max-same-issues=0`. The gate is clean: 0 issues, with `hugeParam`
+enabled.
 
-### `hugeParam` on the Bubble Tea root: excluded, not refactored
+### `hugeParam` on the Bubble Tea root: converted to pointer receivers
 
-The last 42 findings from the previous sweep were one class: `gocritic hugeParam`
-on `internal/model`, because `Model` is 768 bytes and gocritic flags every value
-receiver over 80. The fix that clears it for real is converting `Model`'s
-remaining value-receiver methods to pointer receivers and passing `&m` from
-`cmd/jj-diff/main.go`, but that is a behaviour-risk change, not a style one:
+Cleared on 2026-08-27. `internal/model` now uses pointer receivers throughout: handlers mutate
+the receiver and return only a `tea.Cmd`, `Update` returns `m`, and `cmd/jj-diff/main.go` hands
+`&initialModel` to `tea.NewProgram`. `hugeParam` is re-enabled locally, overriding the
+template's blanket exclusion, so a value receiver cannot creep back in unnoticed.
 
-- Every `tea.Cmd` factory (`loadDiff`, `applySelection`, `applySplit`,
-  `loadRevisionsForSplitAssign`) returns a closure that reads model state when the
-  command runs, not when it is built. Today the closure holds a snapshot. Under a
-  pointer receiver it would observe whatever the model became in the meantime, so
-  a key pressed between `a` and the command running could change which hunks get
-  applied. Each factory would need an explicit `snapshot := *m` to keep today's
-  behaviour
-- Handlers that mutate and then return early currently discard the mutation,
-  because they mutate a copy. Under a pointer receiver those mutations become
-  permanent. Every handler would need reading for that pattern before the switch,
-  which is an audit rather than a rename
+The two hazards the earlier analysis named, and what was done about each:
 
-Given that risk against a purely cosmetic finding, the decision was to add
-`hugeParam` to `disabled-checks` under `[linters.settings.gocritic]` instead, both
-locally in `.golangci.toml` and upstream in `my_go_template`'s
-`go_template/.golangci.toml.jinja` (regenerated through `ctt`, which is how
-`.ctt/*/.golangci.toml` picked up the change too). The template already disables
-`gochecknoglobals` for the same underlying reason (Bubble Tea's package-level
-style vars), so this follows an existing precedent rather than setting a new one.
+- Command factories used to snapshot the model because the receiver was a value. `applySelection`,
+  `applyDiffEditorSelection`, and `applySplit` now take an explicit `snap := *m` and the closure
+  reads only `snap`, which is byte-for-byte the copy the value receiver used to make.
+  `loadDiff` and `loadRevisions` bind the one field each needs instead.
+  `TestApplySelectionUsesTheSelectionFromWhenTheKeyWasPressed` discriminates: it fails when the
+  snapshot is replaced with the live pointer
+- Handlers that mutate and return early. Every discarded-result call site in the pre-conversion
+  file was a void method, so no mutation was ever being thrown away by a caller. The two places
+  that genuinely relied on the copy were `render` and the `push*` helpers it calls, which install
+  per-frame callbacks on the panel components. `render` now draws from an explicit `frame := *m`,
+  which is the same copy the value receiver made. No test pins this: every scenario tried produced
+  identical output with a shared frame, so the guarantee is structural rather than verified
 
-### What disabling `hugeParam` uncovered
+`loadRevisionsForSplitAssign` was the one place where the discarded copy was a live bug rather
+than a hazard: it called `closeAllModals`, `SetRevisions`, and `Show` inside the command, all on
+the captured copy, so `D` never opened the split-assign modal. It now reports
+`splitRevisionsLoadedMsg` and `Update` opens the modal, matching what `loadRevisions` already did
+for the destination picker.
+
+Re-enabling `hugeParam` also surfaced one finding outside `internal/model`:
+`diff.NewWhitespaceRenderer` takes a 648-byte `lipgloss.Style` by value. That is how lipgloss is
+used everywhere, so it carries a `//nolint:gocritic` with the reason. The type has no callers at
+all and is a candidate for deletion.
+
+### What the 2026-08-01 `hugeParam` exclusion uncovered
 
 golangci-lint's `uniq-by-line` means the linter that reports first on a line hides
 the rest, so 42 lines carrying `hugeParam` were also carrying findings from other
@@ -223,7 +229,8 @@ between two enabled linters rather than to dodge a fix:
 - `internal/model/testhelpers.go` `TestChanges`: `mnd`. The literals are hunk
   offsets and line numbers, which are the fixture's data
 - `internal/fuzzy/fuzzy.go` `Score`: `unnamedResult` wants the results named and
-  `nonamedreturns` rejects that
+  `nonamedreturns` rejects that. Removed on 2026-08-27, because my_go_template v0.12.0
+  disables `unnamedResult` globally for the same reason
 - `internal/highlight/highlight.go` `detectLexer`: `ireturn`, because returning
   chroma's registry interface is the design
 
@@ -264,27 +271,32 @@ Two follow-ups the sweep surfaced but could not finish inside its own scope:
 
 ## Pending the next copier update
 
-This repo is on my_go_template v0.9.1 as of 2026-08-01.
+This repo is on my_go_template v0.12.0 as of 2026-08-27. v0.12.0 absorbed both local
+workarounds that used to land in a `.rej` on every update: the `commitizen-branch`
+empty-range guard in `hk.pkl` and the removal of `actions/setup-go` from the CI `ci` job.
+The `check-merge-conflict` exclude for `ROADMAP.md` re-applied cleanly and stays local.
 
-- `hk.pkl` carries two local overrides that land in a `.rej` on every update and
-  have to be re-applied by hand: an `exclude` on `check-merge-conflict` for
-  `ROADMAP.md`, which documents jj's conflict-marker format verbatim, and a guard
-  on `commitizen-branch` so `cz check --rev-range origin/HEAD..HEAD` is skipped
-  when the range is empty. cz exits non-zero on an empty range, so without the
-  guard `hk check --all` cannot pass on a branch level with origin. Both belong
-  upstream: the guard is not repo-specific
-- `.github/workflows/ci.yml` had `actions/setup-go` removed from the `ci` job.
-  Running it alongside `jdx/mise-action` puts two GOROOTs on PATH, and `go` then
-  finds the other tree's `compile` and refuses to run
-  (`version "go1.26.5" does not match go tool version "go1.25.0"`). The template's
-  `go_template/.github/workflows/ci.yml.jinja` still carries the defect, so this
-  local fix is reverted by the next update until it is back-ported
-- CI still never runs the jj integration tests, because the runners have no `jj`
-  binary and the suite skips when it is absent. Installing jj in the workflow is a
-  template change, not a local one
-- `.typos.toml` now carries a project-local `[default.extend-words]` for the
-  truncated query prefixes used as fuzzy-match and search fixtures (`hel`,
-  `functio`). The template file is the base and this extends it
+Local drift that still has to be re-applied by hand on every update:
+
+- `.golangci.toml` re-enables `hugeParam`, which the template disables. Removing it from
+  the template's `disabled-checks` is the back-port, and it is only safe for a project
+  whose Bubble Tea model uses pointer receivers
+- `AGENTS.md` carries the project package tree, and three TUI-testing paragraphs the
+  template does not have: `go-expect` for expect-style interaction, what "does it look
+  right" actually means to check, and the longer deliberate-exercise list. All three are
+  generic and belong upstream
+- `docs/troubleshooting.md` gained a template-owned body in v0.12.0. The four
+  project-specific entries (TERM, large diffs, jj on PATH, `jj op restore`) are appended
+  under their own heading
+
+Still open and still a template change rather than a local one:
+
+- CI never runs the jj integration tests, because the runners have no `jj` binary and the
+  suite skips when it is absent. Installing jj belongs in the template's `ci.yml`
+- `.typos.toml` carries a project-local `[default.extend-words]` for the truncated query
+  prefixes used as fuzzy-match and search fixtures (`hel`, `functio`). The template file is
+  the base and this extends it
+
 - `filelist.renderExpanded` and `filefinder.renderMatch` both panic at very small
   terminal widths in some configurations, for example `maxWidth - 3` when
   `maxWidth` is 2. Pre-existing and untouched, because fixing it changes rendered
