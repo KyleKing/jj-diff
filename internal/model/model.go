@@ -315,6 +315,10 @@ type revisionsLoadedMsg struct {
 	revisions []jj.RevisionEntry
 }
 
+type splitRevisionsLoadedMsg struct {
+	revisions []jj.RevisionEntry
+}
+
 type destinationSelectedMsg struct {
 	changeID string
 }
@@ -440,6 +444,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.closeAllModals()
 		m.destPicker.SetRevisions(msg.revisions)
 		m.destPicker.Show()
+
+		return m, nil
+
+	case splitRevisionsLoadedMsg:
+		m.closeAllModals()
+		m.splitAssign.SetRevisions(msg.revisions)
+		m.splitAssign.Show()
 
 		return m, nil
 
@@ -1138,17 +1149,19 @@ func (m Model) handleCommitMsgKeyPress(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 }
 
+// loadRevisionsForSplitAssign reports the revisions as a message rather than opening the modal from
+// inside the command, because a command runs off the Update loop and anything it writes to the model
+// is both racy and discarded.
 func (m Model) loadRevisionsForSplitAssign() tea.Cmd {
+	client := m.client
+
 	return func() tea.Msg {
-		revisions, err := m.client.GetRevisions(revisionListLimit)
+		revisions, err := client.GetRevisions(revisionListLimit)
 		if err != nil {
 			return errMsg{err}
 		}
-		m.closeAllModals()
-		m.splitAssign.SetRevisions(revisions)
-		m.splitAssign.Show()
 
-		return nil
+		return splitRevisionsLoadedMsg{revisions}
 	}
 }
 

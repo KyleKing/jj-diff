@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/jj-diff/internal/jj"
 )
 
 var errTest = errors.New("test error")
@@ -705,4 +707,23 @@ func TestScrollingOnlyInDiffPanel(t *testing.T) {
 
 	m.focusedPanel = PanelDiffView
 	Update(t, m, CtrlKey('d'))
+}
+
+// TestSplitAssignOpensFromLoadedRevisions pins the modal to the message path. Opening it from inside
+// the tea.Cmd instead left it permanently invisible, because the command mutated its own copy.
+func TestSplitAssignOpensFromLoadedRevisions(t *testing.T) {
+	t.Parallel()
+
+	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
+	m.focusedPanel = PanelDiffView
+
+	m = Update(t, m, KeyPress('S'))
+	m = Update(t, m, KeyPress('A'))
+
+	if _, cmd := m.Update(KeyPress('D')); cmd == nil {
+		t.Fatal("Expected D to return a revision-loading command")
+	}
+
+	m = Update(t, m, splitRevisionsLoadedMsg{revisions: []jj.RevisionEntry{{ChangeID: "abc"}}})
+	Assert(t, m).SplitAssignIsVisible()
 }

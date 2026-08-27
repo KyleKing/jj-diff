@@ -227,6 +227,14 @@ func (a *Assertion) SearchIsNotVisible() {
 	}
 }
 
+// SplitAssignIsVisible checks that the multi-way split's destination assignment modal is up.
+func (a *Assertion) SplitAssignIsVisible() {
+	a.t.Helper()
+	if !a.m.splitAssign.IsVisible() {
+		a.t.Error("Expected split assign modal to be visible")
+	}
+}
+
 // FileListFilterModeEnabled checks that the file list is capturing keys for its inline filter.
 func (a *Assertion) FileListFilterModeEnabled() {
 	a.t.Helper()
