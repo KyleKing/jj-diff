@@ -4,7 +4,14 @@ name: Bump Version
 "on":
   push:
     branches: ['main']
-  workflow_dispatch: null # For manual runs
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: Cut a prerelease of this kind instead of a full release
+        required: false
+        default: none
+        type: choice
+        options: [none, alpha, beta, rc]
 
 jobs:
   bump-version:
@@ -15,6 +22,10 @@ jobs:
     # Fix 403 error (https://github.com/softprops/action-gh-release/issues/400)
     permissions:
       contents: write
+    outputs:
+      released: ${{ steps.bump.outputs.released }}
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,19 +36,37 @@ jobs:
         with:
           branch: main
           changelog_increment_filename: body.md
+          # Resolves to empty on push events and on the "none" choice, which
+          # commitizen reads as a full release. The condition is written this way
+          # because an expression whose middle operand is falsy falls through to
+          # the right-hand side.
+          prerelease: ${{ inputs.prerelease != 'none' && inputs.prerelease || '' }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       # REVISION == PREVIOUS_REVISION means commitizen found no bumpable commits
       # and cut no tag, so there is nothing to release.
+      - name: Record whether a release was cut
+        id: bump
+        run: |
+          if [ "$REVISION" = "$PREVIOUS_REVISION" ]; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$REVISION" >> "$GITHUB_OUTPUT"
+          # commitizen reports a bare version and writes the tag through its own
+          # tag_format, so read the tag back rather than reconstructing the prefix.
+          echo "tag=$(git tag --points-at HEAD | head -n1)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: env.REVISION != env.PREVIOUS_REVISION
+        if: steps.bump.outputs.released == 'true'
         with:
           go-version-file: go.mod
 
       # Runs in the same workflow because tags pushed with GITHUB_TOKEN do not
       # trigger other workflows, so a separate on-tag release workflow never fires.
       - name: Build release binaries and publish release
-        if: env.REVISION != env.PREVIOUS_REVISION
+        if: steps.bump.outputs.released == 'true'
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser

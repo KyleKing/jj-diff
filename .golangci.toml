@@ -21,7 +21,7 @@ disable = [
   "forbidigo",  # requires custom regex configuration
   "gochecknoglobals",  # BubbleTea/lipgloss styles use package-level vars
   "goheader",  # copyright headers add noise for personal projects
-  "wsl"  # whitespace linting too nitpicky
+  "wsl",  # whitespace linting too nitpicky
 ]
 enable = [
   "asciicheck",
@@ -113,7 +113,7 @@ enable = [
   "wastedassign",
   "whitespace",
   "wrapcheck",
-  "zerologlint"
+  "zerologlint",
 ]
 
 [[linters.exclusions.rules]]
@@ -152,11 +152,12 @@ enabled-tags = [
   "style",
   "performance",
   "experimental",
-  "opinionated"
+  "opinionated",
 ]
 disabled-checks = [
   "hugeParam",  # BubbleTea root Models are large by design; value receivers keep Update/View copy semantics
-  "whyNoLint"
+  "unnamedResult",  # contradicts nonamedreturns, which is enabled and wins
+  "whyNoLint",
 ]
 
 [linters.settings.gocyclo]
@@ -171,7 +172,15 @@ enable-all = true
 disable = ["shadow"]
 
 [linters.settings.ireturn]
-allow = ["error", "empty", "stdlib", "charm.land/bubbletea/v2.Model"]
+# Bubble Tea v2 moved to charm.land; both paths are listed so a project on either
+# major version lints clean, because Model.Update returns the tea.Model interface.
+allow = [
+  "error",
+  "empty",
+  "stdlib",
+  "charm.land/bubbletea/v2.Model",
+  "github.com/charmbracelet/bubbletea.Model",
+]
 
 [linters.settings.lll]
 line-length = 120
@@ -245,7 +254,7 @@ rules = [
   { name = "useless-break" },
   { name = "var-declaration" },
   { name = "var-naming" },
-  { name = "waitgroup-by-value" }
+  { name = "waitgroup-by-value" },
 ]
 
 [linters.settings.staticcheck]
@@ -271,7 +280,7 @@ ignore-sigs = [
   ".Wrapf(",
   ".WithMessage(",
   ".WithMessagef(",
-  ".WithStack("
+  ".WithStack(",
 ]
 
 [run]
