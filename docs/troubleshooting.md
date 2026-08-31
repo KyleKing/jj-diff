@@ -98,16 +98,14 @@ Regenerate with `go test ./... -update` and review the diff. Never hand-edit.
 go test -v -run TestName ./package
 ```
 
-## jj-diff itself
+## `jj git push` runs no git hooks
 
-The TUI renders wrong. Set `TERM=xterm-256color`.
+A colocated jj repo bypasses `pre-push` entirely, so `verify-released`,
+`commitizen-branch`, and every linter this template installs are inert. Run
+`hk check --all` by hand before pushing from jj.
 
-Very large diffs feel slow. Turn off syntax highlighting, or stay in browse mode.
+## Project-specific entries
 
-jj integration fails. jj-diff shells out to `jj`, so make sure jj 0.9.0 or newer
-is installed and on `PATH`.
-
-A move failed and you want the old state back. jj-diff records the operation ID
-before it writes and runs `jj op restore` on failure, so the repository should
-already be where it started. `jj op log` shows the history if you want to check
-or roll back further by hand.
+This file is template-owned and `copier update` keeps it current. Put entries that
+only apply to this project in `docs/troubleshooting.local.md`, which the template
+never renders, so they survive the next update instead of re-conflicting.

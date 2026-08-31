@@ -13,6 +13,14 @@ name: Bump Version
         type: choice
         options: [none, alpha, beta, rc]
 
+# Two runs on one push (a duplicate webhook delivery is enough) both compute the
+# same next version, and the loser fails pushing a tag that already exists.
+# Queue instead of cancelling: a cancelled run can leave the bump commit pushed
+# without its tag.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   bump-version:
     # Ignore the commits from this action

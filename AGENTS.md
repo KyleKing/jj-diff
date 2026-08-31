@@ -165,6 +165,9 @@ for files the template has nothing further to say about after the first render, 
 is why it holds `README.md`, `DESIGN.md`, `go.mod`, and `.config/mise.toml` and nothing
 that carries template-maintained content.
 
+Deleting a `_skip_if_exists` file brings it back on the next update, because copier
+only skips a file that is already there. To be rid of one, empty it instead.
+
 Resolving a conflict is half the work. The other half is deciding which side was
 better and backporting it. A `.rej` is a diff between what the template renders and
 what this project actually needed, so it names the gap directly:
