@@ -157,7 +157,11 @@ func renderMatch(match fuzzy.Match, isSelected bool, width int) string {
 
 	maxWidth := width - matchTextMargin
 	if len(displayText) > maxWidth {
-		displayText = displayText[:maxWidth-len(ellipsis)] + ellipsis
+		if maxWidth <= len(ellipsis) {
+			displayText = displayText[:max(maxWidth, 0)]
+		} else {
+			displayText = displayText[:maxWidth-len(ellipsis)] + ellipsis
+		}
 	}
 
 	style := lipgloss.NewStyle().
