@@ -1,3 +1,15 @@
+## v0.2.2 (2026-08-31)
+
+### Fix
+
+- **diffview**: only show line cursor in visual mode
+- **filefinder**: guard renderMatch against small terminal widths
+- **highlight**: use theme colors instead of hardcoded hex
+
+### Refactor
+
+- **diff**: delete unused WhitespaceRenderer
+
 ## v0.2.1 (2026-08-27)
 
 ### Fix
