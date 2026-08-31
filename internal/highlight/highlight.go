@@ -131,20 +131,16 @@ func (*Highlighter) styleToken(token chroma.Token) string {
 		style = style.Foreground(theme.Accent).Bold(true)
 
 	case chroma.LiteralString, chroma.LiteralStringDouble:
-		// Strings: subtle green (different from diff additions)
-		style = style.Foreground(lipgloss.Color("#a6e3a1"))
+		style = style.Foreground(theme.AddedLine)
 
 	case chroma.LiteralNumber:
-		// Numbers: subtle orange
-		style = style.Foreground(lipgloss.Color("#fab387"))
+		style = style.Foreground(theme.Secondary)
 
 	case chroma.Name, chroma.NameFunction:
-		// Function names: subtle blue
-		style = style.Foreground(lipgloss.Color("#89b4fa"))
+		style = style.Foreground(theme.Primary)
 
 	case chroma.NameClass, chroma.NameBuiltin:
-		// Class names: subtle yellow
-		style = style.Foreground(lipgloss.Color("#f9e2af"))
+		style = style.Foreground(theme.Accent)
 
 	case chroma.Operator:
 		// Operators: text color
