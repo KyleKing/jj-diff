@@ -242,17 +242,8 @@ Two follow-ups the sweep surfaced but could not finish inside its own scope:
   That is right for a temp directory, but an executable file handed to the editor
   would lose its bit. Worth checking how jj restores modes after the editor
   returns
-- CI never runs the jj integration tests. `tests/integration` needs a real `jj`
-  binary and the GitHub runners have none, so the suite failed on every push until
-  it was changed to skip when jj is absent. That also unblocked releases, because
-  goreleaser's `before` hook runs `go test ./...` and aborted the release job on
-  the same failure. The real fix is to install jj in `.github/workflows/ci.yml`,
-  which is template-managed, so it belongs upstream in my_go_template rather than
-  as a local edit that conflicts on every update. Until then the integration tests
-  are local-only, and they are the tests that caught the applier corruption
-- `tests/integration` sits at 56.9% coverage and `mise run test:coverage-min`
-  asserts 70%, but `mise run ci` runs only `go test` and `go build`, so the
-  threshold is never enforced
+- `mise run ci` runs only `go test` and `go build`, so `mise run test:coverage-min`
+  and its 70% threshold are never enforced by CI or the hooks
 
 ## Pending the next copier update
 
@@ -270,10 +261,8 @@ Local drift that still has to be re-applied by hand on every update:
   exclusion, and the template's comment now names this override, so a copier question
   would add a fourth flag and a ctt variant to serve one repo
 
-Still open and still a template change rather than a local one:
+Still open:
 
-- CI never runs the jj integration tests, because the runners have no `jj` binary and the
-  suite skips when it is absent. Installing jj belongs in the template's `ci.yml`
 - `.typos.toml` carries a project-local `[default.extend-words]` for the truncated query
   prefixes used as fuzzy-match and search fixtures (`hel`, `functio`). The template file is
   the base and this extends it
