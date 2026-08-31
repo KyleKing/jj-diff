@@ -2,88 +2,13 @@ package diff
 
 import (
 	"strings"
-
-	"charm.land/lipgloss/v2"
 )
 
-// Glyphs standing in for whitespace when it is rendered visibly. A trailing space gets its own glyph
-// so it stays distinguishable from an interior space.
+// Glyphs standing in for whitespace when it is rendered visibly.
 const (
-	TabChar          = '→'
-	SpaceChar        = '·'
-	TrailingSpaceStr = "␣"
+	TabChar   = '→'
+	SpaceChar = '·'
 )
-
-// WhitespaceRenderer replaces whitespace with visible glyphs and styles only the run at the end of a
-// line, so trailing whitespace reads differently from the whitespace inside a line.
-type WhitespaceRenderer struct {
-	trailingHighlight lipgloss.Style
-	tabWidth          int
-}
-
-// NewWhitespaceRenderer builds a renderer that draws a tab as one glyph padded out to tabWidth
-// columns and paints the trailing whitespace run with trailingHighlight.
-//
-//nolint:gocritic // hugeParam: lipgloss.Style is 648 bytes and lipgloss passes it by value everywhere.
-func NewWhitespaceRenderer(tabWidth int, trailingHighlight lipgloss.Style) *WhitespaceRenderer {
-	return &WhitespaceRenderer{
-		tabWidth:          tabWidth,
-		trailingHighlight: trailingHighlight,
-	}
-}
-
-// Render substitutes glyphs for spaces and tabs, returning the empty string unchanged. Output for a
-// line with trailing whitespace carries ANSI styling, so measure it with lipgloss.Width rather than
-// len, and it is wider than the input wherever a tab expanded.
-func (r *WhitespaceRenderer) Render(content string) string {
-	if content == "" {
-		return content
-	}
-
-	trimmed := strings.TrimRight(content, " \t")
-	trailing := content[len(trimmed):]
-
-	var result strings.Builder
-	for i := range len(trimmed) {
-		switch trimmed[i] {
-		case '\t':
-			result.WriteRune(TabChar)
-			padding := r.tabWidth - 1
-			for range padding {
-				result.WriteRune(' ')
-			}
-		case ' ':
-			result.WriteRune(SpaceChar)
-		default:
-			result.WriteByte(trimmed[i])
-		}
-	}
-
-	if trailing != "" {
-		trailingRendered := r.renderTrailingWhitespace(trailing)
-		result.WriteString(trailingRendered)
-	}
-
-	return result.String()
-}
-
-func (r *WhitespaceRenderer) renderTrailingWhitespace(trailing string) string {
-	var result strings.Builder
-	for i := range len(trailing) {
-		switch trailing[i] {
-		case '\t':
-			result.WriteRune(TabChar)
-			padding := r.tabWidth - 1
-			for range padding {
-				result.WriteRune(' ')
-			}
-		case ' ':
-			result.WriteString(TrailingSpaceStr)
-		}
-	}
-
-	return r.trailingHighlight.Render(result.String())
-}
 
 // RenderWhitespaceSimple substitutes whitespace glyphs without any styling, treating trailing
 // whitespace the same as interior whitespace. The result carries no ANSI codes, which suits a
