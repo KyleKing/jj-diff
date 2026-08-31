@@ -417,7 +417,7 @@ func (m *Model) renderUnified(width, height int) string {
 }
 
 func (m *Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
-	isCurrentLine := m.lineCursor == lineIdx && hunkIdx == m.selectedHunk
+	isCurrentLine := m.isVisualMode && m.lineCursor == lineIdx && hunkIdx == m.selectedHunk
 	isInVisualRange := m.isVisualMode && hunkIdx == m.selectedHunk && m.isLineInVisualRange(lineIdx)
 	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
 
