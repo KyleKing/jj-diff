@@ -68,9 +68,8 @@ What the break actually touched:
 
 Still open, and independent of the migration:
 
-- Hex literals are hard-coded in `internal/highlight/highlight.go` rather than
-  referencing `internal/theme`, and styles are still built inline in `diffview.go`,
-  `filelist.go`, and `help.go`
+- Styles are still built inline in `diffview.go`, `filelist.go`, and `help.go` rather
+  than centralized, though each already references `internal/theme` colors
 - Key handling is a flat `switch` over string literals, so the help overlay and the
   status-bar hints are still maintained in parallel with it
 
@@ -127,19 +126,6 @@ Diff-view search highlighting does work. Wiring this properly means mapping matc
 offsets onto a path column that truncates, plus ANSI-aware width maths in the
 `%-*s` layout, which is real work rather than a reconnect.
 
-### Vertical space is unused
-
-With three changed files in a 900-pixel-tall terminal, roughly two thirds of the
-screen is blank. `fileListHeight` is `m.height / 4` regardless of how many files
-there are, and the diff pane is top-anchored with no fill. Sizing the file list to
-its content up to a cap would give the diff most of the screen.
-
-### Two cursors at once
-
-In the diff pane both the hunk header and the first line carry a `>` marker, so it
-is ambiguous which one `space` acts on. The hunk cursor and the line cursor need
-different glyphs, or the line cursor should only appear in visual mode.
-
 ### Health score
 
 27/40 on the ten usability heuristics. The three 2/4 scores are what to fix: user
@@ -192,9 +178,8 @@ the captured copy, so `D` never opened the split-assign modal. It now reports
 for the destination picker.
 
 Re-enabling `hugeParam` also surfaced one finding outside `internal/model`:
-`diff.NewWhitespaceRenderer` takes a 648-byte `lipgloss.Style` by value. That is how lipgloss is
-used everywhere, so it carries a `//nolint:gocritic` with the reason. The type has no callers at
-all and is a candidate for deletion.
+`diff.NewWhitespaceRenderer` took a 648-byte `lipgloss.Style` by value and had no callers anywhere
+in the module. It, and the `WhitespaceRenderer` type it built, were deleted.
 
 ### What the 2026-08-01 `hugeParam` exclusion uncovered
 
@@ -246,7 +231,7 @@ Two follow-ups the sweep surfaced but could not finish inside its own scope:
 
 ## Smaller notes
 
-- `internal/model/model.go` is 1583 lines and holds the mode enum, the selection
+- `internal/model/model.go` is 1762 lines and holds the mode enum, the selection
   state, every key handler, and the whole view. Splitting the key handlers per
   mode into their own files would make the diff-editor and interactive paths
   reviewable
@@ -278,13 +263,14 @@ The `check-merge-conflict` exclude for `ROADMAP.md` re-applied cleanly and stays
 
 Local drift that still has to be re-applied by hand on every update:
 
-- `.golangci.toml` re-enables `hugeParam`, which the template disables. Removing it from
-  the template's `disabled-checks` is the back-port, and it is only safe for a project
-  whose Bubble Tea model uses pointer receivers
-- `AGENTS.md` carries the project package tree, and three TUI-testing paragraphs the
-  template does not have: `go-expect` for expect-style interaction, what "does it look
-  right" actually means to check, and the longer deliberate-exercise list. All three are
-  generic and belong upstream
+- `.golangci.toml` re-enables `hugeParam`, which the template disables. This stays local
+  and is the sanctioned way to express it. Eight of the nine children want the template's
+  exclusion, and the template's comment now names this override, so a copier question
+  would add a fourth flag and a ctt variant to serve one repo
+- `AGENTS.md` carries the project package tree. The three TUI-testing paragraphs went
+  upstream on 2026-08-27 (`go-expect`, what "does it look right" means to check, and the
+  longer deliberate-exercise list), so they arrive from the template once it cuts a
+  release above v0.12.0 and stop being drift
 - `docs/troubleshooting.md` gained a template-owned body in v0.12.0. The four
   project-specific entries (TERM, large diffs, jj on PATH, `jj op restore`) are appended
   under their own heading
@@ -296,8 +282,3 @@ Still open and still a template change rather than a local one:
 - `.typos.toml` carries a project-local `[default.extend-words]` for the truncated query
   prefixes used as fuzzy-match and search fixtures (`hel`, `functio`). The template file is
   the base and this extends it
-
-- `filelist.renderExpanded` and `filefinder.renderMatch` both panic at very small
-  terminal widths in some configurations, for example `maxWidth - 3` when
-  `maxWidth` is 2. Pre-existing and untouched, because fixing it changes rendered
-  output
