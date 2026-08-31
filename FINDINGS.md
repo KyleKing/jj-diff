@@ -256,10 +256,12 @@ Two follow-ups the sweep surfaced but could not finish inside its own scope:
 
 ## Pending the next copier update
 
-This repo is on my_go_template v0.12.0 as of 2026-08-27. v0.12.0 absorbed both local
-workarounds that used to land in a `.rej` on every update: the `commitizen-branch`
-empty-range guard in `hk.pkl` and the removal of `actions/setup-go` from the CI `ci` job.
-The `check-merge-conflict` exclude for `ROADMAP.md` re-applied cleanly and stays local.
+This repo is on my_go_template v0.13.0 as of 2026-08-31. `.cz.toml`'s version now
+survives an update on its own, since v0.13.0 added the post-generation restore. The
+AGENTS.md TUI-testing paragraphs this project contributed came back from the template
+with no conflict. `docs/troubleshooting.md`'s project-specific entries (TERM, large
+diffs, jj on PATH, `jj op restore`) moved to `docs/troubleshooting.local.md`, which
+v0.13.0 added as the convention for content the template never renders.
 
 Local drift that still has to be re-applied by hand on every update:
 
@@ -267,13 +269,6 @@ Local drift that still has to be re-applied by hand on every update:
   and is the sanctioned way to express it. Eight of the nine children want the template's
   exclusion, and the template's comment now names this override, so a copier question
   would add a fourth flag and a ctt variant to serve one repo
-- `AGENTS.md` carries the project package tree. The three TUI-testing paragraphs went
-  upstream on 2026-08-27 (`go-expect`, what "does it look right" means to check, and the
-  longer deliberate-exercise list), so they arrive from the template once it cuts a
-  release above v0.12.0 and stop being drift
-- `docs/troubleshooting.md` gained a template-owned body in v0.12.0. The four
-  project-specific entries (TERM, large diffs, jj on PATH, `jj op restore`) are appended
-  under their own heading
 
 Still open and still a template change rather than a local one:
 
