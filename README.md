@@ -5,7 +5,10 @@
 Read a Jujutsu diff in the terminal and move parts of it around: pick hunks or
 individual lines and send them to another revision, or split one commit into
 several focused ones. Drops in as jj's diff editor for `jj split`, `jj diffedit`,
-`jj amend -i`, and `jj squash -i`.
+`jj amend -i`, and `jj squash -i`, so it works the same whether you run it from a
+plain `jj` command line or from a TUI that shells out to one
+([jj-tui](https://github.com/KyleKing/jj-tui), [jjui](https://github.com/idursun/jjui),
+[lazyjj](https://github.com/Cretezy/lazyjj)).
 
 ## Install
 
@@ -40,8 +43,8 @@ at any point for the keymap.
 - Commit, rebase, or edit commit descriptions. It moves existing changes between
   revisions and nothing else
 - Browse the repository. There is no change graph, operation log, or bookmark
-  management here. [jjui](https://github.com/idursun/jjui) does that well, and it
-  hands hunk-level work to a diff editor, which is where jj-diff fits
+  management here. That is [jj-tui](https://github.com/KyleKing/jj-tui)'s job, and
+  jjui's, and both hand hunk-level work to a diff editor, which is where jj-diff fits
 - Resolve merge conflicts
 - Edit file contents. You choose which existing changes move, and you do not type
   new ones

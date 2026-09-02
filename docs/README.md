@@ -42,9 +42,12 @@ work in [ROADMAP.md](../ROADMAP.md).
 
 ## Safety
 
-Moving changes never names `@`. jj-diff resolves the destination, records the
-current operation ID, adds a scratch workspace under a temp directory, applies
-the patch and squashes there, then forgets the workspace. A failure runs
-`jj op restore` back to the recorded operation. Your working copy is never read,
-written, or moved, so an abandoned run cannot lose the changes you did not
-select.
+No step destroys working-copy content. Moving changes resolves the destination,
+records the current operation ID, adds a scratch workspace under a temp
+directory, applies the patch and squashes there, then forgets the workspace. A
+failure runs `jj op restore` back to the recorded operation, so an abandoned run
+cannot lose the changes you did not select.
+
+Splitting to a new commit is the one path that touches your working copy, and it
+runs `jj new --insert-before`, which moves the parent pointer and leaves every
+byte of content alone, the same way `jj split` does.

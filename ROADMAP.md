@@ -1,124 +1,29 @@
 # jj-diff Roadmap
 
-Feature plans that build on jj's unique capabilities. None of the six below is
-built as of 2026-09-02: `internal/components/` holds no timeline, oplog, or
-smartlog component. Three of them are no longer planned for this repo at all, for
-the reason given under Implementation Priority. Known defects and design decisions
-live in `FINDINGS.md`; the ordered work lives in `NEXT_STEPS.md`; the
-fixture-testing plan lives in `doctest-jj-diff.md`.
+Three features that earn a place in a diff tool, meaning you want them while reading a
+diff. None is built as of 2026-09-02. Known defects and design decisions live in
+`FINDINGS.md`, the ordered work lives in `NEXT_STEPS.md`, and the fixture-testing plan
+lives in `doctest-jj-diff.md`.
 
-Section 4 quotes jj's conflict-marker format verbatim, so the `<<<<<<<` and
-`>>>>>>>` lines in this file are content, not an unresolved merge. `hk.pkl`
-excludes this path from `check-merge-conflict` for that reason; keep the markers
-and the exclude in step if the file is ever renamed.
+Repo browsing moved out on 2026-09-02. Evolution timeline, operation log, and interactive
+smartlog now live in [jj-tui](https://github.com/KyleKing/jj-tui), the lazygit replacement
+that runs jj-diff as its diff editor. Anything that browses a repository rather than reads
+a diff belongs there.
 
----
+| Priority | Feature | Effort | Impact |
+|----------|---------|--------|--------|
+| P0 | Conflict visualization | Medium | High (nothing else shows jj conflict markers well) |
+| P1 | Interdiff | Low | Medium (two revisions, one diff view) |
+| P2 | Background refresh | Low | Low (polish) |
 
-## 1. Evolution Timeline
-
-**Keybinding**: `E`
-
-**Problem**: Users cannot see how a change evolved through rebases, amends, and squashes. This is jj's core differentiator from git.
-
-**Implementation**:
-
-- New component: `internal/components/evolutiontimeline/`
-- Data source: `jj obslog -r <rev> --no-graph -T 'commit_id ++ "\t" ++ description.first_line() ++ "\n"'`
-- Parse obslog output into timeline entries with operation type, timestamp, commit ID
-- Render as vertical list with operation annotations (rebase, amend, squash, etc.)
-- Support diffing between any two evolutions via selection
-
-**UI Layout**:
-```
-Evolution of change abc123
-─────────────────────────────
-  [3] 2h ago   rebase onto main
-  [2] 5h ago   amend: fix typo        ← cursor
-  [1] 1d ago   initial commit
-─────────────────────────────
-[Enter] view diff  [d] interdiff  [r] restore  [q] close
-```
-
-**Key Commands**:
-- `jj obslog -r <rev>` - list evolutions
-- `jj diff --from <old> --to <new>` - interdiff between evolutions
-- `jj op restore <op-id>` - restore to previous evolution
-
-**Files to Modify**:
-- `internal/model/model.go`: Add `ModeEvolutionTimeline`, handle `E` key
-- `internal/jj/client.go`: Add `GetObslog(revision)` method
-- New: `internal/components/evolutiontimeline/evolutiontimeline.go`
+Section 1 quotes jj's conflict-marker format verbatim, so the `<<<<<<<` and `>>>>>>>`
+lines in this file are content, not an unresolved merge. `hk.pkl` excludes this path from
+`check-merge-conflict` for that reason; keep the markers and the exclude in step if the
+file is ever renamed.
 
 ---
 
-## 2. Interdiff Support
-
-**Keybinding**: `I` (when in evolution timeline)
-
-**Problem**: When iterating on a change, users need to see what changed between v1 and v2, not the full diff each time.
-
-**Implementation**:
-
-- Extend evolution timeline with selection of two versions
-- Compute interdiff via `jj diff --from <v1> --to <v2>`
-- Reuse existing diff parser and view components
-- Show interdiff in main diff view with clear header
-
-**Workflow**:
-1. Enter evolution timeline (`E`)
-2. Select first version (Space to mark)
-3. Navigate to second version
-4. Press `I` to view interdiff
-5. Diff view shows what changed between the two evolutions
-
-**Files to Modify**:
-- `internal/components/evolutiontimeline/`: Add dual-selection state
-- `internal/diff/source.go`: Add `InterdiffSource` for two-revision comparison
-- `internal/model/model.go`: Handle interdiff display mode
-
----
-
-## 3. Operation Log View
-
-**Keybinding**: `O`
-
-**Problem**: Users need visibility into jj operations for undo/redo and understanding repo state.
-
-**Implementation**:
-
-- New component: `internal/components/oplog/`
-- Data source: `jj op log --no-graph -T 'operation_id ++ "\t" ++ description ++ "\t" ++ time ++ "\n"'`
-- Render as navigable list with operation descriptions
-- Support restore to any operation
-
-**UI Layout**:
-```
-Operation Log
-─────────────────────────────────────────
-  abc123  2m ago   commit: fix auth bug
-  def456  5m ago   new: working copy      ← cursor
-  ghi789  1h ago   squash into xyz
-─────────────────────────────────────────
-[r] restore  [u] undo last  [q] close
-```
-
-**Quick Undo/Redo**:
-- `u` anywhere: Execute `jj undo` and refresh view
-- `Ctrl+r` anywhere: Execute `jj op restore <prev>` (redo pattern)
-
-**Key Commands**:
-- `jj op log` - list operations
-- `jj undo` - undo last operation
-- `jj op restore <op-id>` - restore to specific operation
-
-**Files to Modify**:
-- `internal/model/model.go`: Add `ModeOpLog`, handle `O`/`u`/`Ctrl+r` keys
-- `internal/jj/client.go`: Add `GetOpLog()`, `Undo()`, `RestoreOp(opId)` methods
-- New: `internal/components/oplog/oplog.go`
-
----
-
-## 4. Conflict Visualization
+## 1. Conflict visualization
 
 **Keybinding**: `C`
 
@@ -165,7 +70,30 @@ Conflicts (3 files, 7 total)
 
 ---
 
-## 5. Background Refresh
+## 2. Interdiff
+
+**Keybinding**: `I`
+
+**Problem**: When iterating on a change, the useful diff is what changed between two
+revisions, not the full diff of either. Comparing a revision against its own previous
+evolution is the common case, and comparing two arbitrary revisions is the general one.
+
+**Implementation**:
+
+- Prompt for a from/to revision pair, defaulting `from` to the revision's previous
+  evolution entry (`jj evolog -r <rev>`) and `to` to the revision itself
+- Compute via `jj diff --from <v1> --to <v2>` and reuse the existing parser and view
+- State which pair is on screen in the header, since the diff alone does not say
+
+**Files to Modify**:
+
+- `internal/diff/source.go`: add `InterdiffSource` for two-revision comparison
+- `internal/jj/client.go`: add the evolog read behind it
+- `internal/model/model.go`: handle the revision-pair prompt and the display mode
+
+---
+
+## 3. Background refresh
 
 **Problem**: View becomes stale when user runs jj commands externally.
 
@@ -196,72 +124,6 @@ func (w *Watcher) Start(jjDir string) tea.Cmd {
 
 **Dependencies**:
 - `github.com/fsnotify/fsnotify`
-
----
-
-## 6. Interactive Smartlog
-
-**Keybinding**: `L`
-
-**Problem**: Users need to see and interact with the change graph, similar to Sapling's smartlog.
-
-**Implementation**:
-
-- New component showing `jj log` output as interactive graph
-- Navigate between changes with j/k
-- Actions on selected change: view diff, edit, new, squash
-- Filter/search changes
-
-**UI Layout**:
-```
-Smartlog
-────────────────────────────────────────
-  @  abc123  (empty) working copy
-  │
-  ○  def456  feat: add auth
-  │
-  ○  ghi789  fix: handle errors       ← cursor
-  │
-  ◆  main    initial commit
-────────────────────────────────────────
-[Enter] view  [e] edit  [n] new  [s] squash  [q] close
-```
-
-**Key Commands**:
-- `jj log --no-graph -T <template>` - structured output
-- `jj log` - graph output for display
-- `jj edit <change>` - switch to change
-- `jj new <change>` - create child
-- `jj squash --from <change>` - squash into parent
-
-**Graph Parsing**:
-- Parse `jj log` output preserving graph characters
-- Extract change IDs, descriptions, bookmarks
-- Map graph lines to selectable entries
-
-**Files to Modify**:
-- `internal/model/model.go`: Add `ModeSmartlog`, handle `L` key
-- `internal/jj/client.go`: Add `GetLog()` method with template
-- New: `internal/components/smartlog/smartlog.go`
-
----
-
-## Implementation Priority
-
-jj-diff is the diff tool, so a feature earns a place here only if you want it while
-reading a diff. The three that do not are kept below the line for the sibling TUI that
-[docs/tui-v2-requirements.md](docs/tui-v2-requirements.md) specs, because a repo browser
-is that project's job.
-
-| Priority | Feature | Effort | Impact |
-|----------|---------|--------|--------|
-| P0 | Conflict Visualization | Medium | High (nothing else shows jj conflict markers well) |
-| P1 | Interdiff | Low | Medium (two revisions, one diff view) |
-| P2 | Background Refresh | Low | Low (polish) |
-
-Moved to the sibling TUI, not planned here: Evolution Timeline, Operation Log, and
-Interactive Smartlog. Each is a way of browsing the repository rather than a way of
-reading a diff, and jjui already does all three well.
 
 ---
 

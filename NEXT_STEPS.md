@@ -29,24 +29,23 @@ also at zero.
 
 ## Scope, decided
 
-jj-diff stays the diff tool. The full jj TUI becomes a sibling project, or an extension
-of one that exists. Decided 2026-09-02, and the docs now agree: README says the tool does
-not browse a repository, ROADMAP keeps only the three features you want while reading a
-diff, and `docs/tui-v2-requirements.md` carries a note saying its premise no longer holds.
+jj-diff stays the diff tool. The full jj TUI is
+[jj-tui](https://github.com/KyleKing/jj-tui), a separate repo as of 2026-09-02, and this
+repo's job is to be the diff editor any host runs: jj-tui, jjui, lazyjj, or a plain
+`jj split -i`. The requirements, the tool comparison, and the three repo-browsing roadmap
+features all moved there.
 
 What settled it is what [jjui](https://github.com/idursun/jjui) actually does. Its
 [Details view](https://idursun.github.io/jjui/details/) selects at whole-file level only,
 and both `s` (split) and `r` (restore) hand hunk-level work to an external interactive
-editor. Hunk and line selection is the thing jj-diff already does and jjui delegates, so
-the two compose rather than compete. Rebuilding jjui would mean chasing a tool at v0.10
-with an actions-and-bindings system and Lua scripting, and giving up the one place
-jj-diff is ahead.
+editor. Hunk and line selection is the thing jj-diff already does and every browser
+delegates, so they compose rather than compete.
 
-The sibling is also much cheaper than it was in August, which is the other half of the
-answer. [aragonite](https://github.com/KyleKing/aragonite) now ships `vcs`, `forge/github`,
-`cache`, and `tui/theme`, so a repo browser with a `gh`-backed PR pane starts from those
-rather than from nothing. That is where the `o` binding for opening a PR belongs, and
-where `docs/tui-v2-requirements.md` should move when the project exists.
+jj-tui exists rather than a jjui fork or a jjui Lua config because the complaint is the
+log row itself: it leads with the author's full email and a timestamp, and never says how
+many files or lines a revision touches. That is a design position, so configuration does
+not reach it, and jjui's Lua layer renders only flash messages, a fixed-list picker, and
+raw text into an existing pane, which rules out a pull request panel too.
 
 ## Ordered work
 
