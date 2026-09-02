@@ -33,10 +33,15 @@ at any point for the keymap.
 ## What it does not do
 
 - Work on a plain git repository. It shells out to `jj`, so a repo needs jj 0.9.0+
-- Read, write, or move your working copy. Every edit lands through a scratch
-  workspace, so an abandoned run cannot cost you unselected changes
+- Overwrite your working copy. Every patch is built in a scratch workspace, so an
+  abandoned run cannot cost you unselected changes. Splitting to a new commit is
+  the one step that touches your working copy, and it only moves the parent
+  pointer, the same way `jj split` does
 - Commit, rebase, or edit commit descriptions. It moves existing changes between
   revisions and nothing else
+- Browse the repository. There is no change graph, operation log, or bookmark
+  management here. [jjui](https://github.com/idursun/jjui) does that well, and it
+  hands hunk-level work to a diff editor, which is where jj-diff fits
 - Resolve merge conflicts
 - Edit file contents. You choose which existing changes move, and you do not type
   new ones

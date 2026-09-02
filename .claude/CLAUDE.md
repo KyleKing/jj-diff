@@ -67,7 +67,9 @@ Patch generation in `internal/diff/patch.go` copies whole hunks as-is. For parti
 
 This is the one place the application itself writes to a repository. It targets the user's repo at runtime, not this one.
 
-The invariant that makes it safe: nothing in this path names `@`. The user's working copy is never read, written, or moved, so a failed or abandoned run cannot cost them unselected changes. Anything added here that resolves a revset relative to `@`, or runs `jj restore` against the user's working copy, reintroduces a data-loss bug that shipped once already.
+The invariant that makes it safe: no step destroys working-copy content. `MoveChanges` never names `@` at all, so a failed or abandoned run cannot cost unselected changes. `ApplySplit` is the one exception and it is a narrow one: a plan targeting a new commit runs `jj new --insert-before <source>`, which moves the source's parent pointer and leaves every byte of its content alone. A failure restores the operation recorded before the first plan.
+
+What reintroduces the data-loss bug that shipped once already is a step that rewrites working-copy *content*: `jj restore` against the user's working copy, or anything that resolves a revset relative to `@` and then discards what it finds there. Moving a parent pointer is safe; overwriting a tree is not. `TestApplySplit_NewCommitTakesOnlyTheSelectedHunk` pins the difference by asserting the unselected hunk is still in `@` afterwards.
 
 ## Theme system
 

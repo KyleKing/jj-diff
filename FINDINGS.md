@@ -6,26 +6,10 @@ Obvious bug fixes went into commits instead; this file is the remainder.
 
 Everything below was reproduced against a real colocated jj repo with jj-diff
 wired in as `ui.diff-editor`, driven through a pty, and re-verified against the
-source on 2026-07-27. Feature plans live in `ROADMAP.md`; the fixture-testing plan
+source on 2026-07-27. The UX findings were re-driven under tmux on 2026-09-02 and
+the three marked fixed there were closed the same day. Feature plans live in `ROADMAP.md`; the fixture-testing plan
 lives in `doctest-jj-diff.md`; the append-only pass log is `.freshen.md`. Symbols
 are named rather than line numbers, because line numbers drift.
-
-## Bugs
-
-### `ApplySplit` cannot create a new commit
-
-Reproduced against v0.1.2 and against current main, and independent of the
-working-copy data-loss bug fixed in v0.1.3. A split plan with
-`SplitDestNewCommit` creates its destination as a child of the working copy, so
-the destination already contains every change the working copy has. Applying the
-plan's patch on top of that fails with `patch does not apply`, and the split is
-rolled back.
-
-Getting this right is a design decision rather than a repair. Taking selected
-hunks out of `@` and into a new commit means creating that commit on `@-` and
-rebasing `@` onto it, which is closer to what `jj split` does than to what
-`MoveChanges` does. The existing test asserts only the safety property: the failed
-plan is reported and leaves the working copy intact.
 
 ## The Bubble Tea migration
 
@@ -83,30 +67,29 @@ execution, not concept. Ordered by payoff.
 
 ### Modals replace the whole screen
 
-`Model.View` in `internal/model/model.go` returns the modal's view instead of
-compositing it over the base view. Pressing `/` blanks the diff and shows a search
-box in the middle of an empty screen, so you cannot see what you are matching
-while you type. Same for the destination picker, the commit-message prompt, and
-the split preview. Overlaying with `lipgloss.Place` over the rendered base, or
-dropping the search box into the status-bar row, both fix it. This is the single
-biggest usability win available.
+Fixed on 2026-09-02. `render` composites the modal over the rendered panels, so the
+diff, the file list, and the status bar stay readable behind a search box or a
+destination picker. Each component's `renderModal` returns the bordered box and the
+model centres it, because `Canvas.Compose` draws every layer at the canvas origin and
+throws away a layer's X and Y. `lipgloss.NewCompositor` is the type that honours them.
+`TestRender_ModalsCompositeOverThePanels` pins it.
 
 ### The help overlay clips instead of scrolling
 
-`renderModal` in `internal/components/help/help.go` centres a modal that can be
-taller than the terminal, with no height budget and no scrolling. In a short
-terminal the "Keybindings" title and the whole Navigation section are cut off the
-top, with nothing on screen indicating there is more. A first-timer in a
-laptop-sized split pane sees half the keys and cannot reach the rest.
+Fixed on 2026-09-02. The overlay windows its body to the terminal height and the
+footer reports the position, so j/k, Ctrl-d/u, and g/G reach the bindings below the
+fold. At 80x24 it used to lose the title off the top and the close hint off the
+bottom with nothing saying so.
 
-### The status bar truncates silently
+### The status bar truncates silently, and hid interactive mode entirely
 
-`truncateOrPad` in `internal/components/statusbar/statusbar.go` hard-clips at
-terminal width with no ellipsis and no re-prioritisation. At 80 columns the
-browse-mode bar ends mid-word at `/:searc`, so `f:find` and `?:help` are both
-invisible, and `?` is the only route to the rest of the keys. The hint list should
-drop items from the right and show that it did, or shorten to the highest-value
-few below some width.
+Fixed on 2026-09-02, and the truncation turned out to be the smaller half. In
+`getContextHints` the focused-panel branch was tested before the mode branch, and
+interactive mode starts on the file list, so `d:dest` and `a:apply` never appeared
+until you pressed Tab. The mode's whole vocabulary was undiscoverable. Hints are a
+slice now, fitted by display width rather than byte length, dropped from the right
+with an ellipsis, and the help hint always survives because it is the only route to
+the rest of the keymap.
 
 ### Filtering does not move the selection
 
@@ -128,14 +111,15 @@ offsets onto a path column that truncates, plus ANSI-aware width maths in the
 
 ### Health score
 
-27/40 on the ten usability heuristics. The three 2/4 scores are what to fix: user
-control and freedom (no undo hint after an apply, no confirmation before one),
-error prevention (`a` in interactive mode applies with no confirmation), and
-recognition over recall (the footer truncates at 80 columns and the help overlay
-clips). Visibility of system status is 3/4 only because there is no feedback at
-all while `MoveChanges` runs, and error recovery is 2/4 because a panic still
-dumps a Go stack over the terminal. `NO_COLOR` is respected and fully legible;
-`TERM=dumb` is unhandled.
+27/40 on the ten usability heuristics when scored on 2026-07-27. Recognition over
+recall was one of the three 2/4 scores and the 2026-09-02 fixes close it: the footer
+fits by display width and says what it dropped, and the help overlay scrolls. The
+other two stand. User control and freedom is 2/4 because there is no undo hint after
+an apply, and error prevention is 2/4 because `a` in interactive mode applies with no
+confirmation. Visibility of system status is 3/4 only because there is no feedback at
+all while `MoveChanges` runs, and error recovery is 2/4 because a panic still dumps a
+Go stack over the terminal. `NO_COLOR` is respected and fully legible; `TERM=dumb` is
+unhandled.
 
 Cognitive load fails on three counts: working memory (the diff pane does not
 follow the filter, so you have to remember what you were looking at),
@@ -243,7 +227,10 @@ Two follow-ups the sweep surfaced but could not finish inside its own scope:
   would lose its bit. Worth checking how jj restores modes after the editor
   returns
 - `mise run ci` runs only `go test` and `go build`, so `mise run test:coverage-min`
-  and its 70% threshold are never enforced by CI or the hooks
+  and its 70% threshold are never enforced by CI or the hooks. Real coverage was
+  52.4% on 2026-09-02, measured with the subprocess-merging task my_go_template
+  v0.15.1 introduced. `internal/jj` and `cmd/jj-diff` still have no test file of
+  their own
 
 ## Pending the next copier update
 

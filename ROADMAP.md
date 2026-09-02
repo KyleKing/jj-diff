@@ -1,8 +1,10 @@
 # jj-diff Roadmap
 
 Feature plans that build on jj's unique capabilities. None of the six below is
-built as of 2026-07-27: `internal/components/` holds no timeline, oplog, or
-smartlog component. Known defects and design decisions live in `FINDINGS.md`; the
+built as of 2026-09-02: `internal/components/` holds no timeline, oplog, or
+smartlog component. Three of them are no longer planned for this repo at all, for
+the reason given under Implementation Priority. Known defects and design decisions
+live in `FINDINGS.md`; the ordered work lives in `NEXT_STEPS.md`; the
 fixture-testing plan lives in `doctest-jj-diff.md`.
 
 Section 4 quotes jj's conflict-marker format verbatim, so the `<<<<<<<` and
@@ -246,14 +248,20 @@ Smartlog
 
 ## Implementation Priority
 
+jj-diff is the diff tool, so a feature earns a place here only if you want it while
+reading a diff. The three that do not are kept below the line for the sibling TUI that
+[docs/tui-v2-requirements.md](docs/tui-v2-requirements.md) specs, because a repo browser
+is that project's job.
+
 | Priority | Feature | Effort | Impact |
 |----------|---------|--------|--------|
-| P0 | Evolution Timeline | Medium | High (jj-unique) |
-| P0 | Interdiff | Low | High (builds on timeline) |
-| P1 | Operation Log | Low | Medium |
-| P1 | Interactive Smartlog | Medium | High |
-| P2 | Conflict Visualization | Medium | Medium |
-| P3 | Background Refresh | Low | Low (polish) |
+| P0 | Conflict Visualization | Medium | High (nothing else shows jj conflict markers well) |
+| P1 | Interdiff | Low | Medium (two revisions, one diff view) |
+| P2 | Background Refresh | Low | Low (polish) |
+
+Moved to the sibling TUI, not planned here: Evolution Timeline, Operation Log, and
+Interactive Smartlog. Each is a way of browsing the repository rather than a way of
+reading a diff, and jjui already does all three well.
 
 ---
 

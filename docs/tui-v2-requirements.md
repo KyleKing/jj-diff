@@ -1,11 +1,24 @@
-# Requirements: jj-diff as a full jj-native TUI
+# Requirements: a full jj-native TUI
 
-Scope decided going in: this stays a TUI (not a browser app), it grows in place inside
-this repo rather than spinning up a sibling project, GitHub is the only forge target for
-day one with a provider abstraction underneath for GitLab/Forgejo later, and the op-log
-sync workaround piggybacks on the git remote the user already pushes to. See
-[tui-comparison.md](tui-comparison.md) for how lazyjj and jjui were evaluated to reach
-that starting point.
+**These requirements no longer describe jj-diff.** They were written on 2026-08-19 on the
+premise that jj-diff would grow into a full jj TUI in place. That premise was dropped on
+2026-09-02: jj-diff stays the diff tool, and the full TUI becomes a sibling project. The
+requirements below survive because the sibling will want them, not because this repo is
+going to build them. Read them as a spec looking for a home.
+
+What changed the decision is what [jjui](https://github.com/idursun/jjui) turns out to do.
+Its Details view selects at whole-file level only, and both split and restore hand
+hunk-level work to an external editor, which is exactly jj-diff's job. Rebuilding that
+surface would mean chasing a tool at v0.10 with a Lua binding system, and it would replace
+the one thing jj-diff is already better at. The sibling also starts far cheaper than it
+would have in August, because [aragonite](https://github.com/KyleKing/aragonite) now ships
+`vcs`, `forge/github`, `cache`, and `tui/theme`.
+
+The rest of this file is the original text. Scope, as decided going in: this stays a TUI
+(not a browser app), GitHub is the only forge target for day one with a provider
+abstraction underneath for GitLab/Forgejo later, and the op-log sync workaround piggybacks
+on the git remote the user already pushes to. See [tui-comparison.md](tui-comparison.md)
+for how lazyjj and jjui were evaluated.
 
 The throughline across every section below: design around what jj actually is (no
 staging area, the working copy is always a commit, every mutation is a reversible
