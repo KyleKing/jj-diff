@@ -3,6 +3,7 @@
 package help
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -15,10 +16,15 @@ const (
 	ellipsis            = "..."
 	estimatedLineCount  = 48
 	keyColumnWidth      = 20
+	minBodyHeight       = 3
+	modalChromeHeight   = 4
 	modalHorizontalPad  = 2
 	modalWidthMargin    = 10
 	preferredModalWidth = 60
 	wrapTextMargin      = 4
+
+	// Larger than the overlay can ever be, so ScrollToEnd lands past the end and View clamps it.
+	scrollEnd = 1 << 20
 )
 
 const (
@@ -30,6 +36,7 @@ const (
 // match the mode strings the parent passes to Show.
 type Model struct {
 	mode    string
+	scroll  int
 	visible bool
 }
 
@@ -45,6 +52,23 @@ func New() Model {
 func (m *Model) Show(mode string) {
 	m.visible = true
 	m.mode = mode
+	m.scroll = 0
+}
+
+// ScrollBy moves the overlay's viewport by delta rows. View clamps the result against the content
+// it actually has, so callers may pass any delta.
+func (m *Model) ScrollBy(delta int) {
+	m.scroll = max(m.scroll+delta, 0)
+}
+
+// ScrollToStart jumps to the first row of the overlay.
+func (m *Model) ScrollToStart() {
+	m.scroll = 0
+}
+
+// ScrollToEnd jumps to the last row of the overlay.
+func (m *Model) ScrollToEnd() {
+	m.scroll = scrollEnd
 }
 
 // Hide closes the overlay.
@@ -58,26 +82,48 @@ func (m *Model) IsVisible() bool {
 }
 
 // View renders the overlay centered in the given terminal size, returning the empty string while
-// hidden. The content is clipped rather than scrolled when it is taller than height.
-func (m Model) View(width, height int) string {
+// hidden. Content taller than the terminal scrolls, and the footer says so, so a short terminal
+// never hides bindings without admitting it. It clamps the scroll offset as a side effect.
+func (m *Model) View(width, height int) string {
 	if !m.visible {
 		return ""
 	}
 
 	modalWidth := min(preferredModalWidth, width-modalWidthMargin)
 
-	lines := make([]string, 0, estimatedLineCount)
-	lines = append(lines, styleHeader("Keybindings", modalWidth), "")
-	lines = append(lines, navigationSection(modalWidth)...)
-	lines = append(lines, actionSection(m.mode, modalWidth)...)
-	lines = append(lines, viewOptionSection(modalWidth)...)
-	lines = append(lines, globalSection(m.mode, modalWidth)...)
-	lines = append(lines, interactiveGuideSection(m.mode, modalWidth)...)
-	lines = append(lines, styleFooter("Press ? or Esc to close", modalWidth))
+	body := make([]string, 0, estimatedLineCount)
+	body = append(body, styleHeader("Keybindings", modalWidth), "")
+	body = append(body, navigationSection(modalWidth)...)
+	body = append(body, actionSection(m.mode, modalWidth)...)
+	body = append(body, viewOptionSection(modalWidth)...)
+	body = append(body, globalSection(m.mode, modalWidth)...)
+	body = append(body, interactiveGuideSection(m.mode, modalWidth)...)
 
-	content := strings.Join(lines, "\n")
+	body, footer := m.window(body, height)
 
-	return renderModal(content, width, height)
+	lines := make([]string, 0, len(body)+1)
+	lines = append(lines, body...)
+	lines = append(lines, styleFooter(footer, modalWidth))
+
+	return renderModal(strings.Join(lines, "\n"), width, height)
+}
+
+// window trims body to what fits above the footer and reports the footer text for that state.
+func (m *Model) window(body []string, height int) ([]string, string) {
+	const closeHint = "? or Esc to close"
+
+	visible := max(height-modalChromeHeight-1, minBodyHeight)
+	if len(body) <= visible {
+		m.scroll = 0
+
+		return body, "Press " + closeHint
+	}
+
+	maxScroll := len(body) - visible
+	m.scroll = min(m.scroll, maxScroll)
+
+	return body[m.scroll : m.scroll+visible],
+		fmt.Sprintf("j/k to scroll · %d%% · %s", m.scroll*100/maxScroll, closeHint)
 }
 
 func navigationSection(width int) []string {

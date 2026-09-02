@@ -109,6 +109,10 @@ const (
 // synchronous and the pickers are scrollable anyway.
 const revisionListLimit = 20
 
+// helpPageStep is how far Ctrl-d and Ctrl-f move the help overlay, which sizes itself to the
+// terminal and so has no page height of its own.
+const helpPageStep = 10
+
 // Key names the handlers branch on in more than one place.
 const (
 	keyBackspace = "backspace"
@@ -494,9 +498,7 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	if m.help.IsVisible() {
-		if key == "q" {
-			m.help.Hide()
-		}
+		m.handleHelpKeyPress(key)
 
 		return nil
 	}
@@ -524,6 +526,27 @@ func (m *Model) handleAppKey(key string) tea.Cmd {
 	}
 
 	return m.handleTagKey(key)
+}
+
+// handleHelpKeyPress moves the help overlay's viewport or closes it. The overlay is taller than a
+// short terminal, so these are the only way to reach the bindings below the fold.
+func (m *Model) handleHelpKeyPress(key string) {
+	switch key {
+	case "q":
+		m.help.Hide()
+	case "j", keyDown:
+		m.help.ScrollBy(1)
+	case "k", "up":
+		m.help.ScrollBy(-1)
+	case "ctrl+d", "ctrl+f":
+		m.help.ScrollBy(helpPageStep)
+	case "ctrl+u", "ctrl+b":
+		m.help.ScrollBy(-helpPageStep)
+	case "g":
+		m.help.ScrollToStart()
+	case "G":
+		m.help.ScrollToEnd()
+	}
 }
 
 // handleScrollKey scrolls the diff view by a page or half a page. The scroll functions are method
