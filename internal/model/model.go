@@ -1611,10 +1611,6 @@ func (m *Model) render() string {
 		return "No changes found.\n\nPress r to refresh or q to quit"
 	}
 
-	if overlay := m.overlayView(); overlay != "" {
-		return overlay
-	}
-
 	// The push* calls below install per-frame render state on the panel components, and the
 	// callbacks they install close over the model. Drawing from a copy keeps that state out of the
 	// model Update owns, so a frame can never leave stale callbacks behind for the next one.
@@ -1640,17 +1636,43 @@ func (m *Model) render() string {
 		Foreground(theme.Secondary).
 		Render(strings.Repeat("\u2500", frame.width))
 
-	return fmt.Sprintf(
+	panels := fmt.Sprintf(
 		"%s\n%s\n%s\n%s",
 		fileListView,
 		border,
 		diffViewView,
 		frame.renderStatusBar(),
 	)
+
+	return composite(panels, frame.overlayView(), frame.width, frame.height)
 }
 
-// overlayView returns the full-screen overlay that is up, or the empty string when the panels should
-// render instead. The order is the stacking order on screen.
+// composite centers overlay over base. Drawing the panels underneath is what lets you still read the
+// diff you are searching or the revision you are picking a destination from.
+func composite(base, overlay string, width, height int) string {
+	if overlay == "" {
+		return base
+	}
+
+	// Compositor rather than Canvas.Compose, which draws every layer at the canvas origin and so
+	// discards the offsets that center the modal.
+	return lipgloss.NewCompositor(
+		lipgloss.NewLayer(base),
+		lipgloss.NewLayer(overlay).
+			X(centerOffset(width, lipgloss.Width(overlay))).
+			Y(centerOffset(height, lipgloss.Height(overlay))).
+			Z(1),
+	).Render()
+}
+
+func centerOffset(outer, inner int) int {
+	const halves = 2
+
+	return max((outer-inner)/halves, 0)
+}
+
+// overlayView returns the modal box that is up, or the empty string when no modal is open. The order
+// is the stacking order on screen.
 func (m *Model) overlayView() string {
 	switch {
 	case m.help.IsVisible():

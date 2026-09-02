@@ -68,7 +68,7 @@ func (m *Model) UpdateResults(matchCount, currentIdx int) {
 
 // View renders the prompt centered in the given terminal size, returning the empty string while
 // hidden.
-func (m Model) View(width, height int) string {
+func (m Model) View(width, _ int) string {
 	if !m.visible {
 		return ""
 	}
@@ -92,7 +92,7 @@ func (m Model) View(width, height int) string {
 
 	content := strings.Join(lines, "\n")
 
-	return renderModal(content, width, height)
+	return renderModal(content)
 }
 
 func (m Model) statusText() string {
@@ -144,23 +144,12 @@ func styleFooter(text string, width int) string {
 	return style.Render(text)
 }
 
-func renderModal(content string, width, height int) string {
-	modalStyle := lipgloss.NewStyle().
+// renderModal draws the bordered box only. The model composites it over the panels, so a
+// modal never blanks the diff behind it.
+func renderModal(content string) string {
+	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(0, 1)
-
-	modal := modalStyle.Render(content)
-
-	overlay := lipgloss.Place(
-		width,
-		height,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(theme.ModalBg)),
-	)
-
-	return overlay
+		Padding(0, 1).
+		Render(content)
 }

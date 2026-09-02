@@ -89,7 +89,7 @@ func (m Model) GetTag() SplitTag {
 
 // View centers the prompt in a terminal of the given cell dimensions, returning an empty
 // string while hidden so the caller can fall through to the view underneath.
-func (m Model) View(width, height int) string {
+func (m Model) View(width, _ int) string {
 	if !m.visible {
 		return ""
 	}
@@ -110,7 +110,7 @@ func (m Model) View(width, height int) string {
 
 	content := strings.Join(lines, "\n")
 
-	return renderModal(content, width, height)
+	return renderModal(content)
 }
 
 func styleHeader(text string, width int) string {
@@ -151,21 +151,12 @@ func styleInput(text string, width int) string {
 	return style.Render(displayText)
 }
 
-func renderModal(content string, termWidth, termHeight int) string {
-	borderStyle := lipgloss.NewStyle().
+// renderModal draws the bordered box only. The model composites it over the panels, so a
+// modal never blanks the diff behind it.
+func renderModal(content string) string {
+	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(1, modalHorizontalPad)
-
-	modal := borderStyle.Render(content)
-
-	overlay := lipgloss.Place(
-		termWidth,
-		termHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-	)
-
-	return overlay
+		Padding(1, modalHorizontalPad).
+		Render(content)
 }

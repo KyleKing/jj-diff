@@ -94,7 +94,7 @@ func (m *Model) IsVisible() bool {
 
 // View renders the preview centered in the given terminal size, returning the empty string while
 // hidden.
-func (m Model) View(width, height int) string {
+func (m Model) View(width, _ int) string {
 	if !m.visible {
 		return ""
 	}
@@ -122,7 +122,7 @@ func (m Model) View(width, height int) string {
 
 	content := strings.Join(lines, "\n")
 
-	return renderModal(content, width, height)
+	return renderModal(content)
 }
 
 func clamp(value, lower, upper int) int {
@@ -204,21 +204,12 @@ func truncateOrPad(text string, width int) string {
 	return text + strings.Repeat(" ", width-visibleLen)
 }
 
-func renderModal(content string, termWidth, termHeight int) string {
-	borderStyle := lipgloss.NewStyle().
+// renderModal draws the bordered box only. The model composites it over the panels, so a
+// modal never blanks the diff behind it.
+func renderModal(content string) string {
+	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(modalPaddingY, modalPaddingX)
-
-	modal := borderStyle.Render(content)
-
-	overlay := lipgloss.Place(
-		termWidth,
-		termHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-	)
-
-	return overlay
+		Padding(modalPaddingY, modalPaddingX).
+		Render(content)
 }

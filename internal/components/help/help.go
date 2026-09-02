@@ -105,7 +105,7 @@ func (m *Model) View(width, height int) string {
 	lines = append(lines, body...)
 	lines = append(lines, styleFooter(footer, modalWidth))
 
-	return renderModal(strings.Join(lines, "\n"), width, height)
+	return renderModal(strings.Join(lines, "\n"))
 }
 
 // window trims body to what fits above the footer and reports the footer text for that state.
@@ -291,21 +291,12 @@ func padRight(text string, width int) string {
 	return text + strings.Repeat(" ", width-visible)
 }
 
-func renderModal(content string, termWidth, termHeight int) string {
-	borderStyle := lipgloss.NewStyle().
+// renderModal draws the bordered box only. The model composites it over the panels, so a
+// modal never blanks the diff behind it.
+func renderModal(content string) string {
+	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.Primary).
-		Padding(1, modalHorizontalPad)
-
-	modal := borderStyle.Render(content)
-
-	overlay := lipgloss.Place(
-		termWidth,
-		termHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		modal,
-	)
-
-	return overlay
+		Padding(1, modalHorizontalPad).
+		Render(content)
 }

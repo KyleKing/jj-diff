@@ -5,6 +5,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -751,5 +752,50 @@ func TestApplySelectionUsesTheSelectionFromWhenTheKeyWasPressed(t *testing.T) {
 
 	if err, ok := cmd().(errMsg); ok && errors.Is(err.err, errNoSelection) {
 		t.Error("Apply command read the live selection instead of the one from when a was pressed")
+	}
+}
+
+// A modal used to replace the whole screen, so you could not see what you were searching or which
+// revision you were picking a destination from while the prompt was up.
+func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
+	t.Parallel()
+
+	changes := TestChanges()
+
+	tests := []struct {
+		open   func(m *Model)
+		name   string
+		height int
+	}{
+		{name: "search", height: 30, open: func(m *Model) { m.searchModal.Show() }},
+		// The help overlay is nearly 30 rows, so it needs a terminal it does not fill.
+		{name: "help", height: 60, open: func(m *Model) { m.help.Show("Interactive") }},
+		{name: "commit message", height: 30, open: func(m *Model) { m.commitMsg.Show() }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := NewTestModel(t, ModeInteractive).WithChanges(changes)
+			m.width, m.height = 100, tt.height
+
+			base := m.render()
+
+			tt.open(m)
+
+			got := m.render()
+			if got == base {
+				t.Fatal("opening the modal changed nothing on screen")
+			}
+
+			if !strings.Contains(got, changes[0].Path) {
+				t.Errorf("the file list should stay visible behind the modal, got:\n%s", got)
+			}
+
+			if !strings.Contains(got, "Mode: Interactive") {
+				t.Errorf("the status bar should stay visible behind the modal, got:\n%s", got)
+			}
+		})
 	}
 }
