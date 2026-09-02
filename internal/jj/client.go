@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -153,7 +152,6 @@ func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
 // Sentinel errors the move path returns on its own rather than wrapping one from jj or git.
 var (
 	errRevsetNoMatch       = errors.New("revset matched no revision")
-	errNewCommitNotFound   = errors.New("jj created a commit that could not be found afterwards")
 	errNoSplitPlans        = errors.New("no split plans provided")
 	errPatchChangedNothing = errors.New("the patch applied cleanly but changed nothing, so there is nothing to move")
 )
@@ -486,40 +484,27 @@ func (c *Client) getCurrentOperationID() (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-// createNewCommit adds an empty described commit as a child of the working copy and returns its change
-// ID. Because jj does not report the ID it created and --no-edit leaves @ where it was, the ID is
-// found by diffing the working copy's children across the call rather than by reading @ afterwards.
-func (c *Client) createNewCommit(description string) (string, error) {
-	before, err := c.changeIDs("@+")
-	if err != nil {
-		return "", fmt.Errorf("failed to list existing children: %w", err)
-	}
-
-	if _, err := c.executeJJ("new", "-m", description, "--no-edit"); err != nil {
+// createNewCommit inserts an empty described commit directly beneath source, rebasing source onto it,
+// and returns the new commit's change ID.
+//
+// Inserting beneath source rather than above it is what makes a split work at all. MoveChanges only
+// ever adds a patch to its destination, so the source stops reporting those hunks only when the
+// destination is one of its ancestors. A commit created as a child of source already contains every
+// change source has, and the patch cannot apply on top of itself.
+//
+// The rebase moves source's parent pointer and leaves its content alone, so no unselected change can
+// be lost here. ApplySplit's caller restores the recorded operation if any later step fails.
+func (c *Client) createNewCommit(description, source string) (string, error) {
+	if _, err := c.executeJJ("new", "--insert-before", source, "--no-edit", "-m", description); err != nil {
 		return "", fmt.Errorf("failed to create new commit: %w", err)
 	}
 
-	after, err := c.changeIDs("@+")
+	changeID, err := c.resolveChangeID(source + "-")
 	if err != nil {
-		return "", fmt.Errorf("failed to list children after creating the commit: %w", err)
+		return "", fmt.Errorf("failed to resolve the commit inserted beneath %s: %w", source, err)
 	}
 
-	for _, changeID := range after {
-		if !slices.Contains(before, changeID) {
-			return changeID, nil
-		}
-	}
-
-	return "", errNewCommitNotFound
-}
-
-func (c *Client) changeIDs(revset string) ([]string, error) {
-	output, err := c.executeJJ("log", "-r", revset, "--no-graph", "-T", `change_id ++ "\n"`)
-	if err != nil {
-		return nil, err
-	}
-
-	return strings.Fields(output), nil
+	return changeID, nil
 }
 
 func (c *Client) restoreOperation(opID string) error {
@@ -533,6 +518,10 @@ func (c *Client) restoreOperation(opID string) error {
 // ApplySplit runs the plans in order, creating a commit first for each plan that needs one. A failure
 // part way through restores the operation recorded before the first plan, so the repository goes back
 // to where it started rather than keeping the plans that already succeeded.
+//
+// This is the one path that rebases source, because a plan targeting a new commit inserts that commit
+// beneath source. Only the parent pointer moves; source keeps every byte it had, so an unselected
+// change cannot be lost here.
 func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 	if len(plans) == 0 {
 		return errNoSplitPlans
@@ -547,7 +536,7 @@ func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
 		var destChangeID string
 
 		if plan.Destination.Type == SplitDestNewCommit {
-			changeID, err := c.createNewCommit(plan.Destination.Description)
+			changeID, err := c.createNewCommit(plan.Destination.Description, source)
 			if err != nil {
 				return c.restoreOperationAfter(
 					opID,

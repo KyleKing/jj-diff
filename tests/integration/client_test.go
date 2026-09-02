@@ -292,10 +292,10 @@ func TestMoveChanges_CleansUpScratchWorkspaceOnFailure(t *testing.T) {
 	repo.AssertFileContent("file1.txt", "line 1\nline 2\nline 3\n")
 }
 
-// TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact covers the split path's safety property. The
-// new-commit destination cannot apply its patch today (see FINDINGS.md), so what this asserts is that
-// the failure is reported and rolled back rather than taking the working copy with it.
-func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
+// A new-commit split has to land beneath the source, because MoveChanges only ever adds a patch to
+// its destination. This pins both halves: the selected hunk reaches the new commit, and the hunk that
+// was not selected stays in the working copy.
+func TestApplySplit_NewCommitTakesOnlyTheSelectedHunk(t *testing.T) {
 	t.Parallel()
 
 	repo := integration.NewTestRepo(t)
@@ -327,15 +327,27 @@ func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
 		},
 	}}
 
-	if err := client.ApplySplit(plans, "@"); err == nil {
-		t.Fatal("expected ApplySplit to report the failed plan")
+	if err := client.ApplySplit(plans, "@"); err != nil {
+		t.Fatalf("ApplySplit failed: %v", err)
 	}
 
+	// The rebase moves the working copy's parent and leaves its content alone.
 	repo.AssertFileContent("a.txt", "a1\nA-ADDED\n")
 	repo.AssertFileContent("b.txt", "b1\nB-ADDED\n")
 
 	if currentWC := repo.GetChangeID("@"); currentWC != originalWC {
-		t.Errorf("working copy moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
+		t.Errorf("working copy change ID moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
+	}
+
+	repo.AssertDiffContains("@-", "A-ADDED")
+	repo.AssertDiffNotContains("@-", "B-ADDED")
+
+	repo.AssertDiffNotContains("@", "A-ADDED")
+	repo.AssertDiffContains("@", "B-ADDED")
+
+	desc := repo.MustRun("log", "-r", "@-", "--no-graph", "-T", "description")
+	if !strings.Contains(desc, "split: a only") {
+		t.Errorf("the new commit did not take its description: %q", desc)
 	}
 
 	workspaces := repo.MustRun("workspace", "list")
@@ -344,9 +356,61 @@ func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
 	}
 }
 
-// TestGetRevisions_ParsesRealLogOutput guards the jj log template: an escaped
-// backslash there produces one unbroken line and silently yields no revisions,
-// which empties the destination picker without any error surfacing.
+// A plan whose patch cannot apply must roll the whole split back, leaving no half-built commit and no
+// change to the working copy.
+func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+
+	repo.WriteFile("a.txt", "a1\n")
+	repo.Commit("Initial commit")
+
+	repo.WriteFile("a.txt", "a1\nA-ADDED\n")
+
+	originalWC := repo.GetChangeID("@")
+	originalParent := repo.GetChangeID("@-")
+
+	// Context that does not exist in a.txt, so git apply rejects it.
+	badPatch := `diff --git a/a.txt b/a.txt
+--- a/a.txt
++++ b/a.txt
+@@ -1 +1,2 @@
+ NOT-THE-REAL-CONTENT
++A-ADDED
+`
+
+	client := jj.NewClient(repo.Dir)
+	plans := []jj.SplitPlan{{
+		Tag:   'a',
+		Patch: badPatch,
+		Destination: jj.SplitDestination{
+			Type:        jj.SplitDestNewCommit,
+			Description: "split: should not survive",
+		},
+	}}
+
+	if err := client.ApplySplit(plans, "@"); err == nil {
+		t.Fatal("expected ApplySplit to report the failed plan")
+	}
+
+	repo.AssertFileContent("a.txt", "a1\nA-ADDED\n")
+
+	if currentWC := repo.GetChangeID("@"); currentWC != originalWC {
+		t.Errorf("working copy moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
+	}
+
+	if currentParent := repo.GetChangeID("@-"); currentParent != originalParent {
+		t.Errorf("the rolled-back commit is still in the history:\nExpected parent: %s\nActual:   %s",
+			originalParent, currentParent)
+	}
+
+	workspaces := repo.MustRun("workspace", "list")
+	if strings.Contains(workspaces, "jj-diff-scratch") {
+		t.Errorf("scratch workspace leaked into jj workspace list:\n%s", workspaces)
+	}
+}
+
 func TestGetRevisions_ParsesRealLogOutput(t *testing.T) {
 	t.Parallel()
 
