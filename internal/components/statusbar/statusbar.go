@@ -11,7 +11,22 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-const panelFiles = "files"
+const (
+	panelFiles = "files"
+
+	modeDiffEditor  = "Diff-Editor"
+	modeInteractive = "Interactive"
+
+	hintSep  = " | "
+	ellipsis = "…"
+
+	hintApply   = "a:apply"
+	hintDest    = "d:dest"
+	hintHelp    = "?:help"
+	hintNav     = "j/k:nav"
+	hintScroll  = "j/k:scroll"
+	hintTabDiff = "Tab:diff"
+)
 
 // Context is what the footer describes. Destination is omitted from the render when empty, and
 // FocusedPanel is "files" or the diff pane, which selects which hints are shown.
@@ -43,8 +58,9 @@ func (m Model) View(width int, modeText, source, destination string, isVisualMod
 	})
 }
 
-// ViewWithContext renders the footer to exactly width columns. Content longer than that is clipped
-// from the right with no ellipsis, which drops the rightmost hints without saying so.
+// ViewWithContext renders the footer to exactly width columns. Hints that do not fit are dropped
+// from the right and replaced by an ellipsis, and the help hint always survives because it is the
+// only route to the rest of the keymap.
 func (m Model) ViewWithContext(width int, ctx Context) string {
 	var parts []string
 	if ctx.IsVisualMode {
@@ -58,9 +74,7 @@ func (m Model) ViewWithContext(width int, ctx Context) string {
 		parts = append(parts, "→ Dest: "+ctx.Destination)
 	}
 
-	parts = append(parts, m.getContextHints(ctx))
-
-	content := strings.Join(parts, " | ")
+	content := fitHints(strings.Join(parts, hintSep), m.getContextHints(ctx), width)
 
 	style := lipgloss.NewStyle().
 		Background(theme.SoftMutedBg).
@@ -70,38 +84,94 @@ func (m Model) ViewWithContext(width int, ctx Context) string {
 	return style.Render(truncateOrPad(content, width))
 }
 
-func (Model) getContextHints(ctx Context) string {
+// getContextHints returns the keys that do something right now, most useful first. Mode is checked
+// before the focused panel: interactive mode starts on the file list, so testing the panel first
+// hides its whole vocabulary behind a Tab press.
+func (Model) getContextHints(ctx Context) []string {
 	if ctx.IsVisualMode {
-		return "j/k:select | Space:confirm | Esc:cancel"
+		return []string{"j/k:select", "Space:confirm", "Esc:cancel"}
 	}
 
-	if ctx.Mode == "Diff-Editor" {
-		if ctx.FocusedPanel == panelFiles {
-			return "j/k:nav | Tab:diff | a:apply | ?:help"
+	onFiles := ctx.FocusedPanel == panelFiles
+
+	switch ctx.Mode {
+	case modeDiffEditor:
+		if onFiles {
+			return []string{hintNav, hintTabDiff, hintApply, hintHelp}
 		}
 
-		return "j/k:scroll | Space:keep/drop | a:apply | ?:help"
+		return []string{hintScroll, "Space:keep/drop", hintApply, hintHelp}
+	case modeInteractive:
+		if onFiles {
+			return []string{hintNav, hintTabDiff, hintDest, hintApply, hintHelp}
+		}
+
+		return []string{hintScroll, "Space:select", "v:lines", hintDest, hintApply, hintHelp}
 	}
 
-	if ctx.FocusedPanel == panelFiles {
-		return "j/k:nav | Tab:diff | /:search | f:find | ?:help"
+	if onFiles {
+		return []string{hintNav, hintTabDiff, "/:search", "f:find", hintHelp}
 	}
 
-	if ctx.Mode == "Interactive" {
-		return "j/k:scroll | Space:select | a:apply | w/s/l:view | ?:help"
-	}
-
-	return "j/k:scroll | Ctrl-d/u:page | w:ws | s:sbs | ?:help"
+	return []string{hintScroll, "Ctrl-d/u:page", "w:ws", "s:sbs", hintHelp}
 }
 
+// fitHints joins prefix and hints, dropping hints from the right until the result fits width. The
+// last hint is kept whatever else goes, and an ellipsis marks that something was dropped.
+func fitHints(prefix string, hints []string, width int) string {
+	join := func(h []string) string {
+		if len(h) == 0 {
+			return prefix
+		}
+
+		return prefix + hintSep + strings.Join(h, hintSep)
+	}
+
+	full := join(hints)
+	if lipgloss.Width(full) <= width || len(hints) < 2 {
+		return full
+	}
+
+	lead, last := hints[:len(hints)-1], hints[len(hints)-1]
+
+	for n := len(lead) - 1; n >= 0; n-- {
+		kept := make([]string, 0, n+2)
+		kept = append(kept, lead[:n]...)
+		kept = append(kept, ellipsis, last)
+
+		if candidate := join(kept); lipgloss.Width(candidate) <= width {
+			return candidate
+		}
+	}
+
+	return join([]string{last})
+}
+
+// truncateOrPad fits text to exactly width display cells, measuring in cells so a wide glyph cannot
+// push the footer onto a second row.
 func truncateOrPad(text string, width int) string {
 	if width <= 0 {
 		return ""
 	}
 
-	if len(text) > width {
-		return text[:width]
+	if used := lipgloss.Width(text); used <= width {
+		return text + strings.Repeat(" ", width-used)
 	}
 
-	return text + strings.Repeat(" ", max(width-len(text), 0))
+	var b strings.Builder
+
+	used := 0
+
+	for _, r := range text {
+		w := lipgloss.Width(string(r))
+		if used+w > width {
+			break
+		}
+
+		b.WriteRune(r)
+
+		used += w
+	}
+
+	return b.String() + strings.Repeat(" ", width-used)
 }
