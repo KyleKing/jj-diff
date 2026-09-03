@@ -1,3 +1,12 @@
+## v0.2.4 (2026-09-03)
+
+### Fix
+
+- **jj**: insert a split's new commit beneath the source so its patch applies
+- **model**: composite modals over the panels instead of replacing the screen
+- **help**: scroll the keybinding overlay instead of clipping it
+- **statusbar**: show interactive keys on the file list and fit hints by display width
+
 ## v0.2.3 (2026-08-31)
 
 ### Fix
