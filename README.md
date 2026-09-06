@@ -10,6 +10,29 @@ plain `jj` command line or from a TUI that shells out to one
 ([jj-tui](https://github.com/KyleKing/jj-tui), [jjui](https://github.com/idursun/jjui),
 [lazyjj](https://github.com/Cretezy/lazyjj)).
 
+## Alternatives
+
+jj-diff is narrow on purpose: hunk and line moves between revisions, and splitting.
+For adjacent problems, one of these may fit better:
+
+| Tool | Notes |
+| --- | --- |
+| [crecord](https://www.mercurial-scm.org/wiki/CrecordExtension) | "allows you to interactively choose among the changes you have made, and commit only those changes you select" (Mercurial) |
+| [Delta](https://github.com/dandavison/delta) | "A syntax-highlighting pager for git, diff, grep, rg --json, and blame output" |
+| [Difftastic](https://github.com/Wilfred/difftastic) | "a structural diff that understands syntax" |
+| [git add -p](https://git-scm.com/docs/git-add) | "interactively choose hunks of patch between the index and the work tree and add them to the index" (built into Git) |
+| [gitui](https://github.com/gitui-org/gitui) | "Blazing fast terminal-ui for git written in rust" |
+| [jj's built-in diff editor (scm-record)](https://github.com/arxanas/scm-record) | "a UI component to interactively select changes to include in a commit. It's meant to be embedded in source control tooling" |
+| [jjui](https://github.com/idursun/jjui) | "A TUI designed for interacting with the Jujutsu version control system" |
+| [KDiff3](https://github.com/KDE/kdiff3) | "Utility for comparing and merging files and directories" |
+| [lazygit](https://github.com/jesseduffield/lazygit) | "simple terminal UI for git commands" |
+| [lazyjj](https://github.com/Cretezy/lazyjj) | "TUI for Jujutsu/jj. Built in Rust with Ratatui. Interacts with jj CLI" |
+| [Magit](https://github.com/magit/magit) | "A Git Porcelain inside Emacs" |
+| [Meld](https://gitlab.gnome.org/GNOME/meld) | "Meld is a visual diff and merge tool targeted at developers" |
+| [tig](https://github.com/jonas/tig) | "Text-mode interface for git" |
+| [vimdiff](https://git-scm.com/docs/git-difftool) | Runs any diff as a Vim or Neovim split through `git difftool`, built into Git |
+| _[awesome-jj](https://github.com/Necior/awesome-jj)_ | "A curated list of awesome Jujutsu things" |
+
 ## Install
 
 ```bash

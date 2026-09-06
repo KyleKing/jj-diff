@@ -16,3 +16,5 @@ importas = "importas"
 # inputs under test, so correcting them would change what the tests measure.
 functio = "functio"
 hel = "hel"
+# Rust TUI library name, not a misspelling of "Ratatouille".
+ratatui = "Ratatui"
