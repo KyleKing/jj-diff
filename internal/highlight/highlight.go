@@ -3,6 +3,7 @@
 package highlight
 
 import (
+	"image/color"
 	"path/filepath"
 	"strings"
 
@@ -14,16 +15,50 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// Highlighter provides syntax highlighting for code.
-type Highlighter struct {
-	style *chroma.Style
+// Palette is the face each token class renders in. A nil color leaves that class unstyled, which is
+// what a caller with no color for it should pass rather than a guess.
+type Palette struct {
+	Comment  color.Color
+	Keyword  color.Color
+	String   color.Color
+	Number   color.Color
+	Name     color.Color
+	Type     color.Color
+	Operator color.Color
 }
 
-// New creates a new syntax highlighter.
+// ThemePalette is the palette built from the process-wide theme, which is what the diff editor
+// itself renders with.
+func ThemePalette() Palette {
+	return Palette{
+		Comment:  theme.SoftMutedBg,
+		Keyword:  theme.Accent,
+		String:   theme.AddedLine,
+		Number:   theme.Secondary,
+		Name:     theme.Primary,
+		Type:     theme.Accent,
+		Operator: theme.Text,
+	}
+}
+
+// Highlighter provides syntax highlighting for code.
+type Highlighter struct {
+	style   *chroma.Style
+	palette Palette
+}
+
+// New creates a syntax highlighter drawing in the process-wide theme.
 func New() *Highlighter {
+	return NewWith(ThemePalette())
+}
+
+// NewWith creates a syntax highlighter drawing in p, for a caller outside this program that has its
+// own palette and never calls theme.Init.
+func NewWith(p Palette) *Highlighter { //nolint:gocritic // a palette is built once, at startup.
 	// Use a minimal style that works well with terminal colors
 	return &Highlighter{
-		style: styles.Get("monokai"),
+		style:   styles.Get("monokai"),
+		palette: p,
 	}
 }
 
@@ -113,7 +148,7 @@ func (*Highlighter) detectLexer(filePath string) chroma.Lexer {
 	return nil
 }
 
-func (*Highlighter) styleToken(token chroma.Token) string {
+func (h *Highlighter) styleToken(token chroma.Token) string {
 	value := token.Value
 	tokenType := token.Type
 
@@ -121,37 +156,39 @@ func (*Highlighter) styleToken(token chroma.Token) string {
 	// Use subtle colors that don't conflict with diff colors
 	style := lipgloss.NewStyle()
 
+	var face color.Color
+
 	switch tokenType {
 	case chroma.Comment, chroma.CommentSingle, chroma.CommentMultiline:
-		// Comments: muted/soft color
-		style = style.Foreground(theme.SoftMutedBg)
+		face = h.palette.Comment
 
 	case chroma.Keyword, chroma.KeywordNamespace, chroma.KeywordType:
-		// Keywords: accent color (but not too bright)
-		style = style.Foreground(theme.Accent).Bold(true)
+		style, face = style.Bold(true), h.palette.Keyword
 
 	case chroma.LiteralString, chroma.LiteralStringDouble:
-		style = style.Foreground(theme.AddedLine)
+		face = h.palette.String
 
 	case chroma.LiteralNumber:
-		style = style.Foreground(theme.Secondary)
+		face = h.palette.Number
 
 	case chroma.Name, chroma.NameFunction:
-		style = style.Foreground(theme.Primary)
+		face = h.palette.Name
 
 	case chroma.NameClass, chroma.NameBuiltin:
-		style = style.Foreground(theme.Accent)
+		face = h.palette.Type
 
 	case chroma.Operator:
-		// Operators: text color
-		style = style.Foreground(theme.Text)
+		face = h.palette.Operator
 
 	default:
-		// Default: normal text color
 		return value
 	}
 
-	return style.Render(value)
+	if face == nil {
+		return value
+	}
+
+	return style.Foreground(face).Render(value)
 }
 
 // IsEnabled returns whether syntax highlighting is available for a file.

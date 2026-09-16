@@ -20,6 +20,7 @@ jj-diff/
 │   ├── fuzzy/            # Fuzzy matching
 │   ├── components/       # UI components (filelist, diffview, modals)
 │   └── theme/            # Catppuccin themes
+├── render/               # Public: unified diff to styled lines
 └── tests/integration/    # End-to-end tests
 ```
 
@@ -48,6 +49,14 @@ jj-diff/
 - FileList: vertical table view with stats
 - DiffView: unified or side-by-side rendering with syntax highlighting
 - Modals: help, search, destination picker, fuzzy finder
+
+**Render** (`render/`)
+
+The only package outside `internal/`, so other tools draw a diff the way this one does: the same
+parser, the same word-level intra-line highlighting, and the same syntax highlighting, with the
+palette passed in rather than read from this program's theme. It renders and does not select, since
+hunk and line selection belong to the editor. [jojo](https://github.com/KyleKing/jj-tui) draws its
+diff pane with it.
 
 ### Design Principles
 
