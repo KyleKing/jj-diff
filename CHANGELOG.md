@@ -1,3 +1,9 @@
+## v0.3.0 (2026-09-16)
+
+### Feat
+
+- **render**: publish the diff renderer so other tools draw diffs the same way
+
 ## v0.2.4 (2026-09-03)
 
 ### Fix
