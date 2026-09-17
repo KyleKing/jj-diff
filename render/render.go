@@ -66,6 +66,9 @@ type Options struct {
 	WordDiff bool
 	// LineNumbers puts the old and new line numbers in a gutter.
 	LineNumbers bool
+	// SideBySide draws the old and the new content in two columns, pairing each run of deletions
+	// with the additions that replaced it. It needs Width, since the columns are cut from it.
+	SideBySide bool
 }
 
 // Lines renders diffText as one styled string per terminal row, in file order. Input that parses to
@@ -111,6 +114,12 @@ func (r *renderer) file(file diff.FileChange) []string {
 			words = diff.ComputeHunkWordDiffs(hunk)
 		}
 
+		if r.opts.SideBySide {
+			lines = append(lines, r.columns(file.Path, hunk.Lines, words)...)
+
+			continue
+		}
+
 		for j, line := range hunk.Lines {
 			lines = append(lines, r.line(file.Path, line, words[j]))
 		}
@@ -119,22 +128,91 @@ func (r *renderer) file(file diff.FileChange) []string {
 	return lines
 }
 
+// gutterPad is the separator drawn between the two columns.
+const gutterPad = " \u2502 "
+
+// columns draws the hunk as two panes. Each pane is fitted on its own, so a long line is cut at its
+// own column rather than pushing the other pane off the row.
+func (r *renderer) columns(path string, lines []diff.Line, words map[int]diff.WordDiffResult) []string {
+	pane := r.paneWidth()
+	pairs := diff.PairSides(lines)
+	out := make([]string, 0, len(pairs))
+
+	for _, pair := range pairs {
+		left := r.pane(path, pair.Left, words[pair.LeftIdx], pane)
+		right := r.pane(path, pair.Right, words[pair.RightIdx], pane)
+		out = append(out, left+gutterPad+right)
+	}
+
+	return out
+}
+
+// paneWidth splits the frame between the two columns. A frame too narrow to split still gets one
+// cell per pane, which renders as two empty columns rather than a panic.
+func (r *renderer) paneWidth() int {
+	const panes = 2
+
+	if r.opts.Width <= 0 {
+		return 0
+	}
+
+	return max(1, (r.opts.Width-lipgloss.Width(gutterPad))/panes)
+}
+
+// pane draws one side of a row, padded to width so the separator stays in one column. A nil line is
+// the blank opposite an addition or a deletion with no counterpart.
+func (r *renderer) pane(path string, line *diff.Line, words diff.WordDiffResult, width int) string {
+	if line == nil {
+		return strings.Repeat(" ", max(width, 0))
+	}
+
+	content := r.content(path, *line, words)
+	if r.opts.LineNumbers {
+		content = r.styled(sideNumber(*line), r.opts.Palette.Gutter) + content
+	}
+
+	styled := r.styled(content, r.face(line.Type))
+	if width <= 0 {
+		return styled
+	}
+
+	if gap := width - lipgloss.Width(styled); gap > 0 {
+		return styled + strings.Repeat(" ", gap)
+	}
+
+	return ansi.Truncate(styled, width, "")
+}
+
+// sideNumber is the one line number that side carries, since a column shows one file's numbering.
+func sideNumber(line diff.Line) string {
+	n := line.NewLineNum
+	if line.Type == diff.LineDeletion {
+		n = line.OldLineNum
+	}
+
+	return pad(strconv.Itoa(n)) + " "
+}
+
 func (r *renderer) line(path string, line diff.Line, words diff.WordDiffResult) string {
-	content := line.Content
-	if r.highlighter != nil {
-		content = r.highlighter.HighlightLine(path, content)
-	}
-
-	if spans := sideSpans(line.Type, words); len(spans) > 0 {
-		content = r.emphasize(line, words)
-	}
-
-	text := line.Type.String() + content
+	text := line.Type.String() + r.content(path, line, words)
 	if r.opts.LineNumbers {
 		text = r.styled(gutter(line), r.opts.Palette.Gutter) + text
 	}
 
 	return r.fit(r.styled(text, r.face(line.Type)))
+}
+
+// content is the line's text with whatever highlighting the options ask for, and no marker.
+func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResult) string {
+	if spans := sideSpans(line.Type, words); len(spans) > 0 {
+		return r.emphasize(line, words)
+	}
+
+	if r.highlighter != nil {
+		return r.highlighter.HighlightLine(path, line.Content)
+	}
+
+	return line.Content
 }
 
 // emphasize redraws the line from its word spans, so syntax highlighting is dropped for that line:

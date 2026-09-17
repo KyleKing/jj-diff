@@ -57,7 +57,7 @@ func (*SideBySideView) Render(file *diff.FileChange, ctx *RenderContext) string 
 			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
 		}
 
-		for _, pair := range pairLines(hunkLines) {
+		for _, pair := range diff.PairSides(hunkLines) {
 			if len(lines) >= ctx.Height {
 				break
 			}
@@ -72,66 +72,7 @@ func (*SideBySideView) Render(file *diff.FileChange, ctx *RenderContext) string 
 	return strings.Join(lines, "\n")
 }
 
-type linePair struct {
-	Left  *diff.Line
-	Right *diff.Line
-}
-
-func pairLines(lines []diff.Line) []linePair {
-	var pairs []linePair
-
-	i := 0
-	for i < len(lines) {
-		line := &lines[i]
-
-		switch line.Type {
-		case diff.LineContext:
-			pairs = append(pairs, linePair{Left: line, Right: line})
-			i++
-
-		case diff.LineDeletion:
-			delEnd := runEnd(lines, i, diff.LineDeletion)
-			addEnd := runEnd(lines, delEnd, diff.LineAddition)
-			pairs = append(pairs, pairRuns(lines[i:delEnd], lines[delEnd:addEnd])...)
-			i = addEnd
-
-		case diff.LineAddition:
-			pairs = append(pairs, linePair{Left: nil, Right: line})
-			i++
-		}
-	}
-
-	return pairs
-}
-
-func runEnd(lines []diff.Line, start int, lineType diff.LineType) int {
-	end := start
-	for end < len(lines) && lines[end].Type == lineType {
-		end++
-	}
-
-	return end
-}
-
-func pairRuns(deletions, additions []diff.Line) []linePair {
-	maxCount := max(len(deletions), len(additions))
-	pairs := make([]linePair, 0, maxCount)
-
-	for j := range maxCount {
-		pair := linePair{}
-		if j < len(deletions) {
-			pair.Left = &deletions[j]
-		}
-		if j < len(additions) {
-			pair.Right = &additions[j]
-		}
-		pairs = append(pairs, pair)
-	}
-
-	return pairs
-}
-
-func renderPairedLine(pair linePair, paneWidth int, ctx *RenderContext) string {
+func renderPairedLine(pair diff.SidePair, paneWidth int, ctx *RenderContext) string {
 	leftContent := renderSinglePane(pair.Left, paneWidth, ctx, false)
 	rightContent := renderSinglePane(pair.Right, paneWidth, ctx, true)
 

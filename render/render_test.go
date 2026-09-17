@@ -140,3 +140,61 @@ func TestLineNumbersPutBothSidesInTheGutter(t *testing.T) {
 		t.Errorf("addition = %q, want its new line number in the gutter", addition)
 	}
 }
+
+// Side-by-side has to keep the separator in one column at every row, or the two panes shear apart.
+func TestSideBySideKeepsTheColumnsAligned(t *testing.T) {
+	t.Parallel()
+
+	// (40 - 3) / 2 panes = 18 cells, plus the separator's own leading space.
+	const (
+		width           = 40
+		separatorColumn = 19
+	)
+
+	lines := render.Lines(sample, render.Options{Width: width, SideBySide: true})
+	if len(lines) == 0 {
+		t.Fatal("side by side rendered nothing")
+	}
+
+	var rows int
+
+	for _, line := range lines {
+		left, _, split := strings.Cut(line, "│")
+		if !split {
+			continue
+		}
+
+		rows++
+
+		if got := lipgloss.Width(line); got > width {
+			t.Errorf("row %q is %d cells wide, want at most %d", line, got, width)
+		}
+
+		if got := lipgloss.Width(left); got != separatorColumn {
+			t.Errorf("row %q puts the separator at column %d, want %d", line, got, separatorColumn)
+		}
+	}
+
+	if rows == 0 {
+		t.Error("no two-column rows were drawn")
+	}
+}
+
+// A modified line has to sit opposite what replaced it, which is the whole reason for the layout.
+func TestSideBySidePutsAReplacementOppositeWhatItReplaced(t *testing.T) {
+	t.Parallel()
+
+	lines := render.Lines(sample, render.Options{Width: 60, SideBySide: true})
+
+	var found bool
+
+	for _, line := range lines {
+		if strings.Contains(line, "limit = 10") && strings.Contains(line, "limit = 20") {
+			found = true
+		}
+	}
+
+	if !found {
+		t.Errorf("the deletion and its addition are not on one row: %q", lines)
+	}
+}

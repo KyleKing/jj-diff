@@ -54,8 +54,9 @@ jj-diff/
 
 The only package outside `internal/`, so other tools draw a diff the way this one does: the same
 parser, the same word-level intra-line highlighting, and the same syntax highlighting, with the
-palette passed in rather than read from this program's theme. It renders and does not select, since
-hunk and line selection belong to the editor. [jojo](https://github.com/KyleKing/jj-tui) draws its
+palette passed in rather than read from this program's theme. It renders unified or side by side and
+does not select, since hunk and line selection belong to the editor. The two-column pairing lives in
+`internal/diff` so both renderers use the same one. [jojo](https://github.com/KyleKing/jj-tui) draws its
 diff pane with it.
 
 ### Design Principles
