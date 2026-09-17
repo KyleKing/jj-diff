@@ -1,3 +1,9 @@
+## v0.4.0 (2026-09-17)
+
+### Feat
+
+- **render**: render side-by-side diffs from the public package
+
 ## v0.3.0 (2026-09-16)
 
 ### Feat
