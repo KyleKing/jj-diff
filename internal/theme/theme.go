@@ -10,53 +10,50 @@ import (
 
 // Theme defines semantic color roles.
 type Theme struct {
-	Primary         color.Color
-	Accent          color.Color
-	Secondary       color.Color
-	Text            color.Color
-	SelectedBg      color.Color
-	MutedBg         color.Color
-	SoftMutedBg     color.Color
-	ModalBg         color.Color
-	AddedLine       color.Color
-	DeletedLine     color.Color
-	WordDiffAddedBg color.Color
-	WordDiffDelBg   color.Color
+	Primary     color.Color
+	Accent      color.Color
+	Secondary   color.Color
+	Text        color.Color
+	SelectedBg  color.Color
+	MutedBg     color.Color
+	SoftMutedBg color.Color
+	ModalBg     color.Color
+	AddedLine   color.Color
+	DeletedLine color.Color
+	Dark        bool
 }
 
 // Latte returns Catppuccin Latte (light theme).
 func Latte() Theme {
 	return Theme{
-		Primary:         lipgloss.Color("#8839ef"), // mauve
-		Accent:          lipgloss.Color("#179299"), // teal
-		Secondary:       lipgloss.Color("#df8e1d"), // yellow
-		Text:            lipgloss.Color("#4c4f69"),
-		SelectedBg:      lipgloss.Color("#7287fd"), // lavender
-		MutedBg:         lipgloss.Color("#dce0e8"), // surface0
-		SoftMutedBg:     lipgloss.Color("#ccd0da"), // surface1
-		ModalBg:         lipgloss.Color("#eff1f5"), // base
-		AddedLine:       lipgloss.Color("#40a02b"), // green
-		DeletedLine:     lipgloss.Color("#d20f39"), // red
-		WordDiffAddedBg: lipgloss.Color("#acf2bd"), // light green bg
-		WordDiffDelBg:   lipgloss.Color("#ffc0c0"), // light red bg
+		Dark:        false,
+		Primary:     lipgloss.Color("#8839ef"), // mauve
+		Accent:      lipgloss.Color("#179299"), // teal
+		Secondary:   lipgloss.Color("#df8e1d"), // yellow
+		Text:        lipgloss.Color("#4c4f69"),
+		SelectedBg:  lipgloss.Color("#7287fd"), // lavender
+		MutedBg:     lipgloss.Color("#dce0e8"), // surface0
+		SoftMutedBg: lipgloss.Color("#ccd0da"), // surface1
+		ModalBg:     lipgloss.Color("#eff1f5"), // base
+		AddedLine:   lipgloss.Color("#40a02b"), // green
+		DeletedLine: lipgloss.Color("#d20f39"), // red
 	}
 }
 
 // Macchiato returns Catppuccin Macchiato (dark theme).
 func Macchiato() Theme {
 	return Theme{
-		Primary:         lipgloss.Color("#c6a0f6"), // mauve
-		Accent:          lipgloss.Color("#8bd5ca"), // teal
-		Secondary:       lipgloss.Color("#f5a97f"), // peach
-		Text:            lipgloss.Color("#cad3f5"),
-		SelectedBg:      lipgloss.Color("#b7bdf8"), // lavender
-		MutedBg:         lipgloss.Color("#363a4f"), // surface0
-		SoftMutedBg:     lipgloss.Color("#494d64"), // surface1
-		ModalBg:         lipgloss.Color("#24273a"), // base
-		AddedLine:       lipgloss.Color("#a6da95"), // green
-		DeletedLine:     lipgloss.Color("#ed8796"), // red
-		WordDiffAddedBg: lipgloss.Color("#2d4a3e"), // dark green bg
-		WordDiffDelBg:   lipgloss.Color("#4a2d2d"), // dark red bg
+		Dark:        true,
+		Primary:     lipgloss.Color("#c6a0f6"), // mauve
+		Accent:      lipgloss.Color("#8bd5ca"), // teal
+		Secondary:   lipgloss.Color("#f5a97f"), // peach
+		Text:        lipgloss.Color("#cad3f5"),
+		SelectedBg:  lipgloss.Color("#b7bdf8"), // lavender
+		MutedBg:     lipgloss.Color("#363a4f"), // surface0
+		SoftMutedBg: lipgloss.Color("#494d64"), // surface1
+		ModalBg:     lipgloss.Color("#24273a"), // base
+		AddedLine:   lipgloss.Color("#a6da95"), // green
+		DeletedLine: lipgloss.Color("#ed8796"), // red
 	}
 }
 

@@ -1,17 +1,16 @@
-// Package highlight applies chroma syntax highlighting to diff content, picking a lexer from the
-// file path. Highlighting is best effort: a path with no known lexer renders unstyled.
+// Package highlight colors diff content by the byte-range spans aragonite's highlight package
+// lexes, once per file, so drawing a frame costs a lookup per line rather than a lexer pass.
 package highlight
 
 import (
 	"image/color"
-	"path/filepath"
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
-	"github.com/alecthomas/chroma/v2/styles"
+	agdiff "github.com/kyleking/aragonite/diff"
+	aghighlight "github.com/kyleking/aragonite/highlight"
 
+	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -41,172 +40,103 @@ func ThemePalette() Palette {
 	}
 }
 
-// Highlighter provides syntax highlighting for code.
+// Highlighter colors the lines of one set of files. Its lexing is cached per file, so it is not
+// safe for concurrent use and a changed diff needs a new Highlighter.
 type Highlighter struct {
-	style   *chroma.Style
+	spans   *aghighlight.Cache
+	text    map[agdiff.LineRef]string
 	palette Palette
 }
 
-// New creates a syntax highlighter drawing in the process-wide theme.
-func New() *Highlighter {
-	return NewWith(ThemePalette())
+// New returns a Highlighter over files drawing in the process-wide theme.
+func New(files ...diff.FileChange) *Highlighter {
+	return NewWith(ThemePalette(), files...)
 }
 
-// NewWith creates a syntax highlighter drawing in p, for a caller outside this program that has its
-// own palette and never calls theme.Init.
-func NewWith(p Palette) *Highlighter { //nolint:gocritic // a palette is built once, at startup.
-	// Use a minimal style that works well with terminal colors
-	return &Highlighter{
-		style:   styles.Get("monokai"),
-		palette: p,
+// NewWith returns a Highlighter over files drawing in p, for a caller outside this program that has
+// its own palette and never calls theme.Init.
+//
+//nolint:gocritic // hugeParam: a palette is built once, at startup.
+func NewWith(p Palette, files ...diff.FileChange) *Highlighter {
+	converted := diff.Aragonite(files)
+	text := make(map[agdiff.LineRef]string)
+
+	for i := range converted.Files {
+		for _, line := range converted.Files[i].Lines {
+			text[refOf(files[i].Path, line)] = line.Text
+		}
 	}
+
+	return &Highlighter{spans: aghighlight.NewCache(converted), text: text, palette: p}
 }
 
-// HighlightLine applies syntax highlighting to a single line of code
-// filePath is used to detect the language
-// Returns the highlighted line with lipgloss styling.
-func (h *Highlighter) HighlightLine(filePath, line string) string {
-	base := lipgloss.NewStyle()
-
-	return h.HighlightLineOn(filePath, line, &base)
-}
-
-// HighlightLineOn draws every token on base, because an outer style does not survive the reset after the first token.
-func (h *Highlighter) HighlightLineOn(filePath, line string, base *lipgloss.Style) string {
-	if line == "" {
-		return line
+// Line draws line's content on base. A line whose content differs from the diff's own under its numbers
+// (hidden whitespace changes) draws unhighlighted rather than with the spans of the text it replaced.
+func (h *Highlighter) Line(path string, line diff.Line, base *lipgloss.Style) string {
+	content := line.Content
+	if content == "" {
+		return ""
 	}
 
-	// Detect lexer from file extension
-	lexer := h.detectLexer(filePath)
-	if lexer == nil {
-		return line
+	agLine := diff.AragoniteLine(line)
+	if h.text[refOf(path, agLine)] != content {
+		return base.Render(content)
 	}
 
-	// Tokenize the line
-	tokens, err := lexer.Tokenise(nil, line+"\n")
-	if err != nil {
-		return line
+	spans := h.spans.Spans(path, agLine)
+	if len(spans) == 0 {
+		return base.Render(content)
 	}
 
-	// Build styled output
-	var result strings.Builder
-	for _, token := range tokens.Tokens() {
-		token.Value = strings.TrimSuffix(token.Value, "\n")
-		if token.Value == "" {
-			continue
+	var out strings.Builder
+
+	at := 0
+
+	for _, span := range spans {
+		if span.From > at {
+			out.WriteString(base.Render(content[at:span.From]))
 		}
 
-		result.WriteString(h.styleToken(token, base))
+		style, face := h.face(span.Class, base)
+		if face != nil {
+			style = style.Foreground(face)
+		}
+
+		out.WriteString(style.Render(content[span.From:span.To]))
+		at = span.To
 	}
 
-	return result.String()
+	if at < len(content) {
+		out.WriteString(base.Render(content[at:]))
+	}
+
+	return out.String()
 }
 
-// Chroma lexer names shared by more than one extension.
-const (
-	bashLexer       = "bash"
-	cLexer          = "c"
-	cppLexer        = "cpp"
-	javascriptLexer = "javascript"
-	typescriptLexer = "typescript"
-	yamlLexer       = "yaml"
-)
-
-// lexerByExtension names the chroma lexer to fall back to for extensions chroma's own filename and
-// extension lookups miss.
-var lexerByExtension = map[string]string{
-	".bash": bashLexer,
-	".c":    cLexer,
-	".cc":   cppLexer,
-	".cpp":  cppLexer,
-	".css":  "css",
-	".go":   "go",
-	".h":    cLexer,
-	".hpp":  cppLexer,
-	".html": "html",
-	".java": "java",
-	".js":   javascriptLexer,
-	".json": "json",
-	".jsx":  javascriptLexer,
-	".md":   "markdown",
-	".py":   "python",
-	".rb":   "ruby",
-	".rs":   "rust",
-	".sh":   bashLexer,
-	".sql":  "sql",
-	".toml": "toml",
-	".ts":   typescriptLexer,
-	".tsx":  typescriptLexer,
-	".yaml": yamlLexer,
-	".yml":  yamlLexer,
+func refOf(path string, line agdiff.Line) agdiff.LineRef {
+	return agdiff.LineRef{Path: path, Kind: line.Kind, Old: line.Old, New: line.New}
 }
 
-//nolint:ireturn // chroma.Lexer is the interface the lexer registry hands back; there is no concrete type to return.
-func (*Highlighter) detectLexer(filePath string) chroma.Lexer {
-	if lexer := lexers.Match(filePath); lexer != nil {
-		return chroma.Coalesce(lexer)
-	}
-
-	ext := filepath.Ext(filePath)
-	if lexer := lexers.Get(ext); lexer != nil {
-		return chroma.Coalesce(lexer)
-	}
-
-	if name, ok := lexerByExtension[ext]; ok {
-		return lexers.Get(name)
-	}
-
-	return nil
-}
-
-func (h *Highlighter) styleToken(token chroma.Token, base *lipgloss.Style) string {
-	value := token.Value
-	tokenType := token.Type
-
-	// Map chroma token types to lipgloss styles
-	// Use subtle colors that don't conflict with diff colors
+func (h *Highlighter) face(class aghighlight.Class, base *lipgloss.Style) (lipgloss.Style, color.Color) {
 	style := *base
 
-	var face color.Color
-
-	switch {
-	case tokenType.InCategory(chroma.Comment):
-		face = h.palette.Comment
-
-	case tokenType.InCategory(chroma.Keyword):
-		style, face = style.Bold(true), h.palette.Keyword
-
-	case tokenType.InSubCategory(chroma.LiteralString):
-		face = h.palette.String
-
-	case tokenType.InSubCategory(chroma.LiteralNumber):
-		face = h.palette.Number
-
-	case tokenType == chroma.Name, tokenType == chroma.NameFunction:
-		face = h.palette.Name
-
-	case tokenType == chroma.NameClass, tokenType == chroma.NameBuiltin:
-		face = h.palette.Type
-
-	case tokenType.InCategory(chroma.Operator):
-		face = h.palette.Operator
-
-	case tokenType == chroma.GenericHeading, tokenType == chroma.GenericSubheading:
-		style, face = style.Bold(true), h.palette.Name
-
-	default:
-		return style.Render(value)
+	switch class {
+	case aghighlight.Comment:
+		return style, h.palette.Comment
+	case aghighlight.Keyword:
+		return style.Bold(true), h.palette.Keyword
+	case aghighlight.String, aghighlight.Escape:
+		return style, h.palette.String
+	case aghighlight.Number, aghighlight.Constant:
+		return style, h.palette.Number
+	case aghighlight.Name, aghighlight.Function:
+		return style, h.palette.Name
+	case aghighlight.Type, aghighlight.Namespace:
+		return style, h.palette.Type
+	case aghighlight.Operator:
+		return style, h.palette.Operator
+	case aghighlight.Plain, aghighlight.Punctuation, aghighlight.Field:
 	}
 
-	if face == nil {
-		return style.Render(value)
-	}
-
-	return style.Foreground(face).Render(value)
-}
-
-// IsEnabled returns whether syntax highlighting is available for a file.
-func (h *Highlighter) IsEnabled(filePath string) bool {
-	return h.detectLexer(filePath) != nil
+	return style, nil
 }

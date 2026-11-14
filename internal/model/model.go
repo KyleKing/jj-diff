@@ -615,6 +615,8 @@ func (m *Model) handleViewOptionKey(key string) bool {
 		m.diffView.ToggleSideBySide()
 	case "l":
 		m.diffView.ToggleLineNumbers()
+	case "z":
+		m.diffView.ToggleFold(m.selectedHunk)
 	default:
 		return false
 	}
@@ -696,6 +698,7 @@ func (m *Model) enterVisualMode() {
 		return
 	}
 
+	m.diffView.Reveal(m.selectedHunk)
 	m.isVisualMode = true
 	m.visualAnchor = m.lineCursor
 }

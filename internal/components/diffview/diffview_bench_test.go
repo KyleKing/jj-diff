@@ -2,6 +2,7 @@ package diffview_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
@@ -13,10 +14,11 @@ func testConfig() config.Config {
 	return config.DefaultConfig()
 }
 
-// generateHunks creates n hunks with linesPerHunk lines each.
+// generateHunks creates n hunks with linesPerHunk lines each, numbered the way one file's diff is.
 func generateHunks(n, linesPerHunk int) []diff.Hunk {
 	hunks := make([]diff.Hunk, n)
 	for i := range n {
+		first := i*linesPerHunk + 1
 		lines := make([]diff.Line, linesPerHunk)
 		for j := range linesPerHunk {
 			lineType := diff.LineContext
@@ -32,8 +34,8 @@ func generateHunks(n, linesPerHunk int) []diff.Hunk {
 					"This is line %d with some content that makes it realistic",
 					j,
 				),
-				OldLineNum: j + 1,
-				NewLineNum: j + 1,
+				OldLineNum: first + j,
+				NewLineNum: first + j,
 			}
 		}
 
@@ -63,6 +65,8 @@ func BenchmarkDiffViewRender_SmallDiff(b *testing.B) {
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
 
+	_ = m.View(80, 40, false)
+
 	b.ResetTimer()
 	for range b.N {
 		_ = m.View(80, 40, false)
@@ -79,6 +83,8 @@ func BenchmarkDiffViewRender_MediumDiff(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+
+	_ = m.View(80, 40, false)
 
 	b.ResetTimer()
 	for range b.N {
@@ -97,6 +103,8 @@ func BenchmarkDiffViewRender_LargeDiff(b *testing.B) {
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
 
+	_ = m.View(80, 40, false)
+
 	b.ResetTimer()
 	for range b.N {
 		_ = m.View(80, 40, false)
@@ -113,6 +121,8 @@ func BenchmarkDiffViewRender_HugeDiff(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+
+	_ = m.View(80, 40, false)
 
 	b.ResetTimer()
 	for range b.N {
@@ -133,6 +143,8 @@ func BenchmarkDiffViewRender_WithSelection(b *testing.B) {
 	m.SetSelection(5, func(hunkIdx int) bool {
 		return hunkIdx == 5
 	})
+
+	_ = m.View(80, 40, false)
 
 	b.ResetTimer()
 	for range b.N {
@@ -155,6 +167,8 @@ func BenchmarkDiffViewRender_WithSearchMatches(b *testing.B) {
 		return []diffview.MatchRange{{Start: 10, End: 15}}
 	})
 
+	_ = m.View(80, 40, false)
+
 	b.ResetTimer()
 	for range b.N {
 		_ = m.View(80, 40, false)
@@ -172,11 +186,64 @@ func BenchmarkDiffViewScroll(b *testing.B) {
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
 
+	_ = m.View(80, 40, false)
+
 	b.ResetTimer()
 	for range b.N {
 		for range 100 {
 			m.Scroll(1)
 			_ = m.View(80, 40, false)
 		}
+	}
+}
+
+// realisticFile parses a Go file diff of about rows rows, the way a file loaded from jj arrives.
+func realisticFile(rows int) diff.FileChange {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "diff --git a/svc.go b/svc.go\n--- a/svc.go\n+++ b/svc.go\n@@ -1,%d +1,%d @@\n", rows, rows)
+
+	for i := range rows {
+		switch i % 4 {
+		case 0:
+			fmt.Fprintf(&b, "-\tconst limit%d = %d // old\n", i, i)
+		case 1:
+			fmt.Fprintf(&b, "+\tconst limit%d = %d // new\n", i-1, i+1)
+		default:
+			fmt.Fprintf(&b, " \tfunc handle%d(ctx context.Context) error { return nil }\n", i)
+		}
+	}
+
+	return diff.Parse(b.String())[0]
+}
+
+// BenchmarkDiffViewFirstFrame_2000Rows benchmarks opening a 2000-row file: load it and draw the
+// first screen, which is where the file is lexed once.
+func BenchmarkDiffViewFirstFrame_2000Rows(b *testing.B) {
+	file := realisticFile(2000)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		m := diffview.New(testConfig())
+		m.SetFileChange(file)
+		_ = m.View(160, 44, false)
+	}
+}
+
+// BenchmarkDiffViewScroll_2000Rows benchmarks drawing screens of an already-open 2000-row file.
+func BenchmarkDiffViewScroll_2000Rows(b *testing.B) {
+	m := diffview.New(testConfig())
+	m.SetFileChange(realisticFile(2000))
+
+	_ = m.View(160, 44, false)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		m.Scroll(1)
+		_ = m.View(160, 44, false)
 	}
 }

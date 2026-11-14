@@ -207,3 +207,52 @@ func TestFileChange_TotalLines(t *testing.T) {
 		t.Errorf("Expected 5 total lines, got %d", total)
 	}
 }
+
+// A removed line that begins "-- " is written "--- ", and an added "++i" is written "+++i". Both look
+// like file headers, as does a line quoting the diff header itself.
+func TestParse_KeepsContentLinesThatLookLikeHeaders(t *testing.T) {
+	t.Parallel()
+
+	input := "diff --git a/q.sql b/q.sql\n--- a/q.sql\n+++ b/q.sql\n@@ -3,4 +3,4 @@\n" +
+		" keep\n" +
+		"--- gone comment\n" +
+		"+++i\n" +
+		"+run `git diff --git a b`\n" +
+		" tail\n" +
+		"diff --git a/next.txt b/next.txt\n--- a/next.txt\n+++ b/next.txt\n@@ -1 +1 @@\n-a\n+b\n"
+
+	files := diff.Parse(input)
+	if len(files) != 2 {
+		t.Fatalf("Parse() found %d files, want 2", len(files))
+	}
+
+	type row struct {
+		content  string
+		kind     diff.LineType
+		old, new int
+	}
+
+	want := []row{
+		{"keep", diff.LineContext, 3, 3},
+		{"-- gone comment", diff.LineDeletion, 4, 4},
+		{"++i", diff.LineAddition, 5, 4},
+		{"run `git diff --git a b`", diff.LineAddition, 5, 5},
+		{"tail", diff.LineContext, 5, 6},
+	}
+
+	lines := files[0].Hunks[0].Lines
+	if len(lines) != len(want) {
+		t.Fatalf("hunk has %d lines, want %d: %+v", len(lines), len(want), lines)
+	}
+
+	for i, w := range want {
+		got := row{lines[i].Content, lines[i].Type, lines[i].OldLineNum, lines[i].NewLineNum}
+		if got != w {
+			t.Errorf("line %d = %+v, want %+v", i, got, w)
+		}
+	}
+
+	if files[1].Path != "next.txt" {
+		t.Errorf("second file = %q, want next.txt", files[1].Path)
+	}
+}

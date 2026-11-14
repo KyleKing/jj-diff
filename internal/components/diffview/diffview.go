@@ -5,10 +5,12 @@ package diffview
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/generated"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -89,23 +91,29 @@ func (idx *LineIndex) FindHunkForOffset(offset int) HunkPosition {
 // Model is the diff pane. It holds no cursor authority of its own: the parent model pushes the
 // selected hunk, line cursor, search state, and tag state in before each render.
 type Model struct {
-	getHunkTags     func(hunkIdx int) []SplitTag
-	lineIndex       *LineIndex
-	wordDiffCache   *WordDiffCache
-	highlighter     *highlight.Highlighter
-	fileChange      *diff.FileChange
-	isSelected      func(hunkIdx int) bool
-	isLineSelected  func(hunkIdx, lineIdx int) bool
-	getMatches      func(hunkIdx, lineIdx int) []MatchRange
-	viewMode        ViewModeType
-	visualAnchor    int
-	lineCursor      int
-	tabWidth        int
-	selectedHunk    int
-	offset          int
-	isSearching     bool
-	isVisualMode    bool
-	enableHighlight bool
+	getHunkTags    func(hunkIdx int) []SplitTag
+	isSelected     func(hunkIdx int) bool
+	isLineSelected func(hunkIdx, lineIdx int) bool
+	getMatches     func(hunkIdx, lineIdx int) []MatchRange
+	lineIndex      *LineIndex
+	wordDiffCache  *WordDiffCache
+	highlighter    *highlight.Highlighter
+	fileChange     *diff.FileChange
+	mechanical     map[int]string
+	expanded       map[int]bool
+	generated      generated.Set
+	viewMode       ViewModeType
+	shown          [][]diff.Line
+	pairs          [][]diff.SidePair
+	visualAnchor   int
+	lineCursor     int
+	tabWidth       int
+	selectedHunk   int
+	offset         int
+	isSearching    bool
+	isVisualMode   bool
+	generatedOpen  bool
+	// showWhitespace hides whitespace-only changes, so the lines drawn are not the diff's own.
 	showWhitespace  bool
 	showLineNumbers bool
 	wordLevelDiff   bool
@@ -121,8 +129,7 @@ func New(cfg config.Config) Model {
 
 	return Model{
 		offset:          0,
-		highlighter:     highlight.New(),
-		enableHighlight: true,
+		generated:       generated.New(nil),
 		viewMode:        viewMode,
 		showWhitespace:  cfg.ShowWhitespace,
 		showLineNumbers: cfg.ShowLineNumbers,
@@ -131,13 +138,53 @@ func New(cfg config.Config) Model {
 	}
 }
 
-// SetFileChange loads a file, scrolls back to the top, and rebuilds the word-diff cache and line
-// index. The pane keeps its own copy of file, so later edits to the caller's value are not picked up.
+// SetFileChange loads a file, scrolls back to the top, folds what is mechanical or generated, and
+// rebuilds the lexing, word-diff, and row caches. The pane keeps its own copy of file, so later
+// edits to the caller's value are not picked up.
 func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
-	m.computeWordDiffs()
+	m.highlighter = highlight.New(file)
+	m.expanded = map[int]bool{}
+	m.generatedOpen = false
+	m.mechanical = map[int]string{}
+
+	for key, reason := range diff.MechanicalHunks([]diff.FileChange{file}) {
+		m.mechanical[key.Hunk] = reason
+	}
+
+	m.buildShown()
+	m.buildPairs()
 	m.buildLineIndex()
+}
+
+// buildShown keys the word diffs by the index of the lines each hunk draws, not of the diff's own.
+func (m *Model) buildShown() {
+	m.shown = make([][]diff.Line, len(m.fileChange.Hunks))
+
+	for hunkIdx := range m.fileChange.Hunks {
+		lines := m.fileChange.Hunks[hunkIdx].Lines
+		if m.showWhitespace {
+			lines = diff.ProcessHunkHideWhitespace(lines)
+		}
+
+		m.shown[hunkIdx] = lines
+	}
+
+	m.computeWordDiffs()
+}
+
+func (m *Model) buildPairs() {
+	m.pairs = nil
+
+	if m.viewMode != ViewModeSideBySide || m.fileChange == nil {
+		return
+	}
+
+	m.pairs = make([][]diff.SidePair, len(m.shown))
+	for hunkIdx, lines := range m.shown {
+		m.pairs[hunkIdx] = diff.PairSides(lines)
+	}
 }
 
 func (m *Model) buildLineIndex() {
@@ -147,26 +194,103 @@ func (m *Model) buildLineIndex() {
 	}
 
 	index := &LineIndex{
-		HunkOffsets:    make([]int, len(m.fileChange.Hunks)),
-		HunkLineCounts: make([]int, len(m.fileChange.Hunks)),
+		HunkOffsets:    make([]int, len(m.shown)),
+		HunkLineCounts: make([]int, len(m.shown)),
+	}
+
+	if m.collapsed() {
+		for hunkIdx := range m.shown {
+			index.HunkLineCounts[hunkIdx] = 1
+		}
+
+		index.TotalLines = 1
+		m.lineIndex = index
+
+		return
 	}
 
 	totalLines := 0
-	for hunkIdx, hunk := range m.fileChange.Hunks {
+	for hunkIdx := range m.shown {
 		index.HunkOffsets[hunkIdx] = totalLines
-
-		hunkLines := hunk.Lines
-		if m.showWhitespace {
-			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
-		}
-
-		linesInHunk := 1 + len(hunkLines)
-		index.HunkLineCounts[hunkIdx] = linesInHunk
-		totalLines += linesInHunk
+		index.HunkLineCounts[hunkIdx] = 1 + m.bodyRows(hunkIdx)
+		totalLines += index.HunkLineCounts[hunkIdx]
 	}
 
 	index.TotalLines = totalLines
 	m.lineIndex = index
+}
+
+func (m *Model) bodyRows(hunkIdx int) int {
+	switch {
+	case m.isFolded(hunkIdx):
+		return 1
+	case m.viewMode == ViewModeSideBySide:
+		return len(m.pairs[hunkIdx])
+	default:
+		return len(m.shown[hunkIdx])
+	}
+}
+
+// foldReason is empty for a hunk with a real edit, or whose changes are already hidden.
+func (m *Model) foldReason(hunkIdx int) string {
+	if slices.ContainsFunc(m.shown[hunkIdx], func(line diff.Line) bool { return line.Type != diff.LineContext }) {
+		return m.mechanical[hunkIdx]
+	}
+
+	return ""
+}
+
+func (m *Model) isFolded(hunkIdx int) bool {
+	return m.foldReason(hunkIdx) != "" && !m.expanded[hunkIdx]
+}
+
+func (m *Model) collapsed() bool {
+	return m.fileChange != nil && len(m.fileChange.Hunks) > 0 &&
+		!m.generatedOpen && m.generated.Match(m.fileChange.Path)
+}
+
+// relayout applies change and keeps the hunk that was on top on top, since row counts shift.
+func (m *Model) relayout(change func()) {
+	var top HunkPosition
+	if m.lineIndex != nil {
+		top = m.lineIndex.FindHunkForOffset(m.offset)
+	}
+
+	change()
+	m.buildLineIndex()
+
+	if index := m.lineIndex; index != nil && top.HunkIdx < len(index.HunkOffsets) {
+		m.offset = max(min(index.HunkOffsets[top.HunkIdx]+top.LineInHunk, index.TotalLines-1), 0)
+	}
+}
+
+// ToggleFold expands a collapsed generated file, else folds or unfolds hunkIdx if it is mechanical,
+// else collapses an expanded generated file.
+func (m *Model) ToggleFold(hunkIdx int) {
+	if m.fileChange == nil {
+		return
+	}
+
+	switch {
+	case m.collapsed():
+		m.generatedOpen = true
+		m.relayout(func() {})
+	case m.foldReason(hunkIdx) != "":
+		m.relayout(func() { m.expanded[hunkIdx] = !m.expanded[hunkIdx] })
+	case m.generated.Match(m.fileChange.Path):
+		m.generatedOpen = false
+		m.relayout(func() {})
+	}
+}
+
+// Reveal unfolds whatever hides hunkIdx, for a caller about to put a cursor inside it.
+func (m *Model) Reveal(hunkIdx int) {
+	if m.fileChange == nil || (!m.collapsed() && !m.isFolded(hunkIdx)) {
+		return
+	}
+
+	m.generatedOpen = true
+	m.relayout(func() { m.expanded[hunkIdx] = true })
 }
 
 func (m *Model) computeWordDiffs() {
@@ -179,10 +303,8 @@ func (m *Model) computeWordDiffs() {
 		HunkDiffs: make(map[int]map[int]diff.WordDiffResult),
 	}
 
-	for hunkIdx := range m.fileChange.Hunks {
-		hunk := &m.fileChange.Hunks[hunkIdx]
-		hunkWordDiffs := diff.ComputeHunkWordDiffs(hunk)
-		m.wordDiffCache.HunkDiffs[hunkIdx] = hunkWordDiffs
+	for hunkIdx, lines := range m.shown {
+		m.wordDiffCache.HunkDiffs[hunkIdx] = diff.ComputeHunkWordDiffs(&diff.Hunk{Lines: lines})
 	}
 }
 
@@ -227,7 +349,15 @@ func (m *Model) SetTagState(getHunkTags func(hunkIdx int) []SplitTag) {
 // change how wide a rendered line is.
 func (m *Model) ToggleWhitespace() {
 	m.showWhitespace = !m.showWhitespace
-	m.buildLineIndex()
+
+	if m.fileChange == nil {
+		return
+	}
+
+	m.relayout(func() {
+		m.buildShown()
+		m.buildPairs()
+	})
 }
 
 // ToggleLineNumbers flips the old/new line-number gutter.
@@ -249,6 +379,12 @@ func (m *Model) ToggleSideBySide() {
 	} else {
 		m.viewMode = ViewModeUnified
 	}
+
+	if m.fileChange == nil {
+		return
+	}
+
+	m.relayout(m.buildPairs)
 }
 
 // IsSideBySide reports the current layout, which the status bar reads to label the toggle.
@@ -278,7 +414,7 @@ func (m *Model) Scroll(delta int) {
 		return
 	}
 
-	totalLines := m.calculateTotalLines()
+	totalLines := m.lineIndex.TotalLines
 	newOffset := m.offset + delta
 
 	if newOffset < 0 {
@@ -311,104 +447,129 @@ func (m *Model) ScrollFullPageUp(viewHeight int) {
 	m.Scroll(-viewHeight)
 }
 
-func (m *Model) calculateTotalLines() int {
-	if m.fileChange == nil {
-		return 0
-	}
-
-	total := 0
-	for _, hunk := range m.fileChange.Hunks {
-		total++
-		total += len(hunk.Lines)
-	}
-
-	return total
-}
-
-// View renders the pane at the given size, padding out to it when the content is shorter. The
-// focused flag only changes cursor styling, so an unfocused pane still shows where the cursor sits.
-func (m *Model) View(width, height int, focused bool) string {
+// View renders the pane at the given size, padding out to it when the content is shorter.
+func (m *Model) View(width, height int, _ bool) string {
 	if m.fileChange == nil {
 		return padToSize("No file selected", width, height)
 	}
 
-	if m.viewMode == ViewModeSideBySide {
-		ctx := RenderContext{
-			Width:           width,
-			Height:          height,
-			SelectedHunk:    m.selectedHunk,
-			LineCursor:      m.lineCursor,
-			IsVisualMode:    m.isVisualMode,
-			VisualAnchor:    m.visualAnchor,
-			ShowWhitespace:  m.showWhitespace,
-			ShowLineNumbers: m.showLineNumbers,
-			TabWidth:        m.tabWidth,
-			WordLevelDiff:   m.wordLevelDiff,
-			IsSearching:     m.isSearching,
-			IsSelected:      m.isSelected,
-			IsLineSelected:  m.isLineSelected,
-			GetMatches:      m.getMatches,
-			WordDiffCache:   m.wordDiffCache,
-			Highlighter:     m.syntaxHighlighter(),
-			Focused:         focused,
-		}
-		sbs := NewSideBySideView()
+	var rows []string
 
-		return sbs.Render(m.fileChange, &ctx)
+	switch {
+	case m.collapsed():
+		rows = []string{m.renderGeneratedSummary(width)}
+	case m.viewMode == ViewModeSideBySide:
+		rows = append([]string{renderPaneTitles(width)}, m.renderRows(width, height-1)...)
+	default:
+		rows = m.renderRows(width, height)
 	}
 
-	return m.renderUnified(width, height)
+	for len(rows) < height {
+		rows = append(rows, strings.Repeat(" ", max(width, 0)))
+	}
+
+	return strings.Join(rows[:max(min(len(rows), height), 0)], "\n")
 }
 
-func (m *Model) renderUnified(width, height int) string {
-	var lines []string
+func (m *Model) renderRows(width, height int) []string {
+	rows := make([]string, 0, max(height, 0))
 
-	if m.lineIndex == nil || len(m.fileChange.Hunks) == 0 {
-		for len(lines) < height {
-			lines = append(lines, strings.Repeat(" ", max(width, 0)))
-		}
-
-		return strings.Join(lines, "\n")
+	if m.lineIndex == nil {
+		return rows
 	}
 
 	start := m.lineIndex.FindHunkForOffset(m.offset)
-	lineInHunk := start.LineInHunk
+	skipped := start.LineInHunk
 
-	for hunkIdx := start.HunkIdx; hunkIdx < len(m.fileChange.Hunks) && len(lines) < height; hunkIdx++ {
-		hunk := m.fileChange.Hunks[hunkIdx]
-
-		if lineInHunk == 0 {
-			isCurrent := hunkIdx == m.selectedHunk
+	for hunkIdx := start.HunkIdx; hunkIdx < len(m.shown) && len(rows) < height; hunkIdx++ {
+		if skipped == 0 {
 			isHunkSelected := m.isSelected != nil && m.isSelected(hunkIdx)
-			lines = append(
-				lines,
-				m.renderHunkHeader(hunk.Header, width, hunkIdx, isCurrent, isHunkSelected),
-			)
+			rows = append(rows, m.renderHunkHeader(
+				m.fileChange.Hunks[hunkIdx].Header, width, hunkIdx, hunkIdx == m.selectedHunk, isHunkSelected,
+			))
 		}
 
-		hunkLines := hunk.Lines
-		if m.showWhitespace {
-			hunkLines = diff.ProcessHunkHideWhitespace(hunk.Lines)
-		}
-
-		startLineIdx := lineInHunk
-		if lineInHunk > 0 {
-			startLineIdx = lineInHunk - 1
-		}
-
-		for lineIdx := startLineIdx; lineIdx < len(hunkLines) && len(lines) < height; lineIdx++ {
-			line := hunkLines[lineIdx]
-			lines = append(lines, m.renderLine(line, width, hunkIdx, lineIdx))
-		}
-
-		lineInHunk = 0
+		rows = append(rows, m.renderBody(hunkIdx, max(skipped-1, 0), width, height-len(rows))...)
+		skipped = 0
 	}
 
-	for len(lines) < height {
-		lines = append(lines, strings.Repeat(" ", max(width, 0)))
+	return rows
+}
+
+func (m *Model) renderBody(hunkIdx, first, width, limit int) []string {
+	if limit <= 0 {
+		return nil
 	}
 
-	return strings.Join(lines, "\n")
+	if m.isFolded(hunkIdx) {
+		if first > 0 {
+			return nil
+		}
+
+		return []string{m.renderFoldNote(hunkIdx, width)}
+	}
+
+	count := m.bodyRows(hunkIdx)
+	rows := make([]string, 0, min(limit, count))
+
+	for at := first; at < count && len(rows) < limit; at++ {
+		if m.viewMode == ViewModeSideBySide {
+			rows = append(rows, m.renderPair(m.pairs[hunkIdx][at], hunkIdx, width))
+
+			continue
+		}
+
+		rows = append(rows, m.renderLine(m.shown[hunkIdx][at], width, hunkIdx, at))
+	}
+
+	return rows
+}
+
+func (m *Model) renderFoldNote(hunkIdx, width int) string {
+	changed := 0
+
+	for _, line := range m.shown[hunkIdx] {
+		if line.Type != diff.LineContext {
+			changed++
+		}
+	}
+
+	note := fmt.Sprintf("    ▸ %s: %d changed lines (z to expand)", m.foldReason(hunkIdx), changed)
+
+	return foldNoteStyle().Render(truncateOrPad(note, width))
+}
+
+func (m *Model) renderGeneratedSummary(width int) string {
+	selected := 0
+
+	for hunkIdx := range m.fileChange.Hunks {
+		if m.isSelected != nil && m.isSelected(hunkIdx) {
+			selected++
+		}
+	}
+
+	note := fmt.Sprintf(
+		"  ▸ %s is generated: +%d -%d in %d hunk%s",
+		m.fileChange.Path, m.fileChange.AddedLines(), m.fileChange.DeletedLines(),
+		len(m.fileChange.Hunks), plural(len(m.fileChange.Hunks)),
+	)
+	if selected > 0 {
+		note += fmt.Sprintf(", %d selected", selected)
+	}
+
+	return foldNoteStyle().Render(truncateOrPad(note+" (z to expand)", width))
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+
+	return "s"
+}
+
+func foldNoteStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(theme.Muted).Italic(true)
 }
 
 func (m *Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
@@ -450,31 +611,7 @@ func (m *Model) lineContent(line diff.Line, hunkIdx, lineIdx int, base *lipgloss
 		return applyWordDiffHighlight(line.Content, line.Type, wordDiff, base)
 	}
 
-	return styleCode(m.syntaxHighlighter(), m.filePath(), line.Content, base)
-}
-
-func (m *Model) syntaxHighlighter() *highlight.Highlighter {
-	if !m.enableHighlight {
-		return nil
-	}
-
-	return m.highlighter
-}
-
-func (m *Model) filePath() string {
-	if m.fileChange == nil {
-		return ""
-	}
-
-	return m.fileChange.Path
-}
-
-func styleCode(h *highlight.Highlighter, path, content string, base *lipgloss.Style) string {
-	if h == nil {
-		return base.Render(content)
-	}
-
-	return h.HighlightLineOn(path, content, base)
+	return m.highlighter.Line(m.fileChange.Path, line, base)
 }
 
 func (m *Model) lookupWordDiff(

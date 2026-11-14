@@ -103,15 +103,11 @@ func Parse(diffText string) []FileChange {
 	}
 
 	var files []FileChange
-	sections := strings.Split(diffText, "diff --git")
 
-	for _, section := range sections {
-		if strings.TrimSpace(section) == "" {
-			continue
-		}
+	sections := strings.Split("\n"+diffText, "\ndiff --git ")
 
-		section = "diff --git" + section
-		file := parseFileChange(section)
+	for _, section := range sections[1:] {
+		file := parseFileChange("diff --git " + section)
 		if file != nil {
 			files = append(files, *file)
 		}
@@ -162,7 +158,7 @@ func parseFileChange(section string) *FileChange {
 			continue
 		}
 
-		if currentHunk == nil || line == "" || isMetadataLine(line) {
+		if currentHunk == nil || line == "" {
 			continue
 		}
 
@@ -187,14 +183,6 @@ func parseFileChange(section string) *FileChange {
 	}
 
 	return file
-}
-
-// isMetadataLine reports the header lines that can appear inside a section after a hunk header and
-// carry no diff content, including the ones that start with a + or - marker.
-func isMetadataLine(line string) bool {
-	return strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") ||
-		strings.HasPrefix(line, "index ") || strings.HasPrefix(line, "new file") ||
-		strings.HasPrefix(line, "deleted file")
 }
 
 // classifyLine reads a non-empty diff line into its kind and its content with the marker stripped,

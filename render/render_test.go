@@ -272,3 +272,98 @@ func TestSideBySideNumbersEachColumnByItsOwnFile(t *testing.T) {
 		}
 	}
 }
+
+func foldableDiff() string {
+	return strings.Join([]string{
+		"diff --git a/go.sum b/go.sum",
+		"--- a/go.sum",
+		"+++ b/go.sum",
+		"@@ -1,1 +1,3 @@",
+		" github.com/a/b v1.0.0 h1:aaa=",
+		"+github.com/c/d v2.1.0 h1:ccc=",
+		"+github.com/e/f v0.3.0 h1:eee=",
+		"diff --git a/work.go b/work.go",
+		"--- a/work.go",
+		"+++ b/work.go",
+		"@@ -1,5 +1,5 @@",
+		" func work() {",
+		"-\ttotal := 0",
+		"-\tcount := 1",
+		"+\t\ttotal := 0",
+		"+\t\tcount := 1",
+		" }",
+		"@@ -20,3 +20,3 @@",
+		" keep",
+		"-\treturn total",
+		"+\treturn count",
+		" end",
+		"",
+	}, "\n")
+}
+
+// A window is the rows of the whole diff at those positions, whatever the options, so a caller can
+// draw a screen of a large diff without drawing the rest.
+func TestDocumentRowsAreTheWindowOfLines(t *testing.T) {
+	t.Parallel()
+
+	palette := render.Palette{Added: lipgloss.Color("2"), Removed: lipgloss.Color("1")}
+
+	for _, tc := range []struct {
+		name string
+		opts render.Options
+		want int
+	}{
+		{"unified", render.Options{}, 18},
+		{"side by side", render.Options{SideBySide: true, Width: 60}, 15},
+		{"collapse and fold", render.Options{CollapseGenerated: true, FoldMechanical: true}, 10},
+		{
+			"syntax and word marks",
+			render.Options{Syntax: true, WordDiff: true, LineNumbers: true, Palette: palette},
+			18,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			whole := render.Lines(foldableDiff(), tc.opts)
+			doc := render.New(foldableDiff(), tc.opts)
+
+			if doc.Len() != len(whole) || doc.Len() != tc.want {
+				t.Fatalf("Len() = %d, Lines() has %d rows, want %d", doc.Len(), len(whole), tc.want)
+			}
+
+			for from := range whole {
+				for _, to := range []int{from + 1, from + 4, len(whole) + 5} {
+					got := doc.Rows(from, to)
+					if want := whole[from:min(to, len(whole))]; strings.Join(got, "\n") != strings.Join(want, "\n") {
+						t.Fatalf("Rows(%d, %d) = %q, want %q", from, to, got, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestOptionsFoldGeneratedFilesAndMechanicalHunks(t *testing.T) {
+	t.Parallel()
+
+	plain := strings.Join(render.Lines(foldableDiff(), render.Options{}), "\n")
+	foldedOpts := render.Options{CollapseGenerated: true, FoldMechanical: true}
+	folded := strings.Join(render.Lines(foldableDiff(), foldedOpts), "\n")
+
+	for _, want := range []string{"generated: +2 -0 in 1 hunk", "reindent only: 4 changed lines"} {
+		if !strings.Contains(folded, want) {
+			t.Errorf("folded diff lacks %q:\n%s", want, folded)
+		}
+	}
+
+	for _, hidden := range []string{"github.com/c/d", "total := 0"} {
+		if strings.Contains(folded, hidden) || !strings.Contains(plain, hidden) {
+			t.Errorf("%q should show unfolded and not folded", hidden)
+		}
+	}
+
+	if !strings.Contains(folded, "return count") {
+		t.Error("the hunk with a real edit was folded")
+	}
+}

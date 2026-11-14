@@ -5,12 +5,15 @@
 package render
 
 import (
+	"fmt"
 	"image/color"
+	"sort"
 	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/generated"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/highlight"
@@ -69,6 +72,10 @@ type Options struct {
 	// SideBySide draws the old and the new content in two columns, pairing each run of deletions
 	// with the additions that replaced it. It needs Width, since the columns are cut from it.
 	SideBySide bool
+	// CollapseGenerated draws a generated file, such as a lockfile, as one line with its size.
+	CollapseGenerated bool
+	// FoldMechanical draws a reindent-only or whitespace-only hunk as one line, after a pass over every file.
+	FoldMechanical bool
 }
 
 // Lines renders diffText as one styled string per terminal row, in file order. Input that parses to
@@ -79,72 +86,203 @@ type Options struct {
 //
 //nolint:gocritic // hugeParam: Options is a value the caller builds once per call.
 func Lines(diffText string, opts Options) []string {
+	doc := New(diffText, opts)
+
+	return doc.Rows(0, doc.Len())
+}
+
+// Document is a parsed diff whose rows render on demand, so a window of a large diff costs only that window.
+type Document struct {
+	renderer *renderer
+	files    []diff.FileChange
+	segments []segment
+	rows     int
+}
+
+const generatedRows = 2
+
+type segment struct {
+	note  string
+	pairs []diff.SidePair
+	file  int
+	hunk  int
+	start int
+	rows  int
+}
+
+// New parses diffText once and counts its rows without rendering them. Input that parses to nothing has Len zero.
+//
+//nolint:gocritic // hugeParam: Options is a value the caller builds once per call.
+func New(diffText string, opts Options) *Document {
 	files := diff.Parse(diffText)
+	doc := &Document{files: files, renderer: &renderer{opts: opts, words: map[wordKey]map[int]diff.WordDiffResult{}}}
+
 	if len(files) == 0 {
-		return nil
+		return doc
 	}
 
-	r := &renderer{opts: opts}
 	if opts.Syntax {
-		r.highlighter = highlight.NewWith((&opts.Palette.Syntax).internal())
+		doc.renderer.highlighter = highlight.NewWith((&opts.Palette.Syntax).internal(), files...)
 	}
 
-	var lines []string
-	for _, file := range files {
-		lines = append(lines, r.file(file)...)
+	var mechanical map[diff.HunkKey]string
+	if opts.FoldMechanical {
+		mechanical = diff.MechanicalHunks(files)
 	}
 
-	return lines
-}
+	set := generated.New(nil)
 
-type renderer struct {
-	highlighter *highlight.Highlighter
-	opts        Options
-}
-
-func (r *renderer) file(file diff.FileChange) []string {
-	lines := []string{r.fit(r.styled(file.ChangeType.String()+" "+file.Path, r.opts.Palette.File))}
-
-	for i := range file.Hunks {
-		hunk := &file.Hunks[i]
-		lines = append(lines, r.fit(r.styled(hunk.Header, r.opts.Palette.Hunk)))
-
-		words := map[int]diff.WordDiffResult{}
-		if r.opts.WordDiff {
-			words = diff.ComputeHunkWordDiffs(hunk)
-		}
-
-		if r.opts.SideBySide {
-			lines = append(lines, r.columns(file.Path, hunk.Lines, words)...)
+	for i := range files {
+		if opts.CollapseGenerated && len(files[i].Hunks) > 0 && set.Match(files[i].Path) {
+			doc.add(segment{file: i, hunk: -1, rows: generatedRows})
 
 			continue
 		}
 
-		for j, line := range hunk.Lines {
-			lines = append(lines, r.line(file.Path, line, words[j]))
+		doc.add(segment{file: i, hunk: -1, rows: 1})
+
+		for j := range files[i].Hunks {
+			doc.add(doc.hunkSegment(i, j, mechanical[diff.HunkKey{File: i, Hunk: j}]))
 		}
 	}
 
-	return lines
+	return doc
+}
+
+func (d *Document) hunkSegment(file, hunk int, reason string) segment {
+	lines := d.files[file].Hunks[hunk].Lines
+	seg := segment{file: file, hunk: hunk, note: reason}
+
+	switch {
+	case reason != "":
+		seg.rows = 2
+	case d.renderer.opts.SideBySide:
+		seg.pairs = diff.PairSides(lines)
+		seg.rows = 1 + len(seg.pairs)
+	default:
+		seg.rows = 1 + len(lines)
+	}
+
+	return seg
+}
+
+func (d *Document) add(seg segment) {
+	seg.start = d.rows
+	d.rows += seg.rows
+	d.segments = append(d.segments, seg)
+}
+
+// Len is the number of rows the whole diff renders to.
+func (d *Document) Len() int {
+	return d.rows
+}
+
+// Rows renders rows [from, to), clamped to the document, exactly as Lines draws them.
+func (d *Document) Rows(from, to int) []string {
+	from, to = max(from, 0), min(to, d.rows)
+	if from >= to {
+		return nil
+	}
+
+	out := make([]string, 0, to-from)
+	first := sort.Search(len(d.segments), func(i int) bool {
+		return d.segments[i].start+d.segments[i].rows > from
+	})
+
+	for i := first; i < len(d.segments) && d.segments[i].start < to; i++ {
+		seg := &d.segments[i]
+
+		for row := max(from-seg.start, 0); row < seg.rows && seg.start+row < to; row++ {
+			out = append(out, d.row(seg, row))
+		}
+	}
+
+	return out
+}
+
+func (d *Document) row(seg *segment, row int) string {
+	r := d.renderer
+	file := &d.files[seg.file]
+
+	if seg.hunk < 0 {
+		if row == 0 {
+			return r.fit(r.styled(file.ChangeType.String()+" "+file.Path, r.opts.Palette.File))
+		}
+
+		return r.note(fmt.Sprintf(
+			"  ▸ generated: +%d -%d in %d hunk%s", file.AddedLines(), file.DeletedLines(), len(file.Hunks),
+			plural(len(file.Hunks)),
+		))
+	}
+
+	hunk := &file.Hunks[seg.hunk]
+	if row == 0 {
+		return r.fit(r.styled(hunk.Header, r.opts.Palette.Hunk))
+	}
+
+	if seg.note != "" {
+		return r.note(fmt.Sprintf("  ▸ %s: %d changed lines", seg.note, changedLines(hunk)))
+	}
+
+	words := r.wordsFor(seg.file, seg.hunk, hunk)
+	if r.opts.SideBySide {
+		return r.column(file.Path, seg.pairs[row-1], words)
+	}
+
+	return r.line(file.Path, hunk.Lines[row-1], words[row-1])
+}
+
+func changedLines(hunk *diff.Hunk) int {
+	n := 0
+
+	for _, line := range hunk.Lines {
+		if line.Type != diff.LineContext {
+			n++
+		}
+	}
+
+	return n
+}
+
+type wordKey struct{ file, hunk int }
+
+type renderer struct {
+	highlighter *highlight.Highlighter
+	words       map[wordKey]map[int]diff.WordDiffResult
+	opts        Options
+}
+
+func (r *renderer) wordsFor(file, hunk int, h *diff.Hunk) map[int]diff.WordDiffResult {
+	if !r.opts.WordDiff {
+		return nil
+	}
+
+	key := wordKey{file: file, hunk: hunk}
+	if words, ok := r.words[key]; ok {
+		return words
+	}
+
+	words := diff.ComputeHunkWordDiffs(h)
+	r.words[key] = words
+
+	return words
+}
+
+func (r *renderer) note(text string) string {
+	return r.fit(lipgloss.NewStyle().Faint(true).Render(r.styled(text, r.opts.Palette.Context)))
 }
 
 // gutterPad is the separator drawn between the two columns.
 const gutterPad = " \u2502 "
 
-// columns draws the hunk as two panes. Each pane is fitted on its own, so a long line is cut at its
+// column draws one row of two panes. Each pane is fitted on its own, so a long line is cut at its
 // own column rather than pushing the other pane off the row.
-func (r *renderer) columns(path string, lines []diff.Line, words map[int]diff.WordDiffResult) []string {
+func (r *renderer) column(path string, pair diff.SidePair, words map[int]diff.WordDiffResult) string {
 	pane := r.paneWidth()
-	pairs := diff.PairSides(lines)
-	out := make([]string, 0, len(pairs))
+	left := r.pane(path, pair.Left, false, words[pair.LeftIdx], pane)
+	right := r.pane(path, pair.Right, true, words[pair.RightIdx], pane)
 
-	for _, pair := range pairs {
-		left := r.pane(path, pair.Left, false, words[pair.LeftIdx], pane)
-		right := r.pane(path, pair.Right, true, words[pair.RightIdx], pane)
-		out = append(out, left+gutterPad+right)
-	}
-
-	return out
+	return left + gutterPad + right
 }
 
 // paneWidth splits the frame between the two columns. A frame too narrow to split still gets one
@@ -211,7 +349,9 @@ func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResul
 	}
 
 	if r.highlighter != nil {
-		return r.highlighter.HighlightLine(path, line.Content)
+		base := lipgloss.NewStyle()
+
+		return r.highlighter.Line(path, line, &base)
 	}
 
 	return line.Content
@@ -315,4 +455,12 @@ const truncationMarker = "…"
 // cut resets before the marker so the cut token's color does not leak into it.
 func (*renderer) cut(line string, width int) string {
 	return ansi.Truncate(line, width-1, "") + "\x1b[m" + lipgloss.NewStyle().Faint(true).Render(truncationMarker)
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+
+	return "s"
 }

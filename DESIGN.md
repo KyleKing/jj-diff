@@ -47,7 +47,8 @@ jj-diff/
 **Components** (`internal/components/`)
 
 - FileList: vertical table view with stats
-- DiffView: unified or side-by-side rendering with syntax highlighting
+- DiffView: unified or side-by-side rendering with syntax highlighting, where a generated file or a
+  hunk that only reindents folds to one line that `z` expands
 - Modals: help, search, destination picker, fuzzy finder
 
 **Render** (`render/`)
@@ -56,7 +57,9 @@ The only package outside `internal/`, so other tools draw a diff the way this on
 parser, the same word-level intra-line highlighting, and the same syntax highlighting, with the
 palette passed in rather than read from this program's theme. It renders unified or side by side and
 does not select, since hunk and line selection belong to the editor. The two-column pairing lives in
-`internal/diff` so both renderers use the same one. [jojo](https://github.com/KyleKing/jj-tui) draws its
+`internal/diff` so both renderers use the same one. `render.Lines` draws a whole diff, while `render.New`
+parses once and draws any window of rows on demand, which is what a caller with a small pane over a large
+diff wants. Syntax colors come from aragonite's `highlight`, which lexes each file once. [jojo](https://github.com/KyleKing/jj-tui) draws its
 diff pane with it.
 
 ### Design Principles

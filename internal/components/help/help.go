@@ -168,6 +168,7 @@ func viewOptionSection(width int) []string {
 		keyBinding("W", "Toggle word-level diff highlighting", width),
 		keyBinding("s", "Toggle side-by-side view", width),
 		keyBinding("l", "Toggle line numbers", width),
+		keyBinding("z", "Fold or unfold the hunk, or the generated file", width),
 		"",
 	}
 }

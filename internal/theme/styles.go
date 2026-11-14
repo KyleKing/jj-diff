@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 )
 
 // Exported color variables.
@@ -47,9 +48,6 @@ var (
 	WordDiffDeletedStyle   lipgloss.Style
 )
 
-// lineTintShare keeps syntax colors at their contrast on an added or deleted line.
-const lineTintShare = 0.15
-
 // mutedTintShare keeps line numbers and comments readable without competing with code.
 const mutedTintShare = 0.6
 
@@ -67,14 +65,16 @@ func tint(base, accent color.Color, share float64) color.Color {
 	return color.RGBA{R: mix(br, ar), G: mix(bg, ag), B: mix(bb, ab), A: byteMax}
 }
 
-// Init detects the appropriate theme and initializes all colors and styles.
+// Init detects the appropriate theme and the terminal's color depth, then initializes all colors and
+// styles.
 func Init() {
 	t := Detect()
-	applyTheme(&t)
+	applyTheme(&t, colorprofile.Detect(os.Stdout, os.Environ()))
 }
 
-// applyTheme sets color variables and recomputes all styles.
-func applyTheme(t *Theme) {
+// applyTheme sets color variables and recomputes all styles, deriving the diff tints so they stay
+// distinct once p reduces them to the colors the terminal can show.
+func applyTheme(t *Theme, p colorprofile.Profile) {
 	Primary = t.Primary
 	Accent = t.Accent
 	Secondary = t.Secondary
@@ -86,10 +86,10 @@ func applyTheme(t *Theme) {
 	AddedLine = t.AddedLine
 	DeletedLine = t.DeletedLine
 	Muted = tint(ModalBg, Text, mutedTintShare)
-	AddedBg = tint(ModalBg, AddedLine, lineTintShare)
-	DeletedBg = tint(ModalBg, DeletedLine, lineTintShare)
-	WordDiffAddedBg = t.WordDiffAddedBg
-	WordDiffDelBg = t.WordDiffDelBg
+
+	tints := diffTints(ModalBg, AddedLine, DeletedLine, t.Dark, p)
+	AddedBg, DeletedBg = tints.added, tints.deleted
+	WordDiffAddedBg, WordDiffDelBg = tints.wordAdded, tints.wordDeleted
 
 	HeaderStyle = lipgloss.NewStyle().
 		Foreground(Primary).
