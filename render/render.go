@@ -139,8 +139,8 @@ func (r *renderer) columns(path string, lines []diff.Line, words map[int]diff.Wo
 	out := make([]string, 0, len(pairs))
 
 	for _, pair := range pairs {
-		left := r.pane(path, pair.Left, words[pair.LeftIdx], pane)
-		right := r.pane(path, pair.Right, words[pair.RightIdx], pane)
+		left := r.pane(path, pair.Left, false, words[pair.LeftIdx], pane)
+		right := r.pane(path, pair.Right, true, words[pair.RightIdx], pane)
 		out = append(out, left+gutterPad+right)
 	}
 
@@ -161,14 +161,14 @@ func (r *renderer) paneWidth() int {
 
 // pane draws one side of a row, padded to width so the separator stays in one column. A nil line is
 // the blank opposite an addition or a deletion with no counterpart.
-func (r *renderer) pane(path string, line *diff.Line, words diff.WordDiffResult, width int) string {
+func (r *renderer) pane(path string, line *diff.Line, isRight bool, words diff.WordDiffResult, width int) string {
 	if line == nil {
 		return strings.Repeat(" ", max(width, 0))
 	}
 
 	content := r.content(path, *line, words)
 	if r.opts.LineNumbers {
-		content = r.styled(sideNumber(*line), r.opts.Palette.Gutter) + content
+		content = r.styled(sideNumber(*line, isRight), r.opts.Palette.Gutter) + content
 	}
 
 	styled := r.styled(content, r.face(line.Type))
@@ -180,14 +180,16 @@ func (r *renderer) pane(path string, line *diff.Line, words diff.WordDiffResult,
 		return styled + strings.Repeat(" ", gap)
 	}
 
-	return ansi.Truncate(styled, width, "")
+	cut := r.cut(styled, width)
+
+	return cut + strings.Repeat(" ", max(width-lipgloss.Width(cut), 0))
 }
 
 // sideNumber is the one line number that side carries, since a column shows one file's numbering.
-func sideNumber(line diff.Line) string {
-	n := line.NewLineNum
-	if line.Type == diff.LineDeletion {
-		n = line.OldLineNum
+func sideNumber(line diff.Line, isRight bool) string {
+	n := line.OldLineNum
+	if isRight {
+		n = line.NewLineNum
 	}
 
 	return pad(strconv.Itoa(n)) + " "
@@ -305,5 +307,12 @@ func (r *renderer) fit(line string) string {
 		return line
 	}
 
-	return ansi.Truncate(line, r.opts.Width, "")
+	return r.cut(line, r.opts.Width)
+}
+
+const truncationMarker = "…"
+
+// cut resets before the marker so the cut token's color does not leak into it.
+func (*renderer) cut(line string, width int) string {
+	return ansi.Truncate(line, width-1, "") + "\x1b[m" + lipgloss.NewStyle().Faint(true).Render(truncationMarker)
 }

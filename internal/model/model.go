@@ -99,10 +99,10 @@ const (
 const (
 	// Border plus status bar, neither of which scrolls.
 	chromeHeight = 2
-	// The focused file list takes a quarter of the terminal.
-	expandedFileListFraction  = 4
-	minExpandedFileListHeight = 5
-	collapsedFileListHeight   = 1
+	// The focused file list is as tall as its files, capped at a third of the terminal.
+	maxFileListFraction     = 3
+	minFileListHeight       = 3
+	collapsedFileListHeight = 1
 )
 
 // revisionListLimit caps how far back the destination pickers look, because the log call is
@@ -1621,7 +1621,7 @@ func (m *Model) render() string {
 
 	fileListHeight := collapsedFileListHeight
 	if fileListExpanded {
-		fileListHeight = max(frame.height/expandedFileListFraction, minExpandedFileListHeight)
+		fileListHeight = max(min(frame.fileList.ContentHeight(), frame.height/maxFileListFraction), minFileListHeight)
 	}
 
 	frame.pushSelectionState()

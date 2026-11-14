@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -15,14 +16,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// Row layout of the unified view, in terminal cells. A rendered row is the cursor indicator, the
-// line-number gutter when it is drawn, the +/-/space marker, and a space, so the content that fits
-// is the pane width less that chrome.
-const (
-	halfDivisor             = 2
-	numberedLineChromeWidth = 8
-	plainLineChromeWidth    = 4
-)
+const halfDivisor = 2
 
 // MatchRange is a half-open byte range within one line's raw content, used to underlay search hits.
 // Offsets are byte offsets rather than rune or column positions.
@@ -355,6 +349,7 @@ func (m *Model) View(width, height int, focused bool) string {
 			IsLineSelected:  m.isLineSelected,
 			GetMatches:      m.getMatches,
 			WordDiffCache:   m.wordDiffCache,
+			Highlighter:     m.syntaxHighlighter(),
 			Focused:         focused,
 		}
 		sbs := NewSideBySideView()
@@ -421,17 +416,14 @@ func (m *Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
 	isInVisualRange := m.isVisualMode && hunkIdx == m.selectedHunk && m.isLineInVisualRange(lineIdx)
 	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
 
-	lineText := fmt.Sprintf(
-		"%s%s%s %s",
-		lineIndicator(isInVisualRange, isSelected, isCurrentLine),
-		m.lineNumberGutter(line),
-		line.Type.String(),
-		m.decorateContent(line, width, hunkIdx, lineIdx),
-	)
+	base := rowBase(line.Type, isInVisualRange || isCurrentLine)
+	head := base.Render(lineIndicator(isInVisualRange, isSelected, isCurrentLine)) +
+		base.Foreground(theme.Muted).Render(m.lineNumberGutter(line)) +
+		markerStyle(line.Type, &base).Render(line.Type.String()+" ")
 
-	style := lineStyle(line.Type, isInVisualRange, isCurrentLine)
+	content := fitStyled(m.lineContent(line, hunkIdx, lineIdx, &base), width-lipgloss.Width(head), &base)
 
-	return style.Render(truncateOrPad(lineText, width))
+	return padRow(head+content, width, &base)
 }
 
 func (m *Model) lineNumberGutter(line diff.Line) string {
@@ -446,32 +438,43 @@ func (m *Model) lineNumberGutter(line diff.Line) string {
 	return fmt.Sprintf("%4d ", line.NewLineNum)
 }
 
-func (m *Model) decorateContent(line diff.Line, width, hunkIdx, lineIdx int) string {
-	maxContentWidth := width - numberedLineChromeWidth
-	if !m.showLineNumbers {
-		maxContentWidth = width - plainLineChromeWidth
-	}
-
-	content := line.Content
-	if len(content) > maxContentWidth {
-		content = content[:maxContentWidth]
+// lineContent ranks search hits over word-level marks over syntax colors, since each styles the same bytes.
+func (m *Model) lineContent(line diff.Line, hunkIdx, lineIdx int, base *lipgloss.Style) string {
+	if m.isSearching && m.getMatches != nil {
+		if matches := m.getMatches(hunkIdx, lineIdx); len(matches) > 0 {
+			return highlightMatches(line.Content, matches, base)
+		}
 	}
 
 	if wordDiff, ok := m.lookupWordDiff(line.Type, hunkIdx, lineIdx); ok {
-		content = applyWordDiffHighlight(line.Content, line.Type, wordDiff)
-	} else if m.enableHighlight && m.fileChange != nil && line.Type == diff.LineContext {
-		if highlighted := m.highlighter.HighlightLine(m.fileChange.Path, content); highlighted != "" {
-			content = highlighted
-		}
+		return applyWordDiffHighlight(line.Content, line.Type, wordDiff, base)
 	}
 
-	if m.isSearching && m.getMatches != nil {
-		if matches := m.getMatches(hunkIdx, lineIdx); len(matches) > 0 {
-			content = highlightMatches(content, matches)
-		}
+	return styleCode(m.syntaxHighlighter(), m.filePath(), line.Content, base)
+}
+
+func (m *Model) syntaxHighlighter() *highlight.Highlighter {
+	if !m.enableHighlight {
+		return nil
 	}
 
-	return content
+	return m.highlighter
+}
+
+func (m *Model) filePath() string {
+	if m.fileChange == nil {
+		return ""
+	}
+
+	return m.fileChange.Path
+}
+
+func styleCode(h *highlight.Highlighter, path, content string, base *lipgloss.Style) string {
+	if h == nil {
+		return base.Render(content)
+	}
+
+	return h.HighlightLineOn(path, content, base)
 }
 
 func (m *Model) lookupWordDiff(
@@ -505,25 +508,56 @@ func lineIndicator(isInVisualRange, isSelected, isCurrentLine bool) string {
 	}
 }
 
-func lineStyle(lineType diff.LineType, isInVisualRange, isCurrentLine bool) lipgloss.Style {
-	style := lipgloss.NewStyle()
+// rowBase is the style every segment of a row draws on, so a tint survives the resets between tokens.
+func rowBase(kind diff.LineType, isCursor bool) lipgloss.Style {
+	if isCursor {
+		return theme.SelectionStyle
+	}
 
-	switch lineType {
-	case diff.LineContext:
+	switch kind {
 	case diff.LineAddition:
-		style = style.Foreground(theme.AddedLine)
+		return lipgloss.NewStyle().Background(theme.AddedBg)
 	case diff.LineDeletion:
-		style = style.Foreground(theme.DeletedLine)
+		return lipgloss.NewStyle().Background(theme.DeletedBg)
+	case diff.LineContext:
 	}
 
-	switch {
-	case isInVisualRange:
-		return style.Background(theme.SelectedBg)
-	case isCurrentLine:
-		return style.Background(theme.MutedBg)
+	return lipgloss.NewStyle()
+}
+
+func markerStyle(kind diff.LineType, base *lipgloss.Style) lipgloss.Style {
+	switch kind {
+	case diff.LineAddition:
+		return base.Foreground(theme.AddedLine).Bold(true)
+	case diff.LineDeletion:
+		return base.Foreground(theme.DeletedLine).Bold(true)
+	case diff.LineContext:
 	}
 
-	return style
+	return *base
+}
+
+// fitStyled resets before the marker so the cut token's color does not leak into it.
+func fitStyled(styled string, width int, base *lipgloss.Style) string {
+	if width <= 0 {
+		return ""
+	}
+
+	if lipgloss.Width(styled) <= width {
+		return styled
+	}
+
+	return ansi.Truncate(styled, width-1, "") + "\x1b[m" + base.Faint(true).Render(truncationMarker)
+}
+
+const truncationMarker = "…"
+
+func padRow(row string, width int, base *lipgloss.Style) string {
+	if gap := width - lipgloss.Width(row); gap > 0 {
+		return row + base.Render(strings.Repeat(" ", gap))
+	}
+
+	return row
 }
 
 func (m *Model) isLineInVisualRange(lineIdx int) bool {
@@ -539,39 +573,31 @@ func (m *Model) isLineInVisualRange(lineIdx int) bool {
 	return lineIdx >= start && lineIdx <= end
 }
 
-func highlightMatches(content string, matches []MatchRange) string {
+func highlightMatches(content string, matches []MatchRange, base *lipgloss.Style) string {
 	if len(matches) == 0 {
-		return content
+		return base.Render(content)
 	}
 
 	var segments []string
 	lastEnd := 0
 
 	for _, match := range matches {
-		// Add text before match
 		if lastEnd < match.Start && match.Start <= len(content) {
-			segments = append(segments, content[lastEnd:match.Start])
+			segments = append(segments, base.Render(content[lastEnd:match.Start]))
 		}
 
-		// Add highlighted match
 		if match.Start < len(content) {
-			endIdx := match.End
-			if endIdx > len(content) {
-				endIdx = len(content)
-			}
-			matchText := content[match.Start:endIdx]
-			highlightedMatch := lipgloss.NewStyle().
+			endIdx := min(match.End, len(content))
+			segments = append(segments, lipgloss.NewStyle().
 				Background(theme.Accent).
 				Foreground(theme.ModalBg).
-				Render(matchText)
-			segments = append(segments, highlightedMatch)
+				Render(content[match.Start:endIdx]))
 			lastEnd = endIdx
 		}
 	}
 
-	// Add remaining text after last match
 	if lastEnd < len(content) {
-		segments = append(segments, content[lastEnd:])
+		segments = append(segments, base.Render(content[lastEnd:]))
 	}
 
 	return strings.Join(segments, "")
@@ -581,6 +607,7 @@ func applyWordDiffHighlight(
 	content string,
 	lineType diff.LineType,
 	wordDiff diff.WordDiffResult,
+	base *lipgloss.Style,
 ) string {
 	var spans []diff.IntraLineSpan
 	switch lineType {
@@ -588,26 +615,22 @@ func applyWordDiffHighlight(
 		spans = wordDiff.OldSpans
 	case diff.LineAddition:
 		spans = wordDiff.NewSpans
-	default:
-		return content
+	case diff.LineContext:
 	}
 
 	if len(spans) == 0 {
-		return content
+		return base.Render(content)
 	}
 
 	var result strings.Builder
 	for _, span := range spans {
-		text := span.Text
 		switch span.Type {
 		case diff.SpanEqual:
-			result.WriteString(text)
+			result.WriteString(base.Render(span.Text))
 		case diff.SpanDeleted:
-			styled := theme.WordDiffDeletedStyle.Render(text)
-			result.WriteString(styled)
+			result.WriteString(theme.WordDiffDeletedStyle.Render(span.Text))
 		case diff.SpanAdded:
-			styled := theme.WordDiffAddedStyle.Render(text)
-			result.WriteString(styled)
+			result.WriteString(theme.WordDiffAddedStyle.Render(span.Text))
 		}
 	}
 
@@ -648,7 +671,7 @@ func (m *Model) renderHunkHeader(
 		Foreground(theme.Accent)
 
 	if isCurrent {
-		style = style.Background(theme.MutedBg)
+		style = theme.SelectedFocusedStyle
 	}
 
 	return style.Render(truncateOrPad(displayText, width))

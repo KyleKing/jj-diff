@@ -5,6 +5,7 @@ package theme
 
 import (
 	"image/color"
+	"os"
 
 	"charm.land/lipgloss/v2"
 )
@@ -19,8 +20,11 @@ var (
 	MutedBg         color.Color
 	SoftMutedBg     color.Color
 	ModalBg         color.Color
+	Muted           color.Color
 	AddedLine       color.Color
 	DeletedLine     color.Color
+	AddedBg         color.Color
+	DeletedBg       color.Color
 	WordDiffAddedBg color.Color
 	WordDiffDelBg   color.Color
 )
@@ -34,6 +38,7 @@ var (
 	FooterStyle            lipgloss.Style
 	AdditionStyle          lipgloss.Style
 	DeletionStyle          lipgloss.Style
+	SelectionStyle         lipgloss.Style
 	SelectedFocusedStyle   lipgloss.Style
 	SelectedUnfocusedStyle lipgloss.Style
 	StatusBarStyle         lipgloss.Style
@@ -41,6 +46,26 @@ var (
 	WordDiffAddedStyle     lipgloss.Style
 	WordDiffDeletedStyle   lipgloss.Style
 )
+
+// lineTintShare keeps syntax colors at their contrast on an added or deleted line.
+const lineTintShare = 0.15
+
+// mutedTintShare keeps line numbers and comments readable without competing with code.
+const mutedTintShare = 0.6
+
+// tint returns base moved share of the way toward accent.
+func tint(base, accent color.Color, share float64) color.Color {
+	const channelMax, byteMax = 0xffff, 0xff
+
+	br, bg, bb, _ := base.RGBA()
+	ar, ag, ab, _ := accent.RGBA()
+
+	mix := func(from, to uint32) uint8 {
+		return uint8((float64(from)*(1-share) + float64(to)*share) / channelMax * byteMax)
+	}
+
+	return color.RGBA{R: mix(br, ar), G: mix(bg, ag), B: mix(bb, ab), A: byteMax}
+}
 
 // Init detects the appropriate theme and initializes all colors and styles.
 func Init() {
@@ -60,6 +85,9 @@ func applyTheme(t *Theme) {
 	ModalBg = t.ModalBg
 	AddedLine = t.AddedLine
 	DeletedLine = t.DeletedLine
+	Muted = tint(ModalBg, Text, mutedTintShare)
+	AddedBg = tint(ModalBg, AddedLine, lineTintShare)
+	DeletedBg = tint(ModalBg, DeletedLine, lineTintShare)
 	WordDiffAddedBg = t.WordDiffAddedBg
 	WordDiffDelBg = t.WordDiffDelBg
 
@@ -90,14 +118,21 @@ func applyTheme(t *Theme) {
 	DeletionStyle = lipgloss.NewStyle().
 		Foreground(DeletedLine)
 
-	SelectedFocusedStyle = lipgloss.NewStyle().
-		Background(SelectedBg).
+	SelectionStyle = lipgloss.NewStyle().Background(SoftMutedBg)
+
+	SelectedFocusedStyle = SelectionStyle.
 		Foreground(Text).
 		Bold(true)
 
 	SelectedUnfocusedStyle = lipgloss.NewStyle().
 		Background(MutedBg).
 		Foreground(Text)
+
+	if os.Getenv("NO_COLOR") != "" {
+		SelectionStyle = lipgloss.NewStyle().Reverse(true)
+		SelectedFocusedStyle = SelectionStyle.Bold(true)
+		SelectedUnfocusedStyle = SelectionStyle
+	}
 
 	StatusBarStyle = lipgloss.NewStyle().
 		Background(SoftMutedBg).

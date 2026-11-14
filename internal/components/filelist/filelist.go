@@ -5,9 +5,11 @@ package filelist
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
@@ -16,11 +18,9 @@ import (
 
 const (
 	centerDivisor = 2
+	columnGap     = 2
 	filterRows    = 2
-	headerRows    = 2
-	statsColWidth = 12
-	tableGutter   = 4
-	typeColWidth  = 4
+	headerRows    = 1
 )
 
 // MatchRange is a search hit inside a file path, as byte offsets with End exclusive.
@@ -29,12 +29,12 @@ type MatchRange struct {
 	End   int
 }
 
-// Model is the file list's state. Every mutator takes a pointer receiver, so a caller holding a
-// value must copy the result back into its own state.
+// Model is the file list's state. Every method takes a pointer receiver.
 type Model struct {
 	getMatches   func(fileIdx int) []MatchRange
 	filterQuery  string
 	files        []diff.FileChange
+	counts       []changeCounts
 	selected     int
 	scrollOffset int
 	isSearching  bool
@@ -60,7 +60,7 @@ func (m *Model) SetExpanded(expanded bool) {
 }
 
 // IsExpanded reports whether the full list is drawn.
-func (m Model) IsExpanded() bool {
+func (m *Model) IsExpanded() bool {
 	return m.expanded
 }
 
@@ -74,7 +74,7 @@ func (m *Model) SetFilterMode(enabled bool) {
 }
 
 // IsFilterMode reports whether the inline filter is open.
-func (m Model) IsFilterMode() bool {
+func (m *Model) IsFilterMode() bool {
 	return m.filterMode
 }
 
@@ -85,7 +85,7 @@ func (m *Model) SetFilterQuery(query string) {
 }
 
 // FilterQuery returns the current filter text.
-func (m Model) FilterQuery() string {
+func (m *Model) FilterQuery() string {
 	return m.filterQuery
 }
 
@@ -93,6 +93,21 @@ func (m Model) FilterQuery() string {
 // list must clamp the selection itself.
 func (m *Model) SetFiles(files []diff.FileChange) {
 	m.files = files
+	m.counts = make([]changeCounts, len(files))
+
+	for i := range files {
+		m.counts[i] = countChanges(files[i].Hunks)
+	}
+}
+
+// ContentHeight is the rows the expanded list needs for every file. Filtering does not shrink it.
+func (m *Model) ContentHeight() int {
+	rows := headerRows + len(m.files)
+	if m.filterMode {
+		rows += filterRows
+	}
+
+	return rows
 }
 
 // SetSelected moves the cursor to an index into the unfiltered file slice.
@@ -108,7 +123,7 @@ func (m *Model) SetSearchState(isSearching bool, getMatches func(fileIdx int) []
 }
 
 // View renders the list at the given size, using only one row when collapsed regardless of height.
-func (m Model) View(width, height int, focused bool) string {
+func (m *Model) View(width, height int, focused bool) string {
 	if len(m.files) == 0 {
 		if m.expanded {
 			return padToSize("No files", width, height)
@@ -124,7 +139,7 @@ func (m Model) View(width, height int, focused bool) string {
 	return m.renderCollapsed(width, focused)
 }
 
-func (m Model) renderCollapsed(width int, focused bool) string {
+func (m *Model) renderCollapsed(width int, focused bool) string {
 	if len(m.files) == 0 {
 		return padToSize("No files", width, 1)
 	}
@@ -135,36 +150,25 @@ func (m Model) renderCollapsed(width int, focused bool) string {
 	changeType := file.ChangeType.String()
 	path := file.Path
 
-	counts := countChanges(file.Hunks)
-	stats := fmt.Sprintf("+%d -%d", counts.additions, counts.deletions)
+	stats := m.counts[m.selected].plain()
 
-	// Format: [M] path/to/file.go +10 -5 [3/10]
-	// Match diff header styling: Primary color, bold
 	line := fmt.Sprintf("[%s] %s %s%s", changeType, path, stats, counter)
 
 	style := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(theme.Primary)
 	if focused {
-		style = style.Background(theme.MutedBg)
+		style = theme.SelectedFocusedStyle
 	}
 
 	return style.Render(truncateOrPad(line, width))
 }
 
-func (m Model) renderExpanded(width, height int, focused bool) string {
+func (m *Model) renderExpanded(width, height int, focused bool) string {
 	displayIndices := m.visibleIndices()
-	pathColWidth := max(width-typeColWidth-statsColWidth-tableGutter, len(ellipsis)+1)
+	layout := m.columns(width)
 
-	headerLine := fmt.Sprintf("%-*s  %-*s  %*s",
-		typeColWidth, "Type",
-		pathColWidth, "Path",
-		statsColWidth, "Stats")
-
-	lines := []string{
-		styleHeader(m.headerText(len(displayIndices)), width),
-		lipgloss.NewStyle().Foreground(theme.Secondary).Bold(true).Render(headerLine),
-	}
+	lines := []string{styleHeader(m.headerText(len(displayIndices)), width)}
 
 	visibleHeight := height - headerRows
 	if m.filterMode {
@@ -175,7 +179,7 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 	endIdx := min(startIdx+visibleHeight, len(displayIndices))
 
 	for i := startIdx; i < endIdx; i++ {
-		lines = append(lines, m.renderRow(displayIndices[i], pathColWidth, width, focused))
+		lines = append(lines, m.renderRow(displayIndices[i], layout, focused))
 	}
 
 	targetHeight := height
@@ -198,7 +202,7 @@ func (m Model) renderExpanded(width, height int, focused bool) string {
 
 // visibleIndices returns the rows to draw, in display order, as indices into the unfiltered file
 // slice. Every index is in range, so callers may subscript m.files with one directly.
-func (m Model) visibleIndices() []int {
+func (m *Model) visibleIndices() []int {
 	if !m.filterMode || m.filterQuery == "" {
 		indices := make([]int, len(m.files))
 		for i := range m.files {
@@ -228,7 +232,7 @@ func (m Model) visibleIndices() []int {
 	return indices
 }
 
-func (m Model) headerText(filteredCount int) string {
+func (m *Model) headerText(filteredCount int) string {
 	if m.filterMode && filteredCount < len(m.files) {
 		return fmt.Sprintf("Files (%d/%d filtered)", filteredCount, len(m.files))
 	}
@@ -238,7 +242,7 @@ func (m Model) headerText(filteredCount int) string {
 
 // scrollStart centers the selected row in the visible window, falling back to the stored scroll
 // offset when the selection is filtered out of the display list.
-func (m Model) scrollStart(displayIndices []int, visibleHeight, total int) int {
+func (m *Model) scrollStart(displayIndices []int, visibleHeight, total int) int {
 	selectedDisplayIdx := slices.Index(displayIndices, m.selected)
 	if selectedDisplayIdx < 0 {
 		return m.scrollOffset
@@ -255,42 +259,82 @@ func (m Model) scrollStart(displayIndices []int, visibleHeight, total int) int {
 	}
 }
 
-func (m Model) renderRow(originalIdx, pathColWidth, width int, focused bool) string {
+type columnLayout struct {
+	width, typeWidth, pathWidth, addWidth, delWidth int
+}
+
+func (m *Model) columns(width int) columnLayout {
+	layout := columnLayout{width: width, typeWidth: 1}
+
+	for i, file := range m.files {
+		layout.typeWidth = max(layout.typeWidth, lipgloss.Width(file.ChangeType.String()))
+		layout.addWidth = max(layout.addWidth, len(fmt.Sprintf("+%d", m.counts[i].additions)))
+		layout.delWidth = max(layout.delWidth, len(fmt.Sprintf("-%d", m.counts[i].deletions)))
+	}
+
+	stats := layout.addWidth + 1 + layout.delWidth
+	layout.pathWidth = max(width-layout.typeWidth-stats-2*columnGap, len(ellipsis)+1)
+
+	return layout
+}
+
+func (m *Model) renderRow(originalIdx int, layout columnLayout, focused bool) string {
 	file := m.files[originalIdx]
-	counts := countChanges(file.Hunks)
+	counts := m.counts[originalIdx]
 
-	path := file.Path
-	if len(path) > pathColWidth {
-		path = path[:pathColWidth-len(ellipsis)] + ellipsis
+	base := lipgloss.NewStyle()
+	if originalIdx == m.selected {
+		base = theme.SelectedUnfocusedStyle
+		if focused {
+			base = theme.SelectedFocusedStyle
+		}
 	}
 
-	line := fmt.Sprintf(
-		"%-*s  %-*s  %*s",
-		typeColWidth,
-		file.ChangeType.String(),
-		pathColWidth,
-		path,
-		statsColWidth,
-		fmt.Sprintf("+%-3d -%-3d", counts.additions, counts.deletions),
-	)
+	gap := base.Render(strings.Repeat(" ", columnGap))
+	added, deleted := base.Foreground(theme.AddedLine), base.Foreground(theme.DeletedLine)
 
-	if originalIdx != m.selected {
-		return truncateOrPad(line, width)
+	row := base.Render(fmt.Sprintf("%-*s", layout.typeWidth, file.ChangeType.String())) + gap +
+		base.Render(fitPath(file.Path, layout.pathWidth)) + gap +
+		statCell("+", counts.additions, layout.addWidth, &added) +
+		base.Render(" ") +
+		statCell("-", counts.deletions, layout.delWidth, &deleted)
+
+	return ansi.Truncate(row, layout.width, "")
+}
+
+// statCell leaves the cell blank for a zero count.
+func statCell(sign string, n, width int, style *lipgloss.Style) string {
+	if n == 0 {
+		return style.Render(strings.Repeat(" ", width))
 	}
 
-	background, foreground := theme.MutedBg, theme.Text
-	if focused {
-		background, foreground = theme.ModalBg, theme.Primary
+	return style.Render(fmt.Sprintf("%*s", width, sign+strconv.Itoa(n)))
+}
+
+func fitPath(path string, width int) string {
+	if lipgloss.Width(path) > width {
+		path = ansi.Truncate(path, width-len(ellipsis), "") + ellipsis
 	}
 
-	styled := lipgloss.NewStyle().Background(background).Foreground(foreground).Render(line)
-
-	return styled + strings.Repeat(" ", max(width-len(line), 0))
+	return path + strings.Repeat(" ", width-lipgloss.Width(path))
 }
 
 type changeCounts struct {
 	additions int
 	deletions int
+}
+
+func (c changeCounts) plain() string {
+	var parts []string
+	if c.additions > 0 {
+		parts = append(parts, "+"+strconv.Itoa(c.additions))
+	}
+
+	if c.deletions > 0 {
+		parts = append(parts, "-"+strconv.Itoa(c.deletions))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func countChanges(hunks []diff.Hunk) changeCounts {

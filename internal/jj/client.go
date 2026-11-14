@@ -93,6 +93,24 @@ func (c *Client) ShowRevision(revision string) (*RevisionInfo, error) {
 	return parseRevisionInfo(string(output)), nil
 }
 
+// RevisionLabel names a revset by its short change ID and the first line of its description.
+func (c *Client) RevisionLabel(revset string) (string, error) {
+	const template = `change_id.shortest(8) ++ " " ++ ` +
+		`if(description, description.first_line(), "(no description)")`
+
+	output, err := c.executeJJ("log", "-r", revset, "--no-graph", "--limit", "1", "-T", template)
+	if err != nil {
+		return "", err
+	}
+
+	label := strings.TrimSpace(output)
+	if label == "" {
+		return "", fmt.Errorf("%q: %w", revset, errRevsetNoMatch)
+	}
+
+	return label, nil
+}
+
 // Undo reverts the last jj operation in the repository, whether or not this client caused it.
 func (c *Client) Undo() error {
 	cmd := c.jjCommand("undo")

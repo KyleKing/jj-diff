@@ -172,6 +172,9 @@ func initRevisionMode(f flags, cfg config.Config) (model.Model, error) {
 	}
 
 	source := diff.NewRevisionSource(client, f.revision)
+	if err := source.ResolveLabel(); err != nil {
+		return model.Model{}, fmt.Errorf("reading the revision: %w", err)
+	}
 
 	m, err := model.NewModelWithSource(source, client, f.destination, mode, cfg)
 	if err != nil {

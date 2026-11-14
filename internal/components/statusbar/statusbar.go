@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -19,6 +20,9 @@ const (
 
 	hintSep  = " | "
 	ellipsis = "…"
+
+	sourceShare    = 2
+	minSourceWidth = 12
 
 	hintApply   = "a:apply"
 	hintDest    = "d:dest"
@@ -68,7 +72,7 @@ func (m Model) ViewWithContext(width int, ctx Context) string {
 	} else {
 		parts = append(parts, fmt.Sprintf("[Mode: %s]", ctx.Mode))
 	}
-	parts = append(parts, "Source: "+ctx.Source)
+	parts = append(parts, "Source: "+ellipsize(ctx.Source, max(width/sourceShare-len("Source: "), minSourceWidth)))
 
 	if ctx.Destination != "" {
 		parts = append(parts, "→ Dest: "+ctx.Destination)
@@ -145,6 +149,15 @@ func fitHints(prefix string, hints []string, width int) string {
 	}
 
 	return join([]string{last})
+}
+
+// ellipsize cuts text to at most width display cells, ending in an ellipsis when it cut.
+func ellipsize(text string, width int) string {
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+
+	return ansi.Truncate(text, width-1, "") + ellipsis
 }
 
 // truncateOrPad fits text to exactly width display cells, measuring in cells so a wide glyph cannot

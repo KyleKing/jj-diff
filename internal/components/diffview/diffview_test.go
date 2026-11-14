@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -268,5 +270,67 @@ func TestNoFileSelected(t *testing.T) {
 
 	if !strings.Contains(output, "No file selected") {
 		t.Error("Expected 'No file selected' message")
+	}
+}
+
+func rowContaining(view, text string) string {
+	var row string
+
+	for _, r := range strings.Split(ansi.Strip(view), "\n") {
+		if strings.Contains(r, text) {
+			row = strings.TrimRight(r, " ")
+		}
+	}
+
+	return row
+}
+
+// Lines inserted above a context line shift its new number but not its old one.
+func TestViewNumbersLinesByTheFileTheyBelongTo(t *testing.T) {
+	t.Parallel()
+
+	file := diff.FileChange{
+		Path:       "f.go",
+		ChangeType: diff.ChangeTypeModified,
+		Hunks: []diff.Hunk{{
+			Header: "@@ -58,5 +58,6 @@",
+			Lines: []diff.Line{
+				{Type: diff.LineContext, Content: "kept60", OldLineNum: 60, NewLineNum: 60},
+				{Type: diff.LineAddition, Content: "added61", OldLineNum: 61, NewLineNum: 61},
+				{Type: diff.LineAddition, Content: "added62", OldLineNum: 61, NewLineNum: 62},
+				{Type: diff.LineContext, Content: "kept61", OldLineNum: 61, NewLineNum: 63},
+				{Type: diff.LineDeletion, Content: "gone62", OldLineNum: 62, NewLineNum: 64},
+			},
+		}},
+	}
+
+	for _, tc := range []struct {
+		name string
+		text string
+		mode config.ViewModeType
+		want []string
+	}{
+		{"side by side context", "kept61", config.ViewModeSideBySide, []string{"  61   kept61", "│   63   kept61"}},
+		{"side by side deletion", "gone62", config.ViewModeSideBySide, []string{"  62 - gone62"}},
+		{"unified context", "kept61", config.ViewModeUnified, []string{"  63   kept61"}},
+		{"unified addition", "added62", config.ViewModeUnified, []string{"  62 + added62"}},
+		{"unified deletion", "gone62", config.ViewModeUnified, []string{"  62 - gone62"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.DefaultConfig()
+			cfg.ViewMode = tc.mode
+
+			m := diffview.New(cfg)
+			m.SetFileChange(file)
+
+			row := rowContaining(m.View(80, 12, false), tc.text)
+			for _, want := range tc.want {
+				if !strings.Contains(row, want) {
+					t.Errorf("row = %q, want it to contain %q", row, want)
+				}
+			}
+		})
 	}
 }

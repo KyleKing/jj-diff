@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/tests/integration"
 )
@@ -449,5 +450,25 @@ func TestGetRevisions_ParsesRealLogOutput(t *testing.T) {
 
 	if !found {
 		t.Errorf("Expected a revision described %q, got %+v", "feat: second", revisions)
+	}
+}
+
+// A revset such as @- resolves to the change ID and first description line.
+func TestResolveLabel_NamesTheRevisionByChangeIDAndDescription(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+
+	repo.WriteFile("file1.txt", "line 1\n")
+	repo.Commit("feat(inbox): re-read the inbox\n\nbody that stays out of the header")
+
+	source := diff.NewRevisionSource(jj.NewClient(repo.Dir), "@-")
+	if err := source.ResolveLabel(); err != nil {
+		t.Fatalf("ResolveLabel failed: %v", err)
+	}
+
+	changeID := repo.GetChangeID("@-")
+	if want := changeID[:8] + " feat(inbox): re-read the inbox"; source.GetSourceLabel() != want {
+		t.Errorf("GetSourceLabel() = %q, want %q", source.GetSourceLabel(), want)
 	}
 }

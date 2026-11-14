@@ -44,22 +44,56 @@ func TestLinesReturnsNothingForInputThatIsNotAGitDiff(t *testing.T) {
 	}
 }
 
-// Truncation counts display cells and has to leave a styled line's escape sequences intact, since
-// cutting inside one bleeds color into the rest of the pane.
-func TestLinesTruncatesToDisplayCells(t *testing.T) {
-	t.Parallel()
+func countMarked(t *testing.T, lines []string, width int) int {
+	t.Helper()
 
-	const width = 12
+	var marked int
 
-	opts := render.Options{
-		Width:   width,
-		Palette: render.Palette{Added: lipgloss.Color("2"), Removed: lipgloss.Color("1")},
-	}
-
-	for _, line := range render.Lines(sample, opts) {
+	for _, line := range lines {
 		if got := lipgloss.Width(line); got > width {
 			t.Errorf("line %q is %d cells wide, want at most %d", line, got, width)
 		}
+
+		if strings.Contains(line, "…") {
+			marked++
+		}
+	}
+
+	return marked
+}
+
+// Cut lines carry a marker, lines that fit carry none, and marking never changes the row count.
+func TestLinesTruncatesToDisplayCellsAndMarksTheCut(t *testing.T) {
+	t.Parallel()
+
+	palette := render.Palette{Added: lipgloss.Color("2"), Removed: lipgloss.Color("1")}
+
+	for _, tc := range []struct {
+		name       string
+		width      int
+		sideBySide bool
+	}{
+		{name: "unified", width: 12},
+		{name: "side by side", width: 30, sideBySide: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cut := render.Lines(sample, render.Options{Width: tc.width, SideBySide: tc.sideBySide, Palette: palette})
+			whole := render.Lines(sample, render.Options{Width: 200, SideBySide: tc.sideBySide, Palette: palette})
+
+			if len(cut) != len(whole) {
+				t.Fatalf("truncating changed the row count: got %d, want %d", len(cut), len(whole))
+			}
+
+			if countMarked(t, cut, tc.width) == 0 {
+				t.Errorf("no line carries the truncation marker: %q", cut)
+			}
+
+			if got := countMarked(t, whole, 200); got != 0 {
+				t.Errorf("%d lines are marked as cut though they fit: %q", got, whole)
+			}
+		})
 	}
 }
 
@@ -196,5 +230,45 @@ func TestSideBySidePutsAReplacementOppositeWhatItReplaced(t *testing.T) {
 
 	if !found {
 		t.Errorf("the deletion and its addition are not on one row: %q", lines)
+	}
+}
+
+// Lines added above a context line shift its new number but not its old one.
+func TestSideBySideNumbersEachColumnByItsOwnFile(t *testing.T) {
+	t.Parallel()
+
+	const insertion = `diff --git a/f.go b/f.go
+--- a/f.go
++++ b/f.go
+@@ -58,6 +58,8 @@
+ line58
+ line59
+ line60
++added1
++added2
+ line61
+ line62
+ line63
+`
+
+	lines := render.Lines(insertion, render.Options{Width: 60, SideBySide: true, LineNumbers: true})
+
+	for _, want := range []struct{ text, old, next string }{
+		{"line60", "60", "60"},
+		{"line61", "61", "63"},
+		{"line63", "63", "65"},
+	} {
+		var row string
+
+		for _, line := range lines {
+			if strings.Contains(line, want.text) {
+				row = line
+			}
+		}
+
+		left, right, _ := strings.Cut(row, "│")
+		if !strings.Contains(left, want.old+" "+want.text) || !strings.Contains(right, want.next+" "+want.text) {
+			t.Errorf("row %q numbers %s as %s | %s, want %s | %s", row, want.text, left, right, want.old, want.next)
+		}
 	}
 }

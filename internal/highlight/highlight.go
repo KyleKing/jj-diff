@@ -31,7 +31,7 @@ type Palette struct {
 // itself renders with.
 func ThemePalette() Palette {
 	return Palette{
-		Comment:  theme.SoftMutedBg,
+		Comment:  theme.Muted,
 		Keyword:  theme.Accent,
 		String:   theme.AddedLine,
 		Number:   theme.Secondary,
@@ -66,6 +66,13 @@ func NewWith(p Palette) *Highlighter { //nolint:gocritic // a palette is built o
 // filePath is used to detect the language
 // Returns the highlighted line with lipgloss styling.
 func (h *Highlighter) HighlightLine(filePath, line string) string {
+	base := lipgloss.NewStyle()
+
+	return h.HighlightLineOn(filePath, line, &base)
+}
+
+// HighlightLineOn draws every token on base, because an outer style does not survive the reset after the first token.
+func (h *Highlighter) HighlightLineOn(filePath, line string, base *lipgloss.Style) string {
 	if line == "" {
 		return line
 	}
@@ -77,7 +84,7 @@ func (h *Highlighter) HighlightLine(filePath, line string) string {
 	}
 
 	// Tokenize the line
-	tokens, err := lexer.Tokenise(nil, line)
+	tokens, err := lexer.Tokenise(nil, line+"\n")
 	if err != nil {
 		return line
 	}
@@ -85,7 +92,12 @@ func (h *Highlighter) HighlightLine(filePath, line string) string {
 	// Build styled output
 	var result strings.Builder
 	for _, token := range tokens.Tokens() {
-		result.WriteString(h.styleToken(token))
+		token.Value = strings.TrimSuffix(token.Value, "\n")
+		if token.Value == "" {
+			continue
+		}
+
+		result.WriteString(h.styleToken(token, base))
 	}
 
 	return result.String()
@@ -148,44 +160,47 @@ func (*Highlighter) detectLexer(filePath string) chroma.Lexer {
 	return nil
 }
 
-func (h *Highlighter) styleToken(token chroma.Token) string {
+func (h *Highlighter) styleToken(token chroma.Token, base *lipgloss.Style) string {
 	value := token.Value
 	tokenType := token.Type
 
 	// Map chroma token types to lipgloss styles
 	// Use subtle colors that don't conflict with diff colors
-	style := lipgloss.NewStyle()
+	style := *base
 
 	var face color.Color
 
-	switch tokenType {
-	case chroma.Comment, chroma.CommentSingle, chroma.CommentMultiline:
+	switch {
+	case tokenType.InCategory(chroma.Comment):
 		face = h.palette.Comment
 
-	case chroma.Keyword, chroma.KeywordNamespace, chroma.KeywordType:
+	case tokenType.InCategory(chroma.Keyword):
 		style, face = style.Bold(true), h.palette.Keyword
 
-	case chroma.LiteralString, chroma.LiteralStringDouble:
+	case tokenType.InSubCategory(chroma.LiteralString):
 		face = h.palette.String
 
-	case chroma.LiteralNumber:
+	case tokenType.InSubCategory(chroma.LiteralNumber):
 		face = h.palette.Number
 
-	case chroma.Name, chroma.NameFunction:
+	case tokenType == chroma.Name, tokenType == chroma.NameFunction:
 		face = h.palette.Name
 
-	case chroma.NameClass, chroma.NameBuiltin:
+	case tokenType == chroma.NameClass, tokenType == chroma.NameBuiltin:
 		face = h.palette.Type
 
-	case chroma.Operator:
+	case tokenType.InCategory(chroma.Operator):
 		face = h.palette.Operator
 
+	case tokenType == chroma.GenericHeading, tokenType == chroma.GenericSubheading:
+		style, face = style.Bold(true), h.palette.Name
+
 	default:
-		return value
+		return style.Render(value)
 	}
 
 	if face == nil {
-		return value
+		return style.Render(value)
 	}
 
 	return style.Foreground(face).Render(value)

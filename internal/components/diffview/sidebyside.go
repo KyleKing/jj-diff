@@ -11,9 +11,8 @@ import (
 )
 
 // Column layout of the two-column view, in terminal cells. The " │ " between the panes costs
-// paneSeparatorWidth, and each pane reserves paneContentPadding beside its line number.
+// paneSeparatorWidth.
 const (
-	paneContentPadding = 2
 	paneCount          = 2
 	paneSeparatorWidth = 3
 )
@@ -61,7 +60,7 @@ func (*SideBySideView) Render(file *diff.FileChange, ctx *RenderContext) string 
 			if len(lines) >= ctx.Height {
 				break
 			}
-			lines = append(lines, renderPairedLine(pair, paneWidth, ctx))
+			lines = append(lines, renderPairedLine(pair, paneWidth, file.Path, ctx))
 		}
 	}
 
@@ -72,56 +71,50 @@ func (*SideBySideView) Render(file *diff.FileChange, ctx *RenderContext) string 
 	return strings.Join(lines, "\n")
 }
 
-func renderPairedLine(pair diff.SidePair, paneWidth int, ctx *RenderContext) string {
-	leftContent := renderSinglePane(pair.Left, paneWidth, ctx, false)
-	rightContent := renderSinglePane(pair.Right, paneWidth, ctx, true)
+func renderPairedLine(pair diff.SidePair, paneWidth int, path string, ctx *RenderContext) string {
+	left := renderSinglePane(pair.Left, false, paneWidth, path, ctx)
+	right := renderSinglePane(pair.Right, true, paneWidth, path, ctx)
 
-	return leftContent + " │ " + rightContent
+	return left + " │ " + right
 }
 
+// renderSinglePane numbers the left pane by the old file and the right by the new.
 func renderSinglePane(
 	line *diff.Line,
-	paneWidth int,
-	ctx *RenderContext,
 	isRight bool,
+	paneWidth int,
+	path string,
+	ctx *RenderContext,
 ) string {
 	if line == nil {
 		return strings.Repeat(" ", max(paneWidth, 0))
 	}
 
-	lineNumStr := ""
+	base := rowBase(line.Type, false)
+
+	head := markerStyle(line.Type, &base).Render(line.Type.String() + " ")
 	if ctx.ShowLineNumbers {
-		if isRight || line.Type == diff.LineContext {
-			lineNumStr = fmt.Sprintf("%4d ", line.NewLineNum)
-		} else {
-			lineNumStr = fmt.Sprintf("%4d ", line.OldLineNum)
+		number := line.OldLineNum
+		if isRight {
+			number = line.NewLineNum
 		}
+
+		head = base.Foreground(theme.Muted).Render(fmt.Sprintf("%4d ", number)) + head
 	}
 
-	content := line.Content
-	maxContentWidth := max(paneWidth-len(lineNumStr)-paneContentPadding, 0)
-	if len(content) > maxContentWidth {
-		content = content[:maxContentWidth]
-	}
+	content := fitStyled(
+		styleCode(ctx.Highlighter, path, line.Content, &base),
+		paneWidth-lipgloss.Width(head),
+		&base,
+	)
 
-	text := lineNumStr + content
-
-	style := lipgloss.NewStyle()
-	switch line.Type {
-	case diff.LineContext:
-	case diff.LineAddition:
-		style = style.Foreground(theme.AddedLine)
-	case diff.LineDeletion:
-		style = style.Foreground(theme.DeletedLine)
-	}
-
-	return style.Render(truncateOrPad(text, paneWidth))
+	return padRow(head+content, paneWidth, &base)
 }
 
 func renderSideBySideHunkHeader(text string, width int, isCurrent bool) string {
 	style := lipgloss.NewStyle().Foreground(theme.Accent)
 	if isCurrent {
-		style = style.Background(theme.MutedBg)
+		style = theme.SelectedFocusedStyle
 	}
 
 	return style.Render(truncateOrPad(text, width))

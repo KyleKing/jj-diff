@@ -18,6 +18,7 @@ type Source interface {
 type RevisionSource struct {
 	Client   *jj.Client
 	Revision string
+	label    string
 }
 
 // NewRevisionSource reads diffs from a jj revision through client. The revision is resolved on each
@@ -40,9 +41,24 @@ func (s *RevisionSource) GetDiff() (string, error) {
 	return text, nil
 }
 
-// GetSourceLabel returns the revset the caller asked for, unresolved, which is what the header
-// shows.
+// ResolveLabel shells out, so call it at startup rather than from the UI loop.
+func (s *RevisionSource) ResolveLabel() error {
+	label, err := s.Client.RevisionLabel(s.Revision)
+	if err != nil {
+		return fmt.Errorf("resolving %s: %w", s.Revision, err)
+	}
+
+	s.label = label
+
+	return nil
+}
+
+// GetSourceLabel returns the resolved label, or the revset when ResolveLabel was never called.
 func (s *RevisionSource) GetSourceLabel() string {
+	if s.label != "" {
+		return s.label
+	}
+
 	return s.Revision
 }
 
