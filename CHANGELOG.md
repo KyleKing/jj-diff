@@ -1,3 +1,9 @@
+## v0.5.0 (2026-11-14)
+
+### Feat
+
+- **view**: tint changed lines, name the revision, and number each side by its own file
+
 ## v0.4.0 (2026-09-17)
 
 ### Feat
