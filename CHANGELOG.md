@@ -1,3 +1,9 @@
+## v0.6.0 (2026-11-14)
+
+### Feat
+
+- **view**: cache highlighting through aragonite, fold generated files and mechanical hunks, and render a window of rows
+
 ## v0.5.0 (2026-11-14)
 
 ### Feat
