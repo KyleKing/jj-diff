@@ -1,7 +1,10 @@
 package diff
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +15,10 @@ import (
 
 // CompareDirectories generates a unified diff comparing two directories.
 // Returns git-format diff text suitable for parsing by diff.Parse().
+//
+// A pair present on both sides is read in full only when its bytes differ: sizes are compared from
+// a stat first and equal-sized files are streamed against each other, so an unchanged file costs a
+// stat or one chunked pass and is never held in memory or handed to the line differ.
 func CompareDirectories(leftDir, rightDir string) (string, error) {
 	leftFiles, err := walkDirectory(leftDir)
 	if err != nil {
@@ -26,6 +33,8 @@ func CompareDirectories(leftDir, rightDir string) (string, error) {
 	allPaths := mergeFilePaths(leftFiles, rightFiles)
 	sort.Strings(allPaths)
 
+	cmp := newContentComparer()
+
 	var diffBuilder strings.Builder
 	for _, path := range allPaths {
 		leftPath := filepath.Join(leftDir, path)
@@ -34,7 +43,7 @@ func CompareDirectories(leftDir, rightDir string) (string, error) {
 		inLeft := leftFiles[path]
 		inRight := rightFiles[path]
 
-		fileDiff, err := generateFileDiff(path, leftPath, rightPath, inLeft, inRight)
+		fileDiff, err := generateFileDiff(cmp, path, leftPath, rightPath, inLeft, inRight)
 		if err != nil {
 			return "", fmt.Errorf("generating diff for %s: %w", path, err)
 		}
@@ -98,7 +107,13 @@ func mergeFilePaths(left, right map[string]bool) []string {
 	return paths
 }
 
-func generateFileDiff(relPath, leftPath, rightPath string, inLeft, inRight bool) (string, error) {
+func generateFileDiff(
+	cmp *contentComparer, relPath, leftPath, rightPath string, inLeft, inRight bool,
+) (string, error) {
+	if inLeft && inRight && cmp.identical(leftPath, rightPath) {
+		return "", nil
+	}
+
 	var leftContent, rightContent string
 	var err error
 
@@ -121,6 +136,110 @@ func generateFileDiff(relPath, leftPath, rightPath string, inLeft, inRight bool)
 	}
 
 	return generateUnifiedDiff(relPath, leftContent, rightContent, inLeft, inRight), nil
+}
+
+// compareChunkSize is how much of each file one step of the streamed comparison reads.
+const compareChunkSize = 32 << 10
+
+// contentComparer decides whether two files hold the same bytes without reading either in full. Its
+// buffers are reused across every pair in one comparison, so the cost per unchanged file is the
+// reads alone.
+type contentComparer struct {
+	left  []byte
+	right []byte
+}
+
+func newContentComparer() *contentComparer {
+	return &contentComparer{
+		left:  make([]byte, compareChunkSize),
+		right: make([]byte, compareChunkSize),
+	}
+}
+
+// identical reports whether leftPath and rightPath are regular files with the same bytes, following
+// symlinks as os.ReadFile does. Any failure answers false rather than an error, so the caller's full
+// read reports it exactly as it did before this check existed.
+func (c *contentComparer) identical(leftPath, rightPath string) bool {
+	leftInfo, err := os.Stat(leftPath)
+	if err != nil || !leftInfo.Mode().IsRegular() {
+		return false
+	}
+
+	rightInfo, err := os.Stat(rightPath)
+	if err != nil || !rightInfo.Mode().IsRegular() {
+		return false
+	}
+
+	if leftInfo.Size() != rightInfo.Size() {
+		return false
+	}
+
+	if leftInfo.Size() == 0 || os.SameFile(leftInfo, rightInfo) {
+		return true
+	}
+
+	same, err := c.sameBytes(leftPath, rightPath)
+
+	return err == nil && same
+}
+
+func (c *contentComparer) sameBytes(leftPath, rightPath string) (bool, error) {
+	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
+	leftFile, err := os.Open(leftPath)
+	if err != nil {
+		return false, fmt.Errorf("opening %s: %w", leftPath, err)
+	}
+	defer closeQuietly(leftFile)
+
+	//nolint:gosec // G304: paths come from the directories jj hands the diff editor.
+	rightFile, err := os.Open(rightPath)
+	if err != nil {
+		return false, fmt.Errorf("opening %s: %w", rightPath, err)
+	}
+	defer closeQuietly(rightFile)
+
+	for {
+		leftN, leftErr := io.ReadFull(leftFile, c.left)
+		rightN, rightErr := io.ReadFull(rightFile, c.right)
+
+		if leftN != rightN || !bytes.Equal(c.left[:leftN], c.right[:rightN]) {
+			return false, nil
+		}
+
+		leftDone, err := chunkDone(leftErr, leftPath)
+		if err != nil {
+			return false, err
+		}
+
+		rightDone, err := chunkDone(rightErr, rightPath)
+		if err != nil {
+			return false, err
+		}
+
+		if leftDone || rightDone {
+			return leftDone == rightDone, nil
+		}
+	}
+}
+
+// chunkDone reads io.ReadFull's error: a short or empty read is the end of the file, and anything
+// else is a real failure.
+func chunkDone(err error, path string) (bool, error) {
+	switch {
+	case err == nil:
+		return false, nil
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return true, nil
+	default:
+		return false, fmt.Errorf("reading %s: %w", path, err)
+	}
+}
+
+// closeQuietly closes a file opened only for reading, where a close error cannot lose data and the
+// comparison's answer is already decided.
+func closeQuietly(f *os.File) {
+	//nolint:errcheck,gosec // read-only handle; see the doc comment.
+	f.Close()
 }
 
 func readFileContent(path string) (string, error) {
