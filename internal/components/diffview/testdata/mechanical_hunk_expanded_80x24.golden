@@ -1,15 +1,15 @@
-> @@ -1,7 +1,7 @@ func work(items []string) int {                               
+▸ func work(items []string) int {  L1–7                                         
      1   package main                                                           
      2                                                                          
      3   func work(items []string) int {                                        
-     4 -     total := 0                                                         
-     5 -     count := len(items)                                                
-     6 -     log.Println(total, count)                                          
-     7 -     return total + count                                               
-     4 +         total := 0                                                     
-     5 +         count := len(items)                                            
-     6 +         log.Println(total, count)                                      
-     7 +         return total + count                                           
+     4 ▎     total := 0                                                         
+     5 ▎     count := len(items)                                                
+     6 ▎     log.Println(total, count)                                          
+     7 ▎     return total + count                                               
+     4 ▎         total := 0                                                     
+     5 ▎         count := len(items)                                            
+     6 ▎         log.Println(total, count)                                      
+     7 ▎         return total + count                                           
      8   }                                                                      
                                                                                 
                                                                                 

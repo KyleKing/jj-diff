@@ -83,8 +83,9 @@ func TestViewUnifiedMode(t *testing.T) {
 
 	output := m.View(80, 20, false)
 
-	if !strings.Contains(output, "@@") {
-		t.Error("Expected hunk header in output")
+	// The header names the lines the hunk spans rather than repeating its raw @@ syntax.
+	if !strings.Contains(output, "L1–3") || strings.Contains(output, "@@") {
+		t.Errorf("want the hunk's line range and no raw @@ header, got:\n%s", ansi.Strip(output))
 	}
 }
 
@@ -101,11 +102,11 @@ func TestViewSideBySideMode(t *testing.T) {
 
 	output := m.View(80, 20, false)
 
-	if !strings.Contains(output, "OLD") {
-		t.Error("Expected OLD header in side-by-side")
+	if !strings.Contains(output, "Old") {
+		t.Error("Expected Old title in side-by-side")
 	}
-	if !strings.Contains(output, "NEW") {
-		t.Error("Expected NEW header in side-by-side")
+	if !strings.Contains(output, "New") {
+		t.Error("Expected New title in side-by-side")
 	}
 	if !strings.Contains(output, "│") {
 		t.Error("Expected vertical separator in side-by-side")
@@ -311,10 +312,10 @@ func TestViewNumbersLinesByTheFileTheyBelongTo(t *testing.T) {
 		want []string
 	}{
 		{"side by side context", "kept61", config.ViewModeSideBySide, []string{"  61   kept61", "│   63   kept61"}},
-		{"side by side deletion", "gone62", config.ViewModeSideBySide, []string{"  62 - gone62"}},
+		{"side by side deletion", "gone62", config.ViewModeSideBySide, []string{"  62 ▎ gone62"}},
 		{"unified context", "kept61", config.ViewModeUnified, []string{"  63   kept61"}},
-		{"unified addition", "added62", config.ViewModeUnified, []string{"  62 + added62"}},
-		{"unified deletion", "gone62", config.ViewModeUnified, []string{"  62 - gone62"}},
+		{"unified addition", "added62", config.ViewModeUnified, []string{"  62 ▎ added62"}},
+		{"unified deletion", "gone62", config.ViewModeUnified, []string{"  62 ▎ gone62"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

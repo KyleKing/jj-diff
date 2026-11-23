@@ -110,9 +110,10 @@ func fileNamed(t *testing.T, name string) diff.FileChange {
 	return diff.FileChange{}
 }
 
-var changedRow = regexp.MustCompile(`^\s*\d+ [+-] `)
+var changedRow = regexp.MustCompile(`^\s*\d+ [▎+−] `)
 
-// checkRows requires every row to fill the pane and a changed row's tint to reach its last cell.
+// checkRows requires every row to fill the pane and a changed row's wash to reach its last cell,
+// short of the overview track where the pane draws one.
 func checkRows(t *testing.T, view string, width, height int, unified bool) {
 	t.Helper()
 
@@ -132,7 +133,7 @@ func checkRows(t *testing.T, view string, width, height int, unified bool) {
 	}
 }
 
-var tintedToEnd = regexp.MustCompile(`\x1b\[[0-9;]*48;[0-9;]+m +\x1b\[m$`)
+var tintedToEnd = regexp.MustCompile(`\x1b\[[0-9;]*48;[0-9;]+m +\x1b\[m(\x1b\[[0-9;]*m[│┃▍•]\x1b\[m)?$`)
 
 func compareGolden(t *testing.T, name, got string) {
 	t.Helper()
@@ -266,5 +267,80 @@ func TestRevealShowsWhatIsFolded(t *testing.T) {
 		if !strings.Contains(ansi.Strip(m.View(120, 30, true)), tc.want) {
 			t.Errorf("%s does not show %q once revealed", tc.file, tc.want)
 		}
+	}
+}
+
+// tallFile is one hunk of context with an edit near the bottom, taller than any pane the tests draw.
+func tallFile() diff.FileChange {
+	lines := []string{"diff --git a/tall.go b/tall.go", "--- a/tall.go", "+++ b/tall.go", "@@ -1,60 +1,60 @@"}
+	for i := range 60 {
+		switch i {
+		case 50:
+			lines = append(lines, fmt.Sprintf("-line %d", i), fmt.Sprintf("+line %d changed", i))
+		default:
+			lines = append(lines, fmt.Sprintf(" line %d", i))
+		}
+	}
+
+	return diff.Parse(strings.Join(append(lines, ""), "\n"))[0]
+}
+
+// lastColumn is the final cell of every row, which is where the overview track draws.
+func lastColumn(view string) string {
+	var b strings.Builder
+
+	for _, row := range strings.Split(ansi.Strip(view), "\n") {
+		r := []rune(row)
+		b.WriteRune(r[len(r)-1])
+	}
+
+	return b.String()
+}
+
+// The track says what waits off screen: the edit below the frame and a search hit above it.
+func TestOverviewTrackMarksChangesAndHitsOffScreen(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []config.ViewModeType{config.ViewModeUnified, config.ViewModeSideBySide} {
+		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.DefaultConfig()
+			cfg.ViewMode = mode
+
+			m := diffview.New(cfg)
+			m.SetFileChange(tallFile())
+			m.Scroll(20)
+
+			view := m.View(80, 12, true)
+			checkRows(t, view, 80, 12, false)
+
+			track := lastColumn(view)
+			if !strings.Contains(track, "┃") || !strings.Contains(track, "▍") {
+				t.Errorf("track %q wants the thumb and a change mark below it", track)
+			}
+
+			if strings.Contains(track, "•") {
+				t.Errorf("track %q marks a hit before any search", track)
+			}
+
+			m.SetSearchHits([]diffview.SearchHit{{Hunk: 0, Line: 2}})
+
+			if track := lastColumn(m.View(80, 12, true)); !strings.Contains(track, "•") {
+				t.Errorf("track %q wants the hit above the frame", track)
+			}
+		})
+	}
+}
+
+// Content that fits needs no track, so it keeps the column.
+func TestOverviewTrackIsAbsentWhenTheFileFits(t *testing.T) {
+	t.Parallel()
+
+	m := diffview.New(config.DefaultConfig())
+	m.SetFileChange(fileNamed(t, "main.go"))
+
+	if track := lastColumn(m.View(80, 24, true)); strings.ContainsAny(track, "│┃▍") {
+		t.Errorf("track %q drawn for a file that fits", track)
 	}
 }

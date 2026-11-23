@@ -1,5 +1,5 @@
-> @@ -1,7 +1,7 @@ func work(items []string) int {                                                                                                               
-    ▸ reindent only: 8 changed lines (z to expand)                                                                                                              
+▸ func work(items []string) int {  L1–7                                                                                                                         
+         ▸ reindent only: 8 changed lines  z expands                                                                                                            
                                                                                                                                                                 
                                                                                                                                                                 
                                                                                                                                                                 

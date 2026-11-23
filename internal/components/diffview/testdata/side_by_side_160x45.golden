@@ -1,16 +1,16 @@
-OLD                                                                            │ NEW                                                                            
-> @@ -5,11 +5,11 @@ func greet(name string) string {                                                                                                            
-   5       "strings"                                                           │    5       "strings"                                                           
-   6   )                                                                       │    6   )                                                                       
-   7                                                                           │    7                                                                           
-   8 - const limit = 10                                                        │    8 + const limit = 20                                                        
-   9                                                                           │    9                                                                           
-  10   // greet builds the greeting for name.                                  │   10   // greet builds the greeting for name.                                  
-  11   func greet(name string) string {                                        │   11   func greet(name string) string {                                        
-  12 -     return "hello, " + name                                             │   12 +     return "hello, " + name + "!"                                       
-  13   }                                                                       │   13   }                                                                       
-  14                                                                           │   14                                                                           
-  15   func main() {                                                           │   15   func main() {                                                           
+  Old                                                                           │ New                                                                           
+▸ func greet(name string) string {  L5–15                                                                                                                       
+     5       "strings"                                                          │    5       "strings"                                                          
+     6   )                                                                      │    6   )                                                                      
+     7                                                                          │    7                                                                          
+     8 ▎ const limit = 10                                                       │    8 ▎ const limit = 20                                                       
+     9                                                                          │    9                                                                          
+    10   // greet builds the greeting for name.                                 │   10   // greet builds the greeting for name.                                 
+    11   func greet(name string) string {                                       │   11   func greet(name string) string {                                       
+    12 ▎     return "hello, " + name                                            │   12 ▎     return "hello, " + name + "!"                                      
+    13   }                                                                      │   13   }                                                                      
+    14                                                                          │   14                                                                          
+    15   func main() {                                                          │   15   func main() {                                                          
                                                                                                                                                                 
                                                                                                                                                                 
                                                                                                                                                                 

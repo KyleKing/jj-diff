@@ -1,7 +1,6 @@
 package diffview
 
 import (
-	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -12,25 +11,34 @@ import (
 
 const paneSeparator = " │ "
 
-// paneWidths gives the right column the odd cell so every row spans the pane.
+// paneWidths splits what is left of a row after the margin, giving the right column the odd cell so
+// every row spans the pane.
 func paneWidths(width int) (int, int) {
-	left := max((width-lipgloss.Width(paneSeparator))/halfDivisor, 0)
+	room := width - margin - lipgloss.Width(paneSeparator)
+	left := max(room/halfDivisor, 0)
 
-	return left, max(width-lipgloss.Width(paneSeparator)-left, 0)
+	return left, max(room-left, 0)
 }
 
+func separator() string {
+	return theme.Skin.Hairline.Render(paneSeparator)
+}
+
+// renderPaneTitles names the two columns quietly, lined up with the code under them.
 func renderPaneTitles(width int) string {
 	left, right := paneWidths(width)
-	style := lipgloss.NewStyle().Foreground(theme.Secondary).Bold(true)
+	style := theme.Skin.Subtitle
 
-	return style.Render(truncateOrPad("OLD", left)) + paneSeparator + style.Render(truncateOrPad("NEW", right))
+	return strings.Repeat(" ", margin) +
+		style.Render(truncateOrPad("Old", left)) + separator() + style.Render(truncateOrPad("New", right))
 }
 
 func (m *Model) renderPair(pair diff.SidePair, hunkIdx, width int) string {
 	left, right := paneWidths(width)
 
-	return m.renderPane(pair.Left, hunkIdx, pair.LeftIdx, false, left) +
-		paneSeparator +
+	return strings.Repeat(" ", margin) +
+		m.renderPane(pair.Left, hunkIdx, pair.LeftIdx, false, left) +
+		separator() +
 		m.renderPane(pair.Right, hunkIdx, pair.RightIdx, true, right)
 }
 
@@ -42,17 +50,13 @@ func (m *Model) renderPane(line *diff.Line, hunkIdx, lineIdx int, isRight bool, 
 	}
 
 	base := rowBase(line.Type, false)
-	head := markerStyle(line.Type, &base).Render(line.Type.String() + " ")
 
-	if m.showLineNumbers {
-		number := line.OldLineNum
-		if isRight {
-			number = line.NewLineNum
-		}
-
-		head = base.Foreground(theme.Muted).Render(fmt.Sprintf("%4d ", number)) + head
+	number := line.OldLineNum
+	if isRight {
+		number = line.NewLineNum
 	}
 
+	head := m.gutter(line.Type, number, &base)
 	content := fitStyled(m.lineContent(*line, hunkIdx, lineIdx, &base), width-lipgloss.Width(head), &base)
 
 	return padRow(head+content, width, &base)

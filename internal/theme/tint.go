@@ -1,69 +1,41 @@
 package theme
 
 import (
-	"image/color"
-
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/kyleking/aragonite/tui/icons"
+	"github.com/kyleking/aragonite/tui/skin"
 	aragonite "github.com/kyleking/aragonite/tui/theme"
 )
 
-const (
-	lineLift = 0.1
-	lineSat  = 0.4
-	wordLift = 0.22
-	wordSat  = 0.65
-)
-
+// The faces shared with second-look and jojo, built from the same Catppuccin flavor as the colors
+// above so nothing on screen comes from a palette of its own.
 var (
-	lineDepth = aragonite.Depth{Lift: lineLift, Sat: lineSat}
-	wordDepth = aragonite.Depth{Lift: wordLift, Sat: wordSat}
+	// Palette is the full Catppuccin flavor the semantic colors above are picked from.
+	Palette aragonite.Palette
+	// Skin names the faces a screen asks for: titles, muted text, the selection, the file band.
+	Skin skin.Skin
+	// Diff is what a changed line is drawn with: its wash, the deeper word mark, and the sign bar.
+	Diff skin.DiffFaces
+	// Icons draws a file's type: Nerd Font glyphs unless ARAGONITE_ICONS asks for plain unicode.
+	Icons icons.Set
 )
 
-type tints struct {
-	added       color.Color
-	deleted     color.Color
-	wordAdded   color.Color
-	wordDeleted color.Color
-}
-
-// diffTints returns the line and word backgrounds for p. A faint tint reduced to 256 colors becomes
-// one grey whatever its hue, so that depth gets cube colors, and a 16-color terminal gets none.
-func diffTints(base, added, deleted color.Color, dark bool, p colorprofile.Profile) tints {
-	switch {
-	case p == colorprofile.TrueColor:
-		return tints{
-			added:       aragonite.Tint(base, added, lineDepth),
-			deleted:     aragonite.Tint(base, deleted, lineDepth),
-			wordAdded:   aragonite.Tint(base, added, wordDepth),
-			wordDeleted: aragonite.Tint(base, deleted, wordDepth),
-		}
-	case p == colorprofile.ANSI256 && dark:
-		return tints{
-			added:       lipgloss.ANSIColor(cubeDarkGreen),
-			deleted:     lipgloss.ANSIColor(cubeDarkRed),
-			wordAdded:   lipgloss.ANSIColor(cubeGreen),
-			wordDeleted: lipgloss.ANSIColor(cubeRed),
-		}
-	case p == colorprofile.ANSI256:
-		return tints{
-			added:       lipgloss.ANSIColor(cubePaleGreen),
-			deleted:     lipgloss.ANSIColor(cubePaleRed),
-			wordAdded:   lipgloss.ANSIColor(cubeLightGreen),
-			wordDeleted: lipgloss.ANSIColor(cubeLightRed),
-		}
+// applySkin builds the shared faces for t and sets the diff tints from them. A 16-color terminal
+// gets no tint at all, since the nearest of sixteen colors to a pale wash is a loud one.
+func applySkin(t *Theme, p colorprofile.Profile) {
+	Palette = aragonite.Latte()
+	if t.Dark {
+		Palette = aragonite.Macchiato()
 	}
 
-	return tints{}
-}
+	Skin = skin.New(Palette, t.Primary)
+	Diff = skin.Diff(Palette, p == colorprofile.TrueColor)
+	Icons = icons.New(icons.Resolve(""), Palette)
 
-const (
-	cubeDarkGreen  = 22
-	cubeDarkRed    = 52
-	cubeGreen      = 28
-	cubeRed        = 88
-	cubePaleGreen  = 194
-	cubePaleRed    = 224
-	cubeLightGreen = 157
-	cubeLightRed   = 217
-)
+	AddedBg, DeletedBg, WordDiffAddedBg, WordDiffDelBg = nil, nil, nil, nil
+
+	if p >= colorprofile.ANSI256 {
+		AddedBg, DeletedBg = Diff.AddWash, Diff.RemoveWash
+		WordDiffAddedBg, WordDiffDelBg = Diff.AddMark, Diff.RemoveMark
+	}
+}

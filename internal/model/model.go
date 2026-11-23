@@ -1731,6 +1731,7 @@ func (m *Model) pushSearchState() {
 	if m.searchState == nil || !m.searchState.IsActive {
 		m.fileList.SetSearchState(false, nil)
 		m.diffView.SetSearchState(false, nil)
+		m.diffView.SetSearchHits(nil)
 
 		return
 	}
@@ -1745,6 +1746,16 @@ func (m *Model) pushSearchState() {
 	m.diffView.SetSearchState(true, func(hunkIdx, lineIdx int) []diffview.MatchRange {
 		return m.getLineContentMatches(currentFile.Path, hunkIdx, lineIdx)
 	})
+
+	var hits []diffview.SearchHit
+
+	for _, match := range m.searchState.Matches {
+		if match.FilePath == currentFile.Path && match.HunkIdx >= 0 {
+			hits = append(hits, diffview.SearchHit{Hunk: match.HunkIdx, Line: match.LineIdx})
+		}
+	}
+
+	m.diffView.SetSearchHits(hits)
 }
 
 func (m *Model) pushTagState() {

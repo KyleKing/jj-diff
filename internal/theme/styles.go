@@ -87,9 +87,7 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 	DeletedLine = t.DeletedLine
 	Muted = tint(ModalBg, Text, mutedTintShare)
 
-	tints := diffTints(ModalBg, AddedLine, DeletedLine, t.Dark, p)
-	AddedBg, DeletedBg = tints.added, tints.deleted
-	WordDiffAddedBg, WordDiffDelBg = tints.wordAdded, tints.wordDeleted
+	applySkin(t, p)
 
 	HeaderStyle = lipgloss.NewStyle().
 		Foreground(Primary).
@@ -118,21 +116,15 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 	DeletionStyle = lipgloss.NewStyle().
 		Foreground(DeletedLine)
 
-	SelectionStyle = lipgloss.NewStyle().Background(SoftMutedBg)
+	// The skin's selection is a tint of the accent, and reverse video under NO_COLOR, so the row
+	// under the cursor reads the same here as in second-look and jojo.
+	SelectionStyle = Skin.Selection
 
 	SelectedFocusedStyle = SelectionStyle.
 		Foreground(Text).
 		Bold(true)
 
-	SelectedUnfocusedStyle = lipgloss.NewStyle().
-		Background(MutedBg).
-		Foreground(Text)
-
-	if os.Getenv("NO_COLOR") != "" {
-		SelectionStyle = lipgloss.NewStyle().Reverse(true)
-		SelectedFocusedStyle = SelectionStyle.Bold(true)
-		SelectedUnfocusedStyle = SelectionStyle
-	}
+	SelectedUnfocusedStyle = Skin.Band.Foreground(Text)
 
 	StatusBarStyle = lipgloss.NewStyle().
 		Background(SoftMutedBg).
@@ -145,11 +137,11 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 
 	WordDiffAddedStyle = lipgloss.NewStyle().
 		Background(WordDiffAddedBg).
-		Foreground(AddedLine)
+		Foreground(Text)
 
 	WordDiffDeletedStyle = lipgloss.NewStyle().
 		Background(WordDiffDelBg).
-		Foreground(DeletedLine)
+		Foreground(Text)
 }
 
 // PaneStyle returns a dynamic border style for panes.

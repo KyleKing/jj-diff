@@ -1,10 +1,10 @@
-OLD                                                                            │ NEW                                                                            
-  10   // greet builds the greeting for name.                                  │   10   // greet builds the greeting for name.                                  
-  11   func greet(name string) string {                                        │   11   func greet(name string) string {                                        
-  12 -     return "hello, " + name                                             │   12 +     return "hello, " + name + "!"                                       
-  13   }                                                                       │   13   }                                                                       
-  14                                                                           │   14                                                                           
-  15   func main() {                                                           │   15   func main() {                                                           
+  Old                                                                           │ New                                                                           
+    10   // greet builds the greeting for name.                                 │   10   // greet builds the greeting for name.                                 
+    11   func greet(name string) string {                                       │   11   func greet(name string) string {                                       
+    12 ▎     return "hello, " + name                                            │   12 ▎     return "hello, " + name + "!"                                      
+    13   }                                                                      │   13   }                                                                      
+    14                                                                          │   14                                                                          
+    15   func main() {                                                          │   15   func main() {                                                          
                                                                                                                                                                 
                                                                                                                                                                 
                                                                                                                                                                 

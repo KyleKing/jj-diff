@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/generated"
+	"github.com/kyleking/aragonite/tui/overview"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -96,6 +97,8 @@ type Model struct {
 	isLineSelected func(hunkIdx, lineIdx int) bool
 	getMatches     func(hunkIdx, lineIdx int) []MatchRange
 	lineIndex      *LineIndex
+	changeMarks    []overview.Mark
+	hits           []SearchHit
 	wordDiffCache  *WordDiffCache
 	highlighter    *highlight.Highlighter
 	fileChange     *diff.FileChange
@@ -205,6 +208,7 @@ func (m *Model) buildLineIndex() {
 
 		index.TotalLines = 1
 		m.lineIndex = index
+		m.changeMarks = nil
 
 		return
 	}
@@ -218,6 +222,7 @@ func (m *Model) buildLineIndex() {
 
 	index.TotalLines = totalLines
 	m.lineIndex = index
+	m.buildChangeMarks()
 }
 
 func (m *Model) bodyRows(hunkIdx int) int {
@@ -447,28 +452,51 @@ func (m *Model) ScrollFullPageUp(viewHeight int) {
 	m.Scroll(-viewHeight)
 }
 
-// View renders the pane at the given size, padding out to it when the content is shorter.
+// margin is the columns every row keeps clear on the left, so content is never flush against the
+// terminal's edge. The cursor's glyph lives there, which is why it is two cells and not one.
+const margin = 2
+
+// View renders the pane at the given size, padding out to it when the content is shorter. Content
+// taller than the pane gets the overview track on its right edge, one column taken from every row.
 func (m *Model) View(width, height int, _ bool) string {
 	if m.fileChange == nil {
-		return padToSize("No file selected", width, height)
+		return padToSize(strings.Repeat(" ", margin)+"No file selected", width, height)
+	}
+
+	if m.collapsed() {
+		rows := []string{m.renderGeneratedSummary(width)}
+
+		return strings.Join(fillRows(rows, width, height), "\n")
 	}
 
 	var rows []string
 
-	switch {
-	case m.collapsed():
-		rows = []string{m.renderGeneratedSummary(width)}
-	case m.viewMode == ViewModeSideBySide:
-		rows = append([]string{renderPaneTitles(width)}, m.renderRows(width, height-1)...)
-	default:
-		rows = m.renderRows(width, height)
+	body := height
+	if m.viewMode == ViewModeSideBySide {
+		body = height - 1
 	}
 
+	bar := m.track(body)
+	inner := width - bar.Width()
+
+	if m.viewMode == ViewModeSideBySide {
+		rows = append(rows, renderPaneTitles(inner)+trackPad(bar))
+	}
+
+	for i, row := range fillRows(m.renderRows(inner, body), inner, max(body, 0)) {
+		rows = append(rows, row+bar.Cell(i))
+	}
+
+	return strings.Join(fillRows(rows, width, height), "\n")
+}
+
+// fillRows pads rows with blank ones out to height, and cuts any past it.
+func fillRows(rows []string, width, height int) []string {
 	for len(rows) < height {
 		rows = append(rows, strings.Repeat(" ", max(width, 0)))
 	}
 
-	return strings.Join(rows[:max(min(len(rows), height), 0)], "\n")
+	return rows[:max(min(len(rows), height), 0)]
 }
 
 func (m *Model) renderRows(width, height int) []string {
@@ -484,9 +512,7 @@ func (m *Model) renderRows(width, height int) []string {
 	for hunkIdx := start.HunkIdx; hunkIdx < len(m.shown) && len(rows) < height; hunkIdx++ {
 		if skipped == 0 {
 			isHunkSelected := m.isSelected != nil && m.isSelected(hunkIdx)
-			rows = append(rows, m.renderHunkHeader(
-				m.fileChange.Hunks[hunkIdx].Header, width, hunkIdx, hunkIdx == m.selectedHunk, isHunkSelected,
-			))
+			rows = append(rows, m.renderHunkHeader(width, hunkIdx, hunkIdx == m.selectedHunk, isHunkSelected))
 		}
 
 		rows = append(rows, m.renderBody(hunkIdx, max(skipped-1, 0), width, height-len(rows))...)
@@ -534,9 +560,19 @@ func (m *Model) renderFoldNote(hunkIdx, width int) string {
 		}
 	}
 
-	note := fmt.Sprintf("    ▸ %s: %d changed lines (z to expand)", m.foldReason(hunkIdx), changed)
+	note := fmt.Sprintf("%s▸ %s: %d changed lines  z expands", m.codeIndent(), m.foldReason(hunkIdx), changed)
 
 	return foldNoteStyle().Render(truncateOrPad(note, width))
+}
+
+// codeIndent lines a note up with the code column, past the margin and the number and sign gutter.
+func (m *Model) codeIndent() string {
+	indent := margin + signWidth
+	if m.showLineNumbers {
+		indent += numberWidth
+	}
+
+	return strings.Repeat(" ", indent)
 }
 
 func (m *Model) renderGeneratedSummary(width int) string {
@@ -549,7 +585,8 @@ func (m *Model) renderGeneratedSummary(width int) string {
 	}
 
 	note := fmt.Sprintf(
-		"  ▸ %s is generated: +%d -%d in %d hunk%s",
+		"%s▸ %s is generated: +%d -%d in %d hunk%s",
+		strings.Repeat(" ", margin),
 		m.fileChange.Path, m.fileChange.AddedLines(), m.fileChange.DeletedLines(),
 		len(m.fileChange.Hunks), plural(len(m.fileChange.Hunks)),
 	)
@@ -557,7 +594,7 @@ func (m *Model) renderGeneratedSummary(width int) string {
 		note += fmt.Sprintf(", %d selected", selected)
 	}
 
-	return foldNoteStyle().Render(truncateOrPad(note+" (z to expand)", width))
+	return foldNoteStyle().Render(truncateOrPad(note+"  z expands", width))
 }
 
 func plural(n int) string {
@@ -578,25 +615,54 @@ func (m *Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
 	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
 
 	base := rowBase(line.Type, isInVisualRange || isCurrentLine)
-	head := base.Render(lineIndicator(isInVisualRange, isSelected, isCurrentLine)) +
-		base.Foreground(theme.Muted).Render(m.lineNumberGutter(line)) +
-		markerStyle(line.Type, &base).Render(line.Type.String()+" ")
+	number := line.NewLineNum
+	if line.Type == diff.LineDeletion {
+		number = line.OldLineNum
+	}
+
+	head := lineIndicator(isInVisualRange, isSelected, isCurrentLine) + m.gutter(line.Type, number, &base)
 
 	content := fitStyled(m.lineContent(line, hunkIdx, lineIdx, &base), width-lipgloss.Width(head), &base)
 
 	return padRow(head+content, width, &base)
 }
 
-func (m *Model) lineNumberGutter(line diff.Line) string {
-	if !m.showLineNumbers {
-		return ""
+// The gutter's columns: a four-digit number and its space, then the sign and its space.
+const (
+	numberWidth = 5
+	signWidth   = 2
+)
+
+// gutter is the line's number and its sign, drawn on the row's base so the wash runs from the number
+// to the pane's edge. The sign carries the side, so the number stays quiet: a changed line's is only
+// a step brighter than a context line's, which is all it needs to say "changed".
+func (m *Model) gutter(kind diff.LineType, number int, base *lipgloss.Style) string {
+	out := ""
+
+	if m.showLineNumbers {
+		quiet := theme.Skin.Muted
+		if kind != diff.LineContext {
+			quiet = theme.Skin.Subtitle
+		}
+
+		out = quiet.Inherit(*base).Render(fmt.Sprintf("%4d ", number))
 	}
 
-	if line.Type == diff.LineDeletion {
-		return fmt.Sprintf("%4d ", line.OldLineNum)
+	return out + signStyle(kind, base).Render(sign(kind)) + base.Render(" ")
+}
+
+// sign is the gutter glyph for a line: the sign bar on a changed line, or + and − where NO_COLOR
+// leaves nothing else to say which side it is on.
+func sign(kind diff.LineType) string {
+	switch kind {
+	case diff.LineAddition:
+		return theme.Diff.Sign(true)
+	case diff.LineDeletion:
+		return theme.Diff.Sign(false)
+	case diff.LineContext:
 	}
 
-	return fmt.Sprintf("%4d ", line.NewLineNum)
+	return " "
 }
 
 // lineContent ranks search hits over word-level marks over syntax colors, since each styles the same bytes.
@@ -632,20 +698,23 @@ func (m *Model) lookupWordDiff(
 	return wordDiff, ok
 }
 
+// lineIndicator is the margin's glyph for a line under the line cursor, inside a visual range, or
+// picked for a split. It sits outside the wash, so it reads against the plain background.
 func lineIndicator(isInVisualRange, isSelected, isCurrentLine bool) string {
 	switch {
 	case isInVisualRange:
-		return "█ "
+		return theme.Skin.Cursor.Render("┃ ")
 	case isSelected:
-		return "• "
+		return theme.Skin.Cursor.Render("• ")
 	case isCurrentLine:
-		return "> "
+		return theme.Skin.Cursor.Render("▸ ")
 	default:
-		return "  "
+		return strings.Repeat(" ", margin)
 	}
 }
 
-// rowBase is the style every segment of a row draws on, so a tint survives the resets between tokens.
+// rowBase is the style every segment of a row draws on, so a tint survives the resets between
+// tokens. A changed line carries the shared wash, and the row under the cursor the selection.
 func rowBase(kind diff.LineType, isCursor bool) lipgloss.Style {
 	if isCursor {
 		return theme.SelectionStyle
@@ -662,12 +731,12 @@ func rowBase(kind diff.LineType, isCursor bool) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
-func markerStyle(kind diff.LineType, base *lipgloss.Style) lipgloss.Style {
+func signStyle(kind diff.LineType, base *lipgloss.Style) lipgloss.Style {
 	switch kind {
 	case diff.LineAddition:
-		return base.Foreground(theme.AddedLine).Bold(true)
+		return theme.Diff.AddSign.Inherit(*base)
 	case diff.LineDeletion:
-		return base.Foreground(theme.DeletedLine).Bold(true)
+		return theme.Diff.RemoveSign.Inherit(*base)
 	case diff.LineContext:
 	}
 
@@ -774,44 +843,104 @@ func applyWordDiffHighlight(
 	return result.String()
 }
 
-func (m *Model) renderHunkHeader(
-	text string,
-	width, hunkIdx int,
-	isCurrent, isSelected bool,
-) string {
-	prefix := "  "
+// renderHunkHeader names a hunk by the code it sits in, the function or type git found above it,
+// and the lines it spans, rather than by raw @@ syntax. The current hunk carries the cursor glyph in
+// the margin and its name in the accent; tags and a selection mark follow the range.
+func (m *Model) renderHunkHeader(width, hunkIdx int, isCurrent, isSelected bool) string {
+	hunk := &m.fileChange.Hunks[hunkIdx]
+
+	lead, name := strings.Repeat(" ", margin), theme.Skin.Subtitle
 	if isCurrent {
-		prefix = "> "
+		lead, name = theme.Skin.Cursor.Render("▸ "), theme.Skin.Cursor
 	}
 
-	suffix := ""
-	if isSelected {
-		suffix = " [X]"
-	}
+	var b strings.Builder
+
+	b.WriteString(theme.Skin.Muted.Render(lineRange(hunk)))
 
 	if m.getHunkTags != nil {
-		tags := m.getHunkTags(hunkIdx)
-		if len(tags) > 0 {
-			tagStr := ""
-			var tagStrSb590 strings.Builder
-			for _, tag := range tags {
-				tagStrSb590.WriteString(" [" + string(tag) + "]")
-			}
-			tagStr += tagStrSb590.String()
-			suffix = tagStr + suffix
+		for _, tag := range m.getHunkTags(hunkIdx) {
+			b.WriteString(" " + theme.Skin.Accent.Render("["+string(tag)+"]"))
 		}
 	}
 
-	displayText := prefix + text + suffix
-
-	style := lipgloss.NewStyle().
-		Foreground(theme.Accent)
-
-	if isCurrent {
-		style = theme.SelectedFocusedStyle
+	if isSelected {
+		b.WriteString(" " + theme.Skin.Success.Render("✓"))
 	}
 
-	return style.Render(truncateOrPad(displayText, width))
+	tail := b.String()
+
+	section := sectionOf(hunk.Header)
+	if section == "" {
+		return padRow(lead+fitStyled(tail, width-margin, &lipgloss.Style{}), width, &lipgloss.Style{})
+	}
+
+	room := width - margin - lipgloss.Width(tail) - len(headerGap)
+	if room < 1 {
+		return padRow(lead+fitStyled(tail, width-margin, &lipgloss.Style{}), width, &lipgloss.Style{})
+	}
+
+	if lipgloss.Width(section) > room {
+		section = ansi.Truncate(section, room-1, "") + truncationMarker
+	}
+
+	return padRow(lead+name.Render(section)+headerGap+tail, width, &lipgloss.Style{})
+}
+
+const headerGap = "  "
+
+// sectionOf is the text git writes after a hunk's second @@: the enclosing function or type.
+func sectionOf(header string) string {
+	rest, ok := strings.CutPrefix(header, "@@")
+	if !ok {
+		return ""
+	}
+
+	_, section, ok := strings.Cut(rest, "@@")
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(section)
+}
+
+// lineRange is the span a hunk covers in the new file, `L13–24`, or in the old one when it leaves
+// nothing behind there. A hunk built without its header counts is measured from its lines.
+func lineRange(hunk *diff.Hunk) string {
+	start, count := hunk.NewStart, hunk.NewLines
+	if count == 0 && hunk.OldLines > 0 {
+		start, count = hunk.OldStart, hunk.OldLines
+	}
+
+	if start == 0 && count == 0 {
+		start, count = measuredRange(hunk.Lines)
+	}
+
+	switch {
+	case count <= 1:
+		return fmt.Sprintf("L%d", start)
+	default:
+		return fmt.Sprintf("L%d–%d", start, start+count-1)
+	}
+}
+
+func measuredRange(lines []diff.Line) (int, int) {
+	first, last := 0, 0
+
+	for _, line := range lines {
+		number := line.NewLineNum
+		if line.Type == diff.LineDeletion {
+			number = line.OldLineNum
+		}
+
+		if first == 0 || number < first {
+			first = number
+		}
+
+		last = max(last, number)
+	}
+
+	return first, max(last-first+1, 0)
 }
 
 func truncateOrPad(text string, width int) string {
