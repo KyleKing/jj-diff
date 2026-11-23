@@ -1,3 +1,21 @@
+## v0.7.0 (2026-11-23)
+
+### Feat
+
+- **statusbar**: draw the footer as aragonite key hints beside quiet facts
+- **filelist**: head the list with a labeled rule and draw paths with filetype icons
+- **diffview**: draw changes with aragonite's sign bar, wash, and overview track
+- **diff**: align side-by-side rows by content with aragonite's AlignRun
+
+### Fix
+
+- **statusbar**: pin the last hint so esc survives a visual selection
+
+### Perf
+
+- **diff**: list directory trees with WalkDir instead of Walk
+- **diff**: skip unchanged pairs in directory comparison before reading them
+
 ## v0.6.0 (2026-11-14)
 
 ### Feat
