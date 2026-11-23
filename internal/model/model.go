@@ -103,6 +103,8 @@ const (
 	maxFileListFraction     = 3
 	minFileListHeight       = 3
 	collapsedFileListHeight = 1
+	// Every pane keeps paneMargin columns clear on the left, and the chrome between them does too.
+	paneMargin = 2
 )
 
 // revisionListLimit caps how far back the destination pickers look, because the log call is
@@ -1635,9 +1637,14 @@ func (m *Model) render() string {
 	diffViewHeight := frame.height - fileListHeight - chromeHeight
 	diffViewView := frame.renderDiffView(diffViewHeight)
 
-	border := lipgloss.NewStyle().
-		Foreground(theme.Secondary).
-		Render(strings.Repeat("\u2500", frame.width))
+	// The collapsed list is the diff's heading on a band, which already sets it apart, so the row
+	// under it is left as space. The expanded list ends in a hairline, quieter than anything it
+	// separates.
+	border := strings.Repeat(" ", frame.width)
+	if fileListExpanded {
+		border = strings.Repeat(" ", min(paneMargin, frame.width)) +
+			theme.Skin.Hairline.Render(strings.Repeat("\u2500", max(frame.width-paneMargin-1, 0))) + " "
+	}
 
 	panels := fmt.Sprintf(
 		"%s\n%s\n%s\n%s",

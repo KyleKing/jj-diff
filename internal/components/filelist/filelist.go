@@ -18,7 +18,6 @@ import (
 
 const (
 	centerDivisor = 2
-	columnGap     = 2
 	filterRows    = 2
 	headerRows    = 1
 )
@@ -123,52 +122,48 @@ func (m *Model) SetSearchState(isSearching bool, getMatches func(fileIdx int) []
 }
 
 // View renders the list at the given size, using only one row when collapsed regardless of height.
-func (m *Model) View(width, height int, focused bool) string {
+// The list is only expanded while it has focus, so focus changes nothing a row draws.
+func (m *Model) View(width, height int, _ bool) string {
 	if len(m.files) == 0 {
+		empty := strings.Repeat(" ", margin) + theme.Skin.Muted.Render("No files")
 		if m.expanded {
-			return padToSize("No files", width, height)
+			return padToSize(empty, width, height)
 		}
 
-		return padToSize("No files", width, 1)
+		return padToSize(empty, width, 1)
 	}
 
 	if m.expanded {
-		return m.renderExpanded(width, height, focused)
+		return m.renderExpanded(width, height)
 	}
 
-	return m.renderCollapsed(width, focused)
+	return m.renderCollapsed(width)
 }
 
-func (m *Model) renderCollapsed(width int, focused bool) string {
-	if len(m.files) == 0 {
-		return padToSize("No files", width, 1)
-	}
-
+// renderCollapsed is the selected file as the diff pane's heading: on a band lifted off the frame,
+// with its type's icon, its directory a step back and its name at full weight, and its counts and
+// place in the list at the right edge.
+func (m *Model) renderCollapsed(width int) string {
+	band := theme.Skin.FileBand
 	file := m.files[m.selected]
-	counter := fmt.Sprintf(" [%d/%d]", m.selected+1, len(m.files))
 
-	changeType := file.ChangeType.String()
-	path := file.Path
+	right := m.counts[m.selected].render(&band, 0, 0) +
+		band.Render(headingGap) +
+		theme.Skin.Muted.Inherit(band).Render(fmt.Sprintf("%d/%d", m.selected+1, len(m.files))) +
+		band.Render(" ")
 
-	stats := m.counts[m.selected].plain()
+	lead := band.Render(strings.Repeat(" ", margin)) + statusCell(file.ChangeType, &band) + band.Render(" ")
+	room := width - lipgloss.Width(lead) - lipgloss.Width(right) - len(headingGap)
 
-	line := fmt.Sprintf("[%s] %s %s%s", changeType, path, stats, counter)
-
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary)
-	if focused {
-		style = theme.SelectedFocusedStyle
-	}
-
-	return style.Render(truncateOrPad(line, width))
+	return fitRow(lead+pathCell(file.Path, max(room, 0), &band, true), right, width, &band)
 }
 
-func (m *Model) renderExpanded(width, height int, focused bool) string {
+func (m *Model) renderExpanded(width, height int) string {
 	displayIndices := m.visibleIndices()
 	layout := m.columns(width)
 
-	lines := []string{styleHeader(m.headerText(len(displayIndices)), width)}
+	rule := theme.Skin.Rule("Files", m.headerCount(len(displayIndices)), max(width-margin-rightPad, 0))
+	lines := []string{fitRow(strings.Repeat(" ", margin)+rule, "", width, &lipgloss.Style{})}
 
 	visibleHeight := height - headerRows
 	if m.filterMode {
@@ -179,7 +174,7 @@ func (m *Model) renderExpanded(width, height int, focused bool) string {
 	endIdx := min(startIdx+visibleHeight, len(displayIndices))
 
 	for i := startIdx; i < endIdx; i++ {
-		lines = append(lines, m.renderRow(displayIndices[i], layout, focused))
+		lines = append(lines, m.renderRow(displayIndices[i], layout))
 	}
 
 	targetHeight := height
@@ -191,10 +186,9 @@ func (m *Model) renderExpanded(width, height int, focused bool) string {
 	}
 
 	if m.filterMode {
-		filterLine := fmt.Sprintf("Filter: %s\u2588", m.filterQuery)
-		lines = append(lines, "", lipgloss.NewStyle().
-			Foreground(theme.Accent).
-			Render(truncateOrPad(filterLine, width)))
+		filterLine := strings.Repeat(" ", margin) + theme.Skin.Muted.Render("filter ") +
+			theme.Skin.Body.Render(m.filterQuery) + theme.Skin.Accent.Render("\u2588")
+		lines = append(lines, "", fitRow(filterLine, "", width, &lipgloss.Style{}))
 	}
 
 	return strings.Join(lines, "\n")
@@ -232,12 +226,13 @@ func (m *Model) visibleIndices() []int {
 	return indices
 }
 
-func (m *Model) headerText(filteredCount int) string {
+// headerCount is what the Files rule counts: the cursor's place, or how many rows a filter kept.
+func (m *Model) headerCount(filteredCount int) string {
 	if m.filterMode && filteredCount < len(m.files) {
-		return fmt.Sprintf("Files (%d/%d filtered)", filteredCount, len(m.files))
+		return fmt.Sprintf("%d/%d filtered", filteredCount, len(m.files))
 	}
 
-	return fmt.Sprintf("Files (%d/%d)", m.selected+1, len(m.files))
+	return fmt.Sprintf("%d/%d", m.selected+1, len(m.files))
 }
 
 // scrollStart centers the selected row in the visible window, falling back to the stored scroll
@@ -259,64 +254,134 @@ func (m *Model) scrollStart(displayIndices []int, visibleHeight, total int) int 
 	}
 }
 
+// The columns a row keeps clear: the margin on the left, the cell after the stats on the right so
+// the selection runs past the last digit, and the gap between the path and the stats.
+const (
+	margin     = 2
+	rightPad   = 1
+	headingGap = "  "
+)
+
+// columnLayout sizes the stat columns to the widest count in the list, so every row's numbers end in
+// the same column at the pane's right edge whatever the path's length.
 type columnLayout struct {
-	width, typeWidth, pathWidth, addWidth, delWidth int
+	width, addWidth, delWidth int
 }
 
 func (m *Model) columns(width int) columnLayout {
-	layout := columnLayout{width: width, typeWidth: 1}
+	layout := columnLayout{width: width}
 
-	for i, file := range m.files {
-		layout.typeWidth = max(layout.typeWidth, lipgloss.Width(file.ChangeType.String()))
-		layout.addWidth = max(layout.addWidth, len(fmt.Sprintf("+%d", m.counts[i].additions)))
-		layout.delWidth = max(layout.delWidth, len(fmt.Sprintf("-%d", m.counts[i].deletions)))
+	for i := range m.files {
+		if n := m.counts[i].additions; n > 0 {
+			layout.addWidth = max(layout.addWidth, len("+"+strconv.Itoa(n)))
+		}
+
+		if n := m.counts[i].deletions; n > 0 {
+			layout.delWidth = max(layout.delWidth, len("-"+strconv.Itoa(n)))
+		}
 	}
-
-	stats := layout.addWidth + 1 + layout.delWidth
-	layout.pathWidth = max(width-layout.typeWidth-stats-2*columnGap, len(ellipsis)+1)
 
 	return layout
 }
 
-func (m *Model) renderRow(originalIdx int, layout columnLayout, focused bool) string {
+func (m *Model) renderRow(originalIdx int, layout columnLayout) string {
 	file := m.files[originalIdx]
-	counts := m.counts[originalIdx]
+	selected := originalIdx == m.selected
 
 	base := lipgloss.NewStyle()
-	if originalIdx == m.selected {
-		base = theme.SelectedUnfocusedStyle
-		if focused {
-			base = theme.SelectedFocusedStyle
-		}
+	if selected {
+		base = theme.SelectionStyle
 	}
 
-	gap := base.Render(strings.Repeat(" ", columnGap))
-	added, deleted := base.Foreground(theme.AddedLine), base.Foreground(theme.DeletedLine)
+	right := m.counts[originalIdx].render(&base, layout.addWidth, layout.delWidth) +
+		base.Render(strings.Repeat(" ", rightPad))
+	lead := base.Render(strings.Repeat(" ", margin)) + statusCell(file.ChangeType, &base) + base.Render(" ")
+	room := layout.width - lipgloss.Width(lead) - lipgloss.Width(right) - len(headingGap)
 
-	row := base.Render(fmt.Sprintf("%-*s", layout.typeWidth, file.ChangeType.String())) + gap +
-		base.Render(fitPath(file.Path, layout.pathWidth)) + gap +
-		statCell("+", counts.additions, layout.addWidth, &added) +
-		base.Render(" ") +
-		statCell("-", counts.deletions, layout.delWidth, &deleted)
-
-	return ansi.Truncate(row, layout.width, "")
+	return fitRow(lead+pathCell(file.Path, max(room, 0), &base, selected), right, layout.width, &base)
 }
 
-// statCell leaves the cell blank for a zero count.
-func statCell(sign string, n, width int, style *lipgloss.Style) string {
-	if n == 0 {
-		return style.Render(strings.Repeat(" ", width))
+// fitRow puts right against the row's right edge and pads the gap between in base, so a selection
+// or a band runs the full width. Where the two overlap, left is cut rather than right, since the
+// counts are what a row is compared by.
+func fitRow(left, right string, width int, base *lipgloss.Style) string {
+	if width <= 0 {
+		return ""
 	}
 
-	return style.Render(fmt.Sprintf("%*s", width, sign+strconv.Itoa(n)))
+	room := width - lipgloss.Width(right)
+	if room < 0 {
+		return ansi.Truncate(right, width, "")
+	}
+
+	if lipgloss.Width(left) > room {
+		left = ansi.Truncate(left, room, "")
+	}
+
+	return left + base.Render(strings.Repeat(" ", room-lipgloss.Width(left))) + right
 }
 
-func fitPath(path string, width int) string {
-	if lipgloss.Width(path) > width {
-		path = ansi.Truncate(path, width-len(ellipsis), "") + ellipsis
+// statusCell is the one-letter status jj prints, in the color of what happened to the file.
+func statusCell(kind diff.ChangeType, base *lipgloss.Style) string {
+	face := base.Foreground(theme.Palette.Yellow)
+
+	switch kind {
+	case diff.ChangeTypeAdded:
+		face = base.Foreground(theme.Palette.Green)
+	case diff.ChangeTypeDeleted:
+		face = base.Foreground(theme.Palette.Red)
+	case diff.ChangeTypeRenamed:
+		face = base.Foreground(theme.Palette.Blue)
+	case diff.ChangeTypeModified:
 	}
 
-	return path + strings.Repeat(" ", width-lipgloss.Width(path))
+	return face.Bold(true).Render(kind.String())
+}
+
+// pathCell is a path in at most width cells: its type's icon, its directory a step back, and its own
+// name at full weight, so the eye lands on the part that differs between two rows. A path too long
+// for the cell gives up the front of its directory first, and its name only once that is gone.
+func pathCell(path string, width int, base *lipgloss.Style, bright bool) string {
+	if width <= 0 {
+		return ""
+	}
+
+	dir, name := splitPath(path)
+	icon := theme.Icons.File(path)
+	prefix := icon.Prefix()
+
+	if lipgloss.Width(prefix)+lipgloss.Width(name) > width {
+		prefix = ""
+	}
+
+	room := width - lipgloss.Width(prefix)
+
+	if lipgloss.Width(name) > room {
+		dir, name = "", ansi.Truncate(name, max(room-1, 0), "")+ellipsis
+	}
+
+	if over := lipgloss.Width(dir) + lipgloss.Width(name) - room; over > 0 {
+		dir = ellipsis + ansi.TruncateLeft(dir, over+lipgloss.Width(ellipsis), "")
+	}
+
+	nameFace := theme.Skin.Body.Inherit(*base)
+	if bright {
+		nameFace = theme.Skin.Title.Inherit(*base)
+	}
+
+	out := ""
+	if prefix != "" {
+		out = base.Foreground(icon.Color).Render(prefix)
+	}
+
+	return out + theme.Skin.Muted.Inherit(*base).Render(dir) + nameFace.Render(name)
+}
+
+// splitPath cuts a path after its last slash, keeping the slash with the directory.
+func splitPath(path string) (string, string) {
+	at := strings.LastIndex(path, "/")
+
+	return path[:at+1], path[at+1:]
 }
 
 type changeCounts struct {
@@ -324,17 +389,37 @@ type changeCounts struct {
 	deletions int
 }
 
-func (c changeCounts) plain() string {
-	var parts []string
-	if c.additions > 0 {
-		parts = append(parts, "+"+strconv.Itoa(c.additions))
+// render draws the counts right-aligned in columns addWidth and delWidth wide, or as wide as they
+// are where a width is 0, leaving a zero count's cell blank.
+func (c changeCounts) render(base *lipgloss.Style, addWidth, delWidth int) string {
+	addFace, delFace := base.Foreground(theme.AddedLine), base.Foreground(theme.DeletedLine)
+	added := statCell("+", c.additions, addWidth, &addFace)
+	deleted := statCell("-", c.deletions, delWidth, &delFace)
+
+	switch {
+	case added == "":
+		return deleted
+	case deleted == "":
+		return added
 	}
 
-	if c.deletions > 0 {
-		parts = append(parts, "-"+strconv.Itoa(c.deletions))
+	return added + base.Render(" ") + deleted
+}
+
+// statCell is a count right-aligned in width cells, blank for a zero count, or nothing at all where
+// the column is empty in every row.
+func statCell(sign string, n, width int, style *lipgloss.Style) string {
+	text := ""
+	if n > 0 {
+		text = sign + strconv.Itoa(n)
 	}
 
-	return strings.Join(parts, " ")
+	width = max(width, len(text))
+	if width == 0 {
+		return ""
+	}
+
+	return style.Render(fmt.Sprintf("%*s", width, text))
 }
 
 func countChanges(hunks []diff.Hunk) changeCounts {
@@ -354,33 +439,8 @@ func countChanges(hunks []diff.Hunk) changeCounts {
 	return counts
 }
 
-func styleHeader(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary)
-
-	return style.Render(truncateOrPad(text, width))
-}
-
-// truncateOrPad fits text to width. Width below the ellipsis length leaves no
-// room for a truncation marker, so the text is cut without one.
-const ellipsis = "..."
-
-func truncateOrPad(text string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-
-	if len(text) > width {
-		if width <= len(ellipsis) {
-			return text[:width]
-		}
-
-		return text[:width-len(ellipsis)] + ellipsis
-	}
-
-	return text + strings.Repeat(" ", max(width-len(text), 0))
-}
+// ellipsis marks where a path was cut.
+const ellipsis = "…"
 
 func padToSize(text string, width, height int) string {
 	lines := []string{text}
