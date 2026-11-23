@@ -51,8 +51,15 @@ Diff-editor mode runs when jj invokes jj-diff for `jj split`, `jj diffedit`,
 
 ## Visual indicators
 
-- `>` marks the current hunk or line
-- `[X]` marks a selected hunk
-- `[A]` marks a hunk tagged in multi-split mode
-- `█` marks the visual selection range
-- `•` marks a selected line
+- `▸` in the left margin marks the current hunk or line
+- A hunk is headed by the function or type it sits in and the lines it spans,
+  `func greet(name string) string {  L5–15`, rather than its raw `@@` header
+- `✓` after that range marks a selected hunk
+- `[a]` after it marks a hunk tagged in multi-split mode
+- `┃` in the margin marks the visual selection range
+- `•` in the margin marks a selected line
+- `▎` beside the line number marks a changed line, in green or red by its side,
+  and turns into `+` or `−` under `NO_COLOR`
+- The column on the right edge, drawn when the file is taller than the pane, is
+  the overview track: the thumb is what is on screen, `▍` marks a changed row
+  above or below it, and `•` a search hit

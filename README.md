@@ -72,6 +72,13 @@ at any point for the keymap.
 - Edit file contents. You choose which existing changes move, and you do not type
   new ones
 
+## Fonts
+
+File rows carry a filetype icon from a [Nerd Font](https://www.nerdfonts.com/), which is the
+default. Set `ARAGONITE_ICONS=unicode` to use glyphs every monospace font has instead; the setting
+is shared with second-look and jojo, and no column moves either way. Under `NO_COLOR` a changed
+line's sign bar turns into `+` and `−`.
+
 Full docs: [./docs](./docs)
 
 ## License

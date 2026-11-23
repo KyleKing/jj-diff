@@ -68,7 +68,10 @@ diff pane with it.
 2. **The Elm Architecture**: immutable updates, message-driven, pure rendering
 3. **Component composition**: each component manages its own rendering
 4. **Interface-based selection**: allows patch generation without a full Model dependency
-5. **Catppuccin theme**: minimal color usage, borders for hierarchy, color for accents
+5. **Catppuccin theme, shared skin**: minimal color usage, color for accents. The faces come from
+   aragonite's `tui/skin` built over the same flavor, so jj-diff, second-look, and jojo draw a
+   changed line (sign bar, full-width wash, deeper word mark), a section heading (labeled rule), a
+   file heading (lifted band), the overview track, and the footer's key hints the same way
 
 ## Patterns
 
