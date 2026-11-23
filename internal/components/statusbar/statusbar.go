@@ -3,11 +3,11 @@
 package statusbar
 
 import (
-	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -18,18 +18,30 @@ const (
 	modeDiffEditor  = "Diff-Editor"
 	modeInteractive = "Interactive"
 
-	hintSep  = " | "
 	ellipsis = "…"
+
+	// The footer keeps margin columns off the terminal's edge, in line with the panes above it.
+	margin = 2
+	// Three spaces part the facts from the hints and one hint from the next, as second-look's do.
+	partGap = "   "
+	// Two part one fact from the next.
+	factGap = "  "
+
+	keyLines = "j/k"
+	keySpace = "space"
 
 	sourceShare    = 2
 	minSourceWidth = 12
+)
 
-	hintApply   = "a:apply"
-	hintDest    = "d:dest"
-	hintHelp    = "?:help"
-	hintNav     = "j/k:nav"
-	hintScroll  = "j/k:scroll"
-	hintTabDiff = "Tab:diff"
+// The hints most screens offer, named once so a mode's list reads as what it adds.
+var (
+	hintApply   = keyhint.Hint{Key: "a", What: "apply"}
+	hintDest    = keyhint.Hint{Key: "d", What: "dest"}
+	hintHelp    = keyhint.Hint{Key: "?", What: "help", Pin: true}
+	hintNav     = keyhint.Hint{Key: keyLines, What: "nav"}
+	hintScroll  = keyhint.Hint{Key: keyLines, What: "scroll"}
+	hintTabDiff = keyhint.Hint{Key: "tab", What: "diff"}
 )
 
 // Context is what the footer describes. Destination is omitted from the render when empty, and
@@ -62,93 +74,93 @@ func (m Model) View(width int, modeText, source, destination string, isVisualMod
 	})
 }
 
-// ViewWithContext renders the footer to exactly width columns. Hints that do not fit are dropped
-// from the right and replaced by an ellipsis, and the help hint always survives because it is the
-// only route to the rest of the keymap.
+// ViewWithContext renders the footer to exactly width cells: the mode and the revisions it moves
+// between as quiet facts, then the keys that work here in the shape every sibling tool's footer
+// takes, the key in the accent and what it does muted. Hints that do not fit are shed from the end
+// of the list, and the help hint always survives because it is the only route to the rest of the
+// keymap. The facts give way before help does.
 func (m Model) ViewWithContext(width int, ctx Context) string {
-	var parts []string
-	if ctx.IsVisualMode {
-		parts = append(parts, fmt.Sprintf("[Mode: %s - VISUAL]", ctx.Mode))
-	} else {
-		parts = append(parts, fmt.Sprintf("[Mode: %s]", ctx.Mode))
+	if width <= 0 {
+		return ""
 	}
-	parts = append(parts, "Source: "+ellipsize(ctx.Source, max(width/sourceShare-len("Source: "), minSourceWidth)))
+
+	lead := strings.Repeat(" ", min(margin, width))
+	facts := facts(ctx, width)
+	hints := m.getContextHints(ctx)
+	room := width - margin - lipgloss.Width(facts) - len(partGap)
+
+	if room < lipgloss.Width(keyhint.Pinned(hintStyles(), hints)) {
+		facts, room = "", width-margin
+	}
+
+	line := keyhint.Fit(hintStyles(), hints, room)
+	if facts != "" {
+		line = facts + partGap + line
+	}
+
+	return padTo(lead+line, width)
+}
+
+// hintStyles is the footer face second-look and jojo share: bare keys in the accent, words muted.
+func hintStyles() keyhint.Styles {
+	return keyhint.Styles{Key: theme.Skin.Accent, Text: theme.Skin.Muted, Bare: true, Gap: partGap}
+}
+
+// facts is the mode, then the source and destination, each a step quieter than the one before.
+func facts(ctx Context, width int) string {
+	mode := theme.Skin.Subtitle.Render(ctx.Mode)
+	if ctx.IsVisualMode {
+		mode += " " + theme.Skin.Cursor.Render("VISUAL")
+	}
+
+	parts := []string{mode}
+	if ctx.Source != "" {
+		source := ellipsize(ctx.Source, max(width/sourceShare-margin, minSourceWidth))
+		parts = append(parts, theme.Skin.Muted.Render(source))
+	}
 
 	if ctx.Destination != "" {
-		parts = append(parts, "→ Dest: "+ctx.Destination)
+		parts = append(parts, theme.Skin.Accent.Render("→ ")+theme.Skin.Muted.Render(ctx.Destination))
 	}
 
-	content := fitHints(strings.Join(parts, hintSep), m.getContextHints(ctx), width)
-
-	style := lipgloss.NewStyle().
-		Background(theme.SoftMutedBg).
-		Foreground(theme.Text).
-		Width(width)
-
-	return style.Render(truncateOrPad(content, width))
+	return strings.Join(parts, factGap)
 }
 
-// getContextHints returns the keys that do something right now, most useful first. Mode is checked
-// before the focused panel: interactive mode starts on the file list, so testing the panel first
-// hides its whole vocabulary behind a Tab press.
-func (Model) getContextHints(ctx Context) []string {
-	if ctx.IsVisualMode {
-		return []string{"j/k:select", "Space:confirm", "Esc:cancel"}
-	}
+// getContextHints returns the keys that do something right now, most useful first, so the footer
+// sheds from the end of the list. Mode is checked before the focused panel: interactive mode starts
+// on the file list, so testing the panel first hides its whole vocabulary behind a Tab press.
+func (Model) getContextHints(ctx Context) []keyhint.Hint {
+	var hints []keyhint.Hint
 
-	onFiles := ctx.FocusedPanel == panelFiles
-
-	switch ctx.Mode {
-	case modeDiffEditor:
-		if onFiles {
-			return []string{hintNav, hintTabDiff, hintApply, hintHelp}
+	switch onFiles := ctx.FocusedPanel == panelFiles; {
+	case ctx.IsVisualMode:
+		hints = []keyhint.Hint{
+			{Key: keyLines, What: "select"}, {Key: keySpace, What: "confirm"}, {Key: "esc", What: "cancel"},
 		}
-
-		return []string{hintScroll, "Space:keep/drop", hintApply, hintHelp}
-	case modeInteractive:
-		if onFiles {
-			return []string{hintNav, hintTabDiff, hintDest, hintApply, hintHelp}
+	case ctx.Mode == modeDiffEditor && onFiles:
+		hints = []keyhint.Hint{hintNav, hintTabDiff, hintApply, hintHelp}
+	case ctx.Mode == modeDiffEditor:
+		hints = []keyhint.Hint{hintScroll, {Key: keySpace, What: "keep/drop"}, hintApply, hintHelp}
+	case ctx.Mode == modeInteractive && onFiles:
+		hints = []keyhint.Hint{hintNav, hintTabDiff, hintDest, hintApply, hintHelp}
+	case ctx.Mode == modeInteractive:
+		hints = []keyhint.Hint{
+			hintScroll, {Key: keySpace, What: "select"}, {Key: "v", What: "lines"}, hintDest, hintApply, hintHelp,
 		}
-
-		return []string{hintScroll, "Space:select", "v:lines", hintDest, hintApply, hintHelp}
-	}
-
-	if onFiles {
-		return []string{hintNav, hintTabDiff, "/:search", "f:find", hintHelp}
-	}
-
-	return []string{hintScroll, "Ctrl-d/u:page", "w:ws", "s:sbs", hintHelp}
-}
-
-// fitHints joins prefix and hints, dropping hints from the right until the result fits width. The
-// last hint is kept whatever else goes, and an ellipsis marks that something was dropped.
-func fitHints(prefix string, hints []string, width int) string {
-	join := func(h []string) string {
-		if len(h) == 0 {
-			return prefix
-		}
-
-		return prefix + hintSep + strings.Join(h, hintSep)
-	}
-
-	full := join(hints)
-	if lipgloss.Width(full) <= width || len(hints) < 2 {
-		return full
-	}
-
-	lead, last := hints[:len(hints)-1], hints[len(hints)-1]
-
-	for n := len(lead) - 1; n >= 0; n-- {
-		kept := make([]string, 0, n+2)
-		kept = append(kept, lead[:n]...)
-		kept = append(kept, ellipsis, last)
-
-		if candidate := join(kept); lipgloss.Width(candidate) <= width {
-			return candidate
+	case onFiles:
+		hints = []keyhint.Hint{hintNav, hintTabDiff, {Key: "/", What: "search"}, {Key: "f", What: "find"}, hintHelp}
+	default:
+		hints = []keyhint.Hint{
+			hintScroll, {Key: "ctrl-d/u", What: "page"}, {Key: "w", What: "ws"}, {Key: "s", What: "sbs"}, hintHelp,
 		}
 	}
 
-	return join([]string{last})
+	// Fit sheds the lowest priority first, so the order above is the order hints survive in.
+	for i := range hints {
+		hints[i].Priority = len(hints) - i
+	}
+
+	return hints
 }
 
 // ellipsize cuts text to at most width display cells, ending in an ellipsis when it cut.
@@ -160,31 +172,12 @@ func ellipsize(text string, width int) string {
 	return ansi.Truncate(text, width-1, "") + ellipsis
 }
 
-// truncateOrPad fits text to exactly width display cells, measuring in cells so a wide glyph cannot
-// push the footer onto a second row.
-func truncateOrPad(text string, width int) string {
-	if width <= 0 {
-		return ""
+// padTo fits a styled line to exactly width cells, measuring in cells so a wide glyph cannot push
+// the footer onto a second row.
+func padTo(line string, width int) string {
+	if used := lipgloss.Width(line); used > width {
+		line = ansi.Truncate(line, width, "")
 	}
 
-	if used := lipgloss.Width(text); used <= width {
-		return text + strings.Repeat(" ", width-used)
-	}
-
-	var b strings.Builder
-
-	used := 0
-
-	for _, r := range text {
-		w := lipgloss.Width(string(r))
-		if used+w > width {
-			break
-		}
-
-		b.WriteRune(r)
-
-		used += w
-	}
-
-	return b.String() + strings.Repeat(" ", width-used)
+	return line + strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
 }

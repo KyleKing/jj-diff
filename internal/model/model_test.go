@@ -793,7 +793,7 @@ func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
 				t.Errorf("the file list should stay visible behind the modal, got:\n%s", got)
 			}
 
-			if !strings.Contains(got, "Mode: Interactive") {
+			if !strings.Contains(got, "Interactive") {
 				t.Errorf("the status bar should stay visible behind the modal, got:\n%s", got)
 			}
 		})

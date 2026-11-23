@@ -36,25 +36,25 @@ func TestViewWithContext_AdvertisesTheKeysThatWorkHere(t *testing.T) {
 		{
 			name:  "interactive on the file list offers the destination and apply",
 			ctx:   statusbar.Context{Mode: "Interactive", Source: "@", FocusedPanel: "files"},
-			wants: []string{"d:dest", "a:apply", "?:help"},
-			omits: []string{"/:search"},
+			wants: []string{"d dest", "a apply", "? help"},
+			omits: []string{"/ search"},
 		},
 		{
 			name:  "interactive on the diff offers line selection",
 			ctx:   statusbar.Context{Mode: "Interactive", Source: "@", FocusedPanel: "diff"},
-			wants: []string{"Space:select", "v:lines", "a:apply"},
+			wants: []string{"space select", "v lines", "a apply"},
 		},
 		{
 			name:  "browse on the file list offers search rather than apply",
 			ctx:   statusbar.Context{Mode: "Browse", Source: "@", FocusedPanel: "files"},
-			wants: []string{"/:search", "f:find"},
-			omits: []string{"a:apply"},
+			wants: []string{"/ search", "f find"},
+			omits: []string{"a apply"},
 		},
 		{
 			name:  "visual mode offers only the selection keys",
 			ctx:   statusbar.Context{Mode: "Interactive", Source: "@", IsVisualMode: true},
-			wants: []string{"VISUAL", "Space:confirm", "Esc:cancel"},
-			omits: []string{"a:apply"},
+			wants: []string{"VISUAL", "space confirm", "esc cancel"},
+			omits: []string{"a apply"},
 		},
 	}
 
@@ -79,29 +79,29 @@ func TestViewWithContext_AdvertisesTheKeysThatWorkHere(t *testing.T) {
 }
 
 // The help hint is the only route to the rest of the keymap, so it has to survive every width the
-// footer is asked to render at.
-func TestViewWithContext_KeepsHelpAndMarksWhatItDropped(t *testing.T) {
+// footer is asked to render at. Hints shed whole from the end of the list, never clipped, and the
+// facts give way once only help is left to keep.
+func TestViewWithContext_KeepsHelpAndShedsFromTheEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := statusbar.Context{Mode: "Interactive", Source: "@", FocusedPanel: "diff"}
 
 	tests := []struct {
-		width        int
-		wantEllipsis bool
-		wantApply    bool
+		width     int
+		wantApply bool
+		wantDest  bool
+		wantMode  bool
 	}{
-		// 40 is the one width where the ellipsis itself does not fit, and showing the help key
-		// alone beats spending the row on a marker.
-		{width: 40, wantEllipsis: false, wantApply: false},
-		{width: 60, wantEllipsis: true, wantApply: false},
-		{width: 80, wantEllipsis: true, wantApply: false},
-		{width: 120, wantEllipsis: false, wantApply: true},
+		{width: 18, wantMode: false},
+		{width: 40, wantMode: true},
+		{width: 80, wantMode: true, wantDest: true},
+		{width: 120, wantMode: true, wantDest: true, wantApply: true},
 	}
 
 	for _, tt := range tests {
 		got := ansiless(statusbar.New().ViewWithContext(tt.width, ctx))
 
-		if !strings.Contains(got, "?:help") {
+		if !strings.Contains(got, "? help") {
 			t.Errorf("width %d dropped the help hint: %q", tt.width, got)
 		}
 
@@ -109,13 +109,30 @@ func TestViewWithContext_KeepsHelpAndMarksWhatItDropped(t *testing.T) {
 			t.Errorf("width %d rendered %d cells: %q", tt.width, lipgloss.Width(got), got)
 		}
 
-		if strings.Contains(got, "…") != tt.wantEllipsis {
-			t.Errorf("width %d ellipsis: want %v, got %q", tt.width, tt.wantEllipsis, got)
+		wants := map[string]bool{"a apply": tt.wantApply, "d dest": tt.wantDest, "Interactive": tt.wantMode}
+		for hint, want := range wants {
+			if strings.Contains(got, hint) != want {
+				t.Errorf("width %d %q: want %v, got %q", tt.width, hint, want, got)
+			}
 		}
 
-		if strings.Contains(got, "a:apply") != tt.wantApply {
-			t.Errorf("width %d apply hint: want %v, got %q", tt.width, tt.wantApply, got)
+		if strings.Contains(got, "|") || strings.Contains(got, ":") {
+			t.Errorf("width %d: want space-separated hints, got %q", tt.width, got)
 		}
+	}
+}
+
+// The key wears the accent and its word the muted face, so the two read apart without a colon.
+func TestViewWithContext_DrawsKeysInTheAccent(t *testing.T) {
+	t.Parallel()
+
+	got := statusbar.New().ViewWithContext(120, statusbar.Context{Mode: "Browse", Source: "@", FocusedPanel: "files"})
+	if want := theme.Skin.Accent.Render("?"); !strings.Contains(got, want) {
+		t.Errorf("footer %q, want the help key drawn as %q", got, want)
+	}
+
+	if want := theme.Skin.Muted.Render("help"); !strings.Contains(got, want) {
+		t.Errorf("footer %q, want the help word drawn as %q", got, want)
 	}
 }
 
