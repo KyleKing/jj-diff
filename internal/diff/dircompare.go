@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -59,14 +60,16 @@ func CompareDirectories(leftDir, rightDir string) (string, error) {
 // instructions for the user. It is not part of the diff and the editor is expected to leave it alone.
 const jjInstructionsFile = "JJ-INSTRUCTIONS"
 
+// walkDirectory lists every non-directory entry under dir. It reads entry types from the directory
+// listing rather than calling lstat on each one, and like an lstat it does not follow symlinks.
 func walkDirectory(dir string) (map[string]bool, error) {
 	files := make(map[string]bool)
 
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
 
