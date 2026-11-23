@@ -38,7 +38,7 @@ const (
 var (
 	hintApply   = keyhint.Hint{Key: "a", What: "apply"}
 	hintDest    = keyhint.Hint{Key: "d", What: "dest"}
-	hintHelp    = keyhint.Hint{Key: "?", What: "help", Pin: true}
+	hintHelp    = keyhint.Hint{Key: "?", What: "help"}
 	hintNav     = keyhint.Hint{Key: keyLines, What: "nav"}
 	hintScroll  = keyhint.Hint{Key: keyLines, What: "scroll"}
 	hintTabDiff = keyhint.Hint{Key: "tab", What: "diff"}
@@ -78,7 +78,7 @@ func (m Model) View(width int, modeText, source, destination string, isVisualMod
 // between as quiet facts, then the keys that work here in the shape every sibling tool's footer
 // takes, the key in the accent and what it does muted. Hints that do not fit are shed from the end
 // of the list, and the help hint always survives because it is the only route to the rest of the
-// keymap. The facts give way before help does.
+// keymap, as esc does in a visual selection. The facts give way before either does.
 func (m Model) ViewWithContext(width int, ctx Context) string {
 	if width <= 0 {
 		return ""
@@ -155,10 +155,13 @@ func (Model) getContextHints(ctx Context) []keyhint.Hint {
 		}
 	}
 
-	// Fit sheds the lowest priority first, so the order above is the order hints survive in.
+	// Fit sheds the lowest priority first, so the order above is the order hints survive in. The
+	// last is the way out of where the reader is (help, or esc in a visual selection) and is pinned.
 	for i := range hints {
 		hints[i].Priority = len(hints) - i
 	}
+
+	hints[len(hints)-1].Pin = true
 
 	return hints
 }

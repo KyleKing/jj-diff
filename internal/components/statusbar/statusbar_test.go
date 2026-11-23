@@ -122,6 +122,20 @@ func TestViewWithContext_KeepsHelpAndShedsFromTheEnd(t *testing.T) {
 	}
 }
 
+// A visual selection's way out is esc, so it survives where the selection keys before it do not.
+func TestViewWithContext_KeepsEscInAVisualSelection(t *testing.T) {
+	t.Parallel()
+
+	ctx := statusbar.Context{Mode: "Interactive", Source: "umnpntqw (no description)", IsVisualMode: true}
+
+	for _, width := range []int{40, 80} {
+		got := ansiless(statusbar.New().ViewWithContext(width, ctx))
+		if !strings.Contains(got, "esc cancel") {
+			t.Errorf("width %d dropped esc: %q", width, got)
+		}
+	}
+}
+
 // The key wears the accent and its word the muted face, so the two read apart without a colon.
 func TestViewWithContext_DrawsKeysInTheAccent(t *testing.T) {
 	t.Parallel()
