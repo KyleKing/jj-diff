@@ -46,6 +46,8 @@ type Model struct {
 	isSearching  bool
 	expanded     bool
 	filterMode   bool
+	// onlyUnread leaves files read whole out of the list, which is U's view.
+	onlyUnread bool
 }
 
 // New returns a collapsed, unfiltered list with no files.
@@ -173,6 +175,7 @@ type drawKey struct {
 	height      int
 	expanded    bool
 	filterMode  bool
+	onlyUnread  bool
 	reads       uint64
 }
 
@@ -180,7 +183,7 @@ func (m *Model) drawKey(width, height int) drawKey {
 	key := drawKey{
 		filterQuery: m.filterQuery, generation: theme.Generation(), count: len(m.files),
 		selected: m.selected, scroll: m.scrollOffset, width: width, height: height,
-		expanded: m.expanded, filterMode: m.filterMode, reads: m.reads.generation,
+		expanded: m.expanded, filterMode: m.filterMode, onlyUnread: m.onlyUnread, reads: m.reads.generation,
 	}
 
 	if len(m.files) > 0 {
@@ -264,6 +267,16 @@ func (m *Model) renderExpanded(width, height int) string {
 // visibleIndices returns the rows to draw, in display order, as indices into the unfiltered file
 // slice. Every index is in range, so callers may subscript m.files with one directly.
 func (m *Model) visibleIndices() []int {
+	indices := m.matchingIndices()
+	if !m.onlyUnread || !m.reads.on {
+		return indices
+	}
+
+	return slices.DeleteFunc(indices, m.reads.fileRead)
+}
+
+// matchingIndices is every file, or the ones the inline filter's query matches, best first.
+func (m *Model) matchingIndices() []int {
 	if !m.filterMode || m.filterQuery == "" {
 		indices := make([]int, len(m.files))
 		for i := range m.files {
@@ -297,6 +310,10 @@ func (m *Model) visibleIndices() []int {
 func (m *Model) headerCount(filteredCount int) string {
 	if m.filterMode && filteredCount < len(m.files) {
 		return fmt.Sprintf("%d/%d filtered", filteredCount, len(m.files)) + m.reads.total()
+	}
+
+	if m.onlyUnread && filteredCount < len(m.files) {
+		return fmt.Sprintf("%d of %d", filteredCount, len(m.files)) + m.reads.total()
 	}
 
 	return fmt.Sprintf("%d/%d", m.selected+1, len(m.files)) + m.reads.total()

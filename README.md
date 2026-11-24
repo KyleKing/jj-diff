@@ -74,6 +74,7 @@ why when pressed ("u  nothing to undo") instead of doing nothing.
 | `]h` / `[h` | next / previous hunk | diff |
 | `]f` / `[f` | next / previous file | diff |
 | `]u` / `[u` | next / previous unread hunk, across files, wrapping (a revision with read marks) | file list, diff |
+| `U` | only what is unread: read hunks shrink to their header (the one under the cursor stays whole) and files read whole leave the list; again shows everything (a revision with read marks) | file list, diff |
 | `n` / `N` | repeat the last jump or search forward / back | everywhere |
 | `/` | search files and diff content | everywhere |
 | `f` | filter the file list (fuzzy) | everywhere |
@@ -118,17 +119,24 @@ undo undoes it`), and `gm` lists every one.
 ### Read marks
 
 A revision viewed with `-r` (browse or `-i`) shows which hunks you have marked read
-in [jojo](https://github.com/KyleKing/jj-tui): a muted `✓` leads each read hunk's
-header, a file read whole carries one in the file list, the heading counts the
-file's unread hunks, and the Files rule the revision's. `]u` / `[u` step to the next
-or previous unread hunk. The marks are jojo's and jj-diff only shows them: `space`
-keeps meaning select, and marking a hunk read happens in jojo.
+in [jojo](https://github.com/KyleKing/jj-tui): a muted `▰` (the cell jojo's read strip
+fills) leads each read hunk's header, a file read whole carries one in the file list,
+the heading counts the file's unread hunks, and the Files rule the revision's. `]u` /
+`[u` step to the next or previous unread hunk, and `U` hides what is read until pressed
+again. The marks are jojo's and jj-diff only shows them: `space` keeps meaning select,
+and marking a hunk read happens in jojo.
+
+Read is never a check, because in `-i` a selected hunk ends its header in a green `✓`.
+A hunk that is both reads `▰ name  L1–4 ✓`: the read cell leads the section, the
+selection's check follows the range, and the two differ in shape, not only in color.
 
 Both tools read one directory per repository,
 `$XDG_STATE_HOME/jojo/seen/<repo>-<hash>/` (else `~/.local/state/...`), keyed by the
 repository's store, so every workspace of a repository shares its marks, and marks are
-filed by change id with hunks named by their text, so a mark survives a rebase and
-drops when the hunk's text changes. The marks are reread whenever the file changed on
+filed by the full change id with hunks named by their text, so a mark survives a rebase and
+drops when the hunk's text changes. Marks an older jojo filed under the
+`change_id.shortest(8)` prefix are moved to the full id's file the first time either
+tool opens the change, since that prefix grows once another change shares it. The marks are reread whenever the file changed on
 disk, checked with one `stat` per keypress or when the terminal regains focus, so a
 hunk marked in jojo shows here without a reload. As jj's diff editor
 (`--tool jj-diff`) there are two directories and no change to file marks under, so

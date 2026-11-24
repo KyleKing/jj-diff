@@ -223,6 +223,8 @@ func (m *Model) viewAction(action string) bool {
 		m.frame(diffview.FrameTop)
 	case keys.ActionFrameBottom:
 		m.frame(diffview.FrameBottom)
+	case keys.ActionOnlyUnread:
+		m.toggleOnlyUnread()
 	default:
 		return false
 	}
@@ -457,12 +459,12 @@ func (m *Model) toEnd(bottom bool) {
 	}
 
 	if m.focusedPanel == PanelFileList {
-		idx := 0
+		idx, delta := -1, 1
 		if bottom {
-			idx = len(m.changes) - 1
+			idx, delta = len(m.changes), -1
 		}
 
-		m.jumpToFile(idx)
+		m.jumpToFile(m.shownFrom(idx, delta))
 
 		return
 	}
@@ -495,9 +497,21 @@ func (m *Model) jumpToFile(idx int) {
 	m.diffView.SetFileChange(m.changes[idx])
 }
 
-// selectAdjacentFile steps the file cursor, stopping at both ends rather than wrapping.
+// selectAdjacentFile steps the file cursor to the next file the list shows, stopping at both ends
+// rather than wrapping.
 func (m *Model) selectAdjacentFile(delta int) {
-	m.jumpToFile(m.selectedFile + delta)
+	m.jumpToFile(m.shownFrom(m.selectedFile, delta))
+}
+
+// shownFrom is the first file past from, stepping by delta, that the list shows, or -1 for none.
+func (m *Model) shownFrom(from, delta int) int {
+	for i := from + delta; i >= 0 && i < len(m.changes); i += delta {
+		if m.fileShown(i) {
+			return i
+		}
+	}
+
+	return -1
 }
 
 // selectAdjacentHunk steps the hunk cursor within the selected file, wrapping at both ends, and
@@ -523,7 +537,7 @@ func (m *Model) navigate(delta int) {
 	case m.isVisualMode:
 		m.handleVisualNavigation(delta)
 	case m.focusedPanel == PanelFileList:
-		m.jumpToFile(m.selectedFile + delta)
+		m.selectAdjacentFile(delta)
 	default:
 		m.diffView.Scroll(delta)
 	}

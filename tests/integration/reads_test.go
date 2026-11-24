@@ -27,11 +27,11 @@ func TestReads_JojoMarksShowInAnotherWorkspace(t *testing.T) {
 	repo.WriteFile("src/a.go", "package a\n\n// A is a.\nfunc A() {}\n")
 	repo.WriteFile("b.txt", "two\n")
 
-	// jojo files marks under its log template's change id, written out here rather than through
+	// jojo files marks under the full change id, written out here rather than through
 	// jj.ScopeTemplate so the two cannot drift together.
-	change := strings.TrimSpace(repo.MustRun("log", "-r", "@", "--no-graph", "-T", "change_id.shortest(8)"))
-	if len(change) < 8 || !strings.HasPrefix(repo.GetChangeID("@"), change) {
-		t.Fatalf("jojo's scope %q is not an eight-character prefix of the change id", change)
+	change := strings.TrimSpace(repo.MustRun("log", "-r", "@", "--no-graph", "-T", "change_id"))
+	if len(change) != 32 {
+		t.Fatalf("jojo's scope %q is not a full change id", change)
 	}
 
 	gitDiff := repo.GetDiff("@")
@@ -93,5 +93,41 @@ func TestReads_JojoMarksShowInAnotherWorkspace(t *testing.T) {
 		if got := marks.Read(f, 0); got != want {
 			t.Errorf("%s: read %t, want %t", changes[f].Path, got, want)
 		}
+	}
+}
+
+// Marks an older jojo filed under change_id.shortest(8) move to the full id's file before jj-diff
+// reads them, so they survive the prefix growing.
+func TestReads_MarksUnderAShortPrefixMigrate(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("a.txt", "one\n")
+	repo.Commit("base")
+	repo.WriteFile("a.txt", "two\n")
+
+	short := strings.TrimSpace(repo.MustRun("log", "-r", "@", "--no-graph", "-T", "change_id.shortest(8)"))
+	live := seen.Parse([]byte(repo.GetDiff("@")))
+
+	store, err := reads.Open(repo.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.Mark(short, true, live, live[0].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	scope, err := jj.NewClient(repo.Dir).ScopeID("@")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if moved, err := store.Migrate(scope); err != nil || !moved {
+		t.Fatalf("Migrate(%s) = %v, %v", scope, moved, err)
+	}
+
+	if store.Unread(scope, string(live[0].ID)) {
+		t.Errorf("the mark filed under %s does not read under %s", short, scope)
 	}
 }

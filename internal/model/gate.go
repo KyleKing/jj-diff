@@ -31,6 +31,10 @@ func (m *Model) gate(action string) keys.Availability {
 		return m.unreadGate()
 	}
 
+	if action == keys.ActionOnlyUnread {
+		return m.onlyUnreadGate()
+	}
+
 	switch m.context() {
 	case keys.Conflict:
 		return m.conflictGate(action)

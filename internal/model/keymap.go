@@ -113,6 +113,9 @@ var pickerFlags = []string{"t", "o", "A", "B", "u", "k"}
 // where read marks are shown (reads).
 func sharedBindings(mode OperatingMode, reads bool) []keys.Binding {
 	drop := slices.Clone(unsupported)
+	if reads && showsReads(mode) {
+		drop = slices.DeleteFunc(drop, func(a string) bool { return a == keys.ActionOnlyUnread })
+	}
 
 	for _, o := range keys.Objects() {
 		if !slices.Contains(supportedObjects(mode, reads), o.Noun) {
@@ -153,12 +156,13 @@ func sharedBindings(mode OperatingMode, reads bool) []keys.Binding {
 	return shared
 }
 
-// onUnread puts the unread motions where a revision's hunks are listed or drawn: the file list as
-// well as the diff, since a session opens on the list and ]u is how to start reading from it. The
+// onUnread puts the unread motions and U where a revision's hunks are listed or drawn: the file list
+// as well as the diff, since a session opens on the list and ]u is how to start reading from it. The
 // split columns draw no marks and take them off.
 func onUnread(bindings []keys.Binding) []keys.Binding {
 	for i, b := range bindings {
-		if b.Action == keys.NextAction(keys.ObjUnread) || b.Action == keys.PrevAction(keys.ObjUnread) {
+		if b.Action == keys.NextAction(keys.ObjUnread) || b.Action == keys.PrevAction(keys.ObjUnread) ||
+			b.Action == keys.ActionOnlyUnread {
 			bindings[i].Contexts = keys.View | keys.Select | keys.List
 		}
 	}
@@ -365,7 +369,7 @@ func (m *Model) footerHints() []keyhint.Hint {
 	default:
 		hints = slices.Concat(lines("scroll"),
 			hint(keys.NextAction(keys.ObjHunk), ""), hint(keys.NextAction(keys.ObjUnread), ""),
-			hint(keys.NextAction(keys.ObjFile), ""),
+			hint(keys.ActionOnlyUnread, m.onlyUnreadWord()), hint(keys.NextAction(keys.ObjFile), ""),
 			hint(keys.ActionWhitespace, ""), hint(keys.ActionViewSideBySide, ""), hint(keys.ActionHelp, ""))
 	}
 

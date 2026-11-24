@@ -173,6 +173,8 @@ type Model struct {
 	band bool
 	// loadedOnce is whether a diff has arrived, before which an empty one means nothing yet.
 	loadedOnce bool
+	// onlyUnread is U: read hunks draw as their header alone and files read whole leave the list.
+	onlyUnread bool
 }
 
 type errMsg struct {
@@ -365,6 +367,10 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case scopeMsg:
 		if msg.err == nil {
 			m.marks.SetScope(msg.scope)
+		}
+
+		if msg.migrate != nil {
+			m.say("older read marks were not moved: "+msg.migrate.Error(), false)
 		}
 
 	case errMsg:

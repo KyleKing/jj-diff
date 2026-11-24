@@ -12,10 +12,12 @@ import (
 // Read marks are jojo's: jojo marks hunks read and jj-diff shows them, read-only, on a revision.
 // `␣` keeps meaning select here, so nothing in jj-diff writes a mark.
 
-// scopeMsg is the change id the revision names, which its marks are filed under.
+// scopeMsg is the change id the revision names, which its marks are filed under, and what moving
+// marks an older jojo filed under a prefix of it answered.
 type scopeMsg struct {
-	err   error
-	scope string
+	err     error
+	migrate error
+	scope   string
 }
 
 // WithReads shows the marks in store on a revision viewed in browse or interactive mode, and binds
@@ -35,14 +37,20 @@ func (m *Model) WithReads(store *seen.Store) *Model {
 }
 
 // loadScope reads the change id the revision names now, which a revset such as @ can move between
-// loads.
+// loads, and moves the marks an older jojo filed under a prefix of it into the full id's file
+// before they are read.
 func (m *Model) loadScope() tea.Cmd {
-	client, revision := m.client, m.revision
+	client, revision, store := m.client, m.revision, m.marks.Store()
 
 	return func() tea.Msg {
 		scope, err := client.ScopeID(revision)
+		if err != nil {
+			return scopeMsg{err: err}
+		}
 
-		return scopeMsg{scope: scope, err: err}
+		_, migrate := store.Migrate(scope)
+
+		return scopeMsg{scope: scope, migrate: migrate}
 	}
 }
 
@@ -58,6 +66,8 @@ func (m *Model) syncReads() {
 
 	if !m.marks.Ready() {
 		m.fileList.SetReads(nil)
+		m.fileList.SetOnlyUnread(false)
+		m.diffView.SetHidden(nil)
 
 		return
 	}
@@ -68,6 +78,72 @@ func (m *Model) syncReads() {
 	}
 
 	m.fileList.SetReads(files)
+	m.fileList.SetOnlyUnread(m.onlyUnread)
+	m.diffView.SetHidden(m.hiddenHunks())
+}
+
+// hiddenHunks is what U hides of the current file: every read hunk but the one under the cursor,
+// which stays drawn whole so a reader who steps onto a read hunk can still read it. Nil with U off.
+func (m *Model) hiddenHunks() []bool {
+	if !m.onlyUnread || m.selectedFile < 0 || m.selectedFile >= len(m.changes) {
+		return nil
+	}
+
+	hidden := make([]bool, len(m.changes[m.selectedFile].Hunks))
+	for h := range hidden {
+		hidden[h] = h != m.selectedHunk && m.marks.Read(m.selectedFile, h)
+	}
+
+	return hidden
+}
+
+// toggleOnlyUnread is U: only what is unread, or everything again. Turned on over something read, it
+// steps to the next unread hunk, so the screen opens on what is left to read.
+func (m *Model) toggleOnlyUnread() {
+	m.onlyUnread = !m.onlyUnread
+
+	if !m.onlyUnread {
+		m.say("showing every hunk", false)
+
+		return
+	}
+
+	if m.selectedFile < len(m.changes) && m.marks.Read(m.selectedFile, m.selectedHunk) {
+		panel := m.focusedPanel
+		m.stepUnread(false)
+		m.focusedPanel = panel
+	}
+
+	m.say("showing only unread hunks · U shows every hunk", false)
+}
+
+// onlyUnreadWord is U's footer word: what pressing it would do to the read hunks.
+func (m *Model) onlyUnreadWord() string {
+	if m.onlyUnread {
+		return "show read"
+	}
+
+	return "hide read"
+}
+
+// onlyUnreadGate refuses U until the marks are loaded, and turning it on once nothing is unread.
+// Turning it off is always allowed.
+func (m *Model) onlyUnreadGate() keys.Availability {
+	switch {
+	case m.onlyUnread:
+		return keys.Allow()
+	case !m.marks.Ready():
+		return keys.Refuse("read marks are still loading")
+	case m.marks.Unread() == 0:
+		return keys.Refuse("every hunk is read")
+	}
+
+	return keys.Allow()
+}
+
+// fileShown reports whether file i is in the list: always, except a file read whole while U is on.
+func (m *Model) fileShown(i int) bool {
+	return !m.onlyUnread || !m.marks.Ready() || !m.marks.FileRead(i)
 }
 
 // pushReads hands the diff pane which of the current file's hunks are read.

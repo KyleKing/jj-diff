@@ -93,6 +93,15 @@ type stamp struct {
 // NewMarks reads marks from store, nil for none.
 func NewMarks(store *seen.Store) *Marks { return &Marks{store: store} }
 
+// Store is the store the marks are read from, nil for none.
+func (k *Marks) Store() *seen.Store {
+	if k == nil {
+		return nil
+	}
+
+	return k.store
+}
+
 // On reports whether there is a store to read from, which is what binds the unread motions.
 func (k *Marks) On() bool { return k != nil && k.store != nil }
 

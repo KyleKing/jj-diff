@@ -486,12 +486,13 @@ func (c *Client) ChangeID(revset string) (string, error) {
 	return c.resolveChangeID(revset)
 }
 
-// ScopeTemplate is how jojo writes a change id everywhere it keys state by one, read marks
-// included: its shortest unique prefix, at least eight characters. Marks are filed under exactly
-// this text, so the full id would name a file jojo never writes.
-const ScopeTemplate = "change_id.shortest(8)"
+// ScopeTemplate is the change id read marks are filed under: the full id, as jojo files them since
+// v0.20.0. A shortest unique prefix grows once another change comes to share it, which renamed the
+// file a change's marks were in and lost them; seen.Store.Migrate moves marks an older jojo filed
+// under its change_id.shortest(8).
+const ScopeTemplate = "change_id"
 
-// ScopeID is the change ID a revset names in the form jojo files read marks under (ScopeTemplate),
+// ScopeID is the change ID a revset names in the form read marks are filed under (ScopeTemplate),
 // read without snapshotting the working copy: a snapshot never changes which change @ is, and this
 // runs beside the diff's own jj call, which takes the snapshot.
 func (c *Client) ScopeID(revset string) (string, error) {

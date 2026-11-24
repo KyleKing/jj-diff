@@ -1,11 +1,11 @@
-  M internal/app/app.go                                                          ✓ read  +2 -1  1/3 
+  M internal/app/app.go                                                          ▰ read  +2 -1  1/3 
                                                                                                     
-▸ ✓ package app  L1–4                                                                               
+▸ ▰ package app  L1–4                                                                               
      1   package app                                                                                
      2 ▎ // Run starts the app.                                                                     
      3   func Run() {}                                                                              
      4   func stop() {}                                                                             
-  ✓ func Serve() {  L21–23                                                                          
+  ▰ func Serve() {  L21–23                                                                          
     21       x := 1                                                                                 
     21 ▎     y := 2                                                                                 
     22 ▎     y := 3                                                                                 
@@ -27,4 +27,4 @@
                                                                                                     
                                                                                                     
                                                                                                     
-  Browse  @   j/k scroll   ]h hunk   ]u unread   ]f file   w ws   \s sbs   ? help                   
+  Browse  @   j/k scroll   ]h hunk   ]u unread   U hide read   ]f file   w ws   \s sbs   ? help     

@@ -10,8 +10,10 @@ import (
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// ReadGlyph marks a file every hunk of which has been read, and leads a read hunk's header.
-const ReadGlyph = "✓"
+// ReadGlyph marks a file every hunk of which has been read, and leads a read hunk's header. It is
+// the cell jojo's read strip fills (▰ read, ▱ unread), one stable cell wide, and deliberately not a
+// check, which is what a selected hunk carries in -i.
+const ReadGlyph = "▰"
 
 // FileReads is how much of one file has been read, by hunk.
 type FileReads struct {
@@ -47,6 +49,11 @@ func (m *Model) SetReads(files []FileReads) {
 		files: slices.Clone(files), generation: m.reads.generation + 1, unread: unread, on: on,
 	}
 }
+
+// SetOnlyUnread leaves the files read whole out of the expanded list, or puts them back. It
+// changes only what is drawn: the selection is still an index into every file, and the caller
+// keeps it off a file the list leaves out.
+func (m *Model) SetOnlyUnread(on bool) { m.onlyUnread = on }
 
 func (r *reads) at(i int) (FileReads, bool) {
 	if !r.on || i < 0 || i >= len(r.files) {

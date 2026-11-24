@@ -13,6 +13,8 @@ import (
 	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/keys"
 
+	"github.com/kyleking/jj-diff/internal/components/diffview"
+	"github.com/kyleking/jj-diff/internal/components/filelist"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/reads"
 )
@@ -76,8 +78,15 @@ func markReads(t *testing.T, dir string, read ...int) {
 func readsModel(t *testing.T, mode OperatingMode) (*Model, string) {
 	t.Helper()
 
+	return readsModelWith(t, mode, 0, 1)
+}
+
+// readsModelWith is readsModel with the patch's hunks at indexes read marked read instead.
+func readsModelWith(t *testing.T, mode OperatingMode, read ...int) (*Model, string) {
+	t.Helper()
+
 	dir := t.TempDir()
-	markReads(t, dir, 0, 1)
+	markReads(t, dir, read...)
 
 	m := NewTestModel(t, mode).WithReads(seen.Open(dir))
 	changes := diff.Parse(readsPatch)
@@ -113,6 +122,38 @@ func readsStepped(t *testing.T) *Model {
 	return Press(t, m, "]", "u")
 }
 
+// readsOnlyUnreadFiles is U pressed on the file list: the file read whole leaves it, and the cursor
+// moves to the first file with something unread while the list keeps focus.
+func readsOnlyUnreadFiles(t *testing.T) *Model {
+	t.Helper()
+
+	m, _ := readsModel(t, ModeBrowse)
+
+	return Press(t, m, "U")
+}
+
+// readsOnlyUnreadDiff is U pressed on a read hunk whose file has an unread one: the cursor steps to
+// the unread hunk and the read one shrinks to its header.
+func readsOnlyUnreadDiff(t *testing.T) *Model {
+	t.Helper()
+
+	m, _ := readsModelWith(t, ModeBrowse, 0)
+	m.focusedPanel = PanelDiffView
+
+	return Press(t, m, "U")
+}
+
+// readsSelectedRead is -i with a read hunk selected: its header carries both marks, the read cell
+// leading the section and the selection's check after the range.
+func readsSelectedRead(t *testing.T) *Model {
+	t.Helper()
+
+	m, _ := readsModelWith(t, ModeInteractive, 0)
+	m.focusedPanel = PanelDiffView
+
+	return Press(t, m, "space")
+}
+
 // TestReads_Golden pins what a revision with read marks draws: the muted glyph on a file read
 // whole and on its hunks' headers, and the unread counts in the heading and the Files rule.
 func TestReads_Golden(t *testing.T) {
@@ -125,6 +166,9 @@ func TestReads_Golden(t *testing.T) {
 		{name: "browse_files", build: readsFiles},
 		{name: "browse_diff", build: readsDiff},
 		{name: "interactive_stepped", build: readsStepped},
+		{name: "only_unread_files", build: readsOnlyUnreadFiles},
+		{name: "only_unread_diff", build: readsOnlyUnreadDiff},
+		{name: "interactive_selected_read", build: readsSelectedRead},
 	}
 
 	for _, c := range cases {
@@ -266,5 +310,106 @@ func TestReads_DiffEditorAndNoStoreShowNothing(t *testing.T) {
 
 	if editor.WithReads(store).marks.On() {
 		t.Error("a directory source turned marks on")
+	}
+}
+
+// A read hunk that is also selected carries two marks on one header row, and they must never look
+// alike: the read cell, never a check, leads the section, and the selection's ✓ follows the range.
+func TestReads_ReadAndSelectedMarksDiffer(t *testing.T) {
+	t.Parallel()
+
+	if diffview.ReadGlyph == "✓" || filelist.ReadGlyph == "✓" {
+		t.Fatalf("the read glyph is the selection's check")
+	}
+
+	m := readsSelectedRead(t)
+	m = Update(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	var header string
+
+	for line := range strings.SplitSeq(ansi.Strip(m.render()), "\n") {
+		if strings.Contains(line, "package app") && strings.Contains(line, "L1") {
+			header = line
+		}
+	}
+
+	if strings.Count(header, diffview.ReadGlyph) != 1 || strings.Count(header, "✓") != 1 {
+		t.Errorf("the read, selected hunk's header is %q; want one %s and one ✓", header, diffview.ReadGlyph)
+	}
+
+	if strings.Index(header, diffview.ReadGlyph) > strings.Index(header, "✓") {
+		t.Errorf("the read cell does not lead the header: %q", header)
+	}
+}
+
+// U hides what is read and U again shows it: read hunks shrink to their header, the cursor's own
+// stays whole, and files read whole leave the list and its motions.
+func TestReads_OnlyUnreadHidesAndRestores(t *testing.T) {
+	t.Parallel()
+
+	m, _ := readsModel(t, ModeBrowse)
+	m = Press(t, m, "U")
+
+	if !m.onlyUnread || m.selectedFile != 1 || m.focusedPanel != PanelFileList {
+		t.Fatalf("U left the cursor at file %d (only unread %t, panel %d)", m.selectedFile, m.onlyUnread,
+			m.focusedPanel)
+	}
+
+	if m = Press(t, m, "k"); m.selectedFile != 1 {
+		t.Errorf("k moved onto the file read whole: at %d", m.selectedFile)
+	}
+
+	if m = Press(t, m, "g", "g"); m.selectedFile != 1 {
+		t.Errorf("gg moved onto the file read whole: at %d", m.selectedFile)
+	}
+
+	if m = Press(t, m, "j"); m.selectedFile != 2 {
+		t.Errorf("j did not reach README.md: at %d", m.selectedFile)
+	}
+
+	m = Press(t, m, "U")
+
+	if m.onlyUnread {
+		t.Fatal("U again left only-unread on")
+	}
+
+	if m = Press(t, m, "g", "g"); m.selectedFile != 0 {
+		t.Errorf("gg with every file shown went to %d", m.selectedFile)
+	}
+}
+
+func TestReads_OnlyUnreadHidesReadHunksButTheCursors(t *testing.T) {
+	t.Parallel()
+
+	m, _ := readsModelWith(t, ModeBrowse, 0)
+	m.focusedPanel = PanelDiffView
+	m = Press(t, m, "U")
+
+	if m.selectedFile != 0 || m.selectedHunk != 1 {
+		t.Fatalf("U on a read hunk left the cursor at %d/%d, want the unread 0/1", m.selectedFile, m.selectedHunk)
+	}
+
+	if got := m.hiddenHunks(); len(got) != 2 || !got[0] || got[1] {
+		t.Errorf("hidden %v, want the read hunk alone", got)
+	}
+
+	m = Press(t, m, "[", "h")
+
+	if got := m.hiddenHunks(); got[0] {
+		t.Errorf("the read hunk under the cursor is hidden: %v", got)
+	}
+}
+
+func TestReads_OnlyUnreadRefusedWithNothingUnread(t *testing.T) {
+	t.Parallel()
+
+	m, dir := readsModel(t, ModeBrowse)
+	markReads(t, dir, 0, 1, 2, 3)
+
+	m = Update(t, m, tea.FocusMsg{})
+	m = Press(t, m, "U")
+
+	if m.onlyUnread || !strings.Contains(m.notice, "every hunk is read") {
+		t.Errorf("U with nothing unread: only unread %t, said %q", m.onlyUnread, m.notice)
 	}
 }

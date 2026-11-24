@@ -111,18 +111,20 @@ type Model struct {
 	fileChange     *diff.FileChange
 	mechanical     map[int]string
 	expanded       map[int]bool
-	generated      generated.Set
-	viewMode       ViewModeType
-	shown          [][]diff.Line
-	pairs          [][]diff.SidePair
-	visualAnchor   int
-	lineCursor     int
-	tabWidth       int
-	selectedHunk   int
-	offset         int
-	isSearching    bool
-	isVisualMode   bool
-	generatedOpen  bool
+	// hidden is the hunks drawn as their header alone, which is U's view of what has been read.
+	hidden        []bool
+	generated     generated.Set
+	viewMode      ViewModeType
+	shown         [][]diff.Line
+	pairs         [][]diff.SidePair
+	visualAnchor  int
+	lineCursor    int
+	tabWidth      int
+	selectedHunk  int
+	offset        int
+	isSearching   bool
+	isVisualMode  bool
+	generatedOpen bool
 	// showWhitespace hides whitespace-only changes, so the lines drawn are not the diff's own.
 	showWhitespace  bool
 	showLineNumbers bool
@@ -167,6 +169,7 @@ func (m *Model) SetFileChange(file diff.FileChange) {
 
 	m.invalidate()
 	m.expanded = map[int]bool{}
+	m.hidden = nil
 	m.generatedOpen = false
 	m.mechanical = map[int]string{}
 
@@ -245,6 +248,8 @@ func (m *Model) buildLineIndex() {
 
 func (m *Model) bodyRows(hunkIdx int) int {
 	switch {
+	case m.isHidden(hunkIdx):
+		return 0
 	case m.isFolded(hunkIdx):
 		return 1
 	case m.viewMode == ViewModeSideBySide:
@@ -261,6 +266,24 @@ func (m *Model) foldReason(hunkIdx int) string {
 	}
 
 	return ""
+}
+
+// isHidden reports whether hunkIdx draws its header alone (SetHidden).
+func (m *Model) isHidden(hunkIdx int) bool {
+	return hunkIdx >= 0 && hunkIdx < len(m.hidden) && m.hidden[hunkIdx]
+}
+
+// SetHidden draws the hunks hidden marks as their header alone, one entry per hunk of the loaded
+// file; nil draws every hunk whole. It is U's view: the hunks a reader has read shrink to one row
+// each, so only what is unread takes room. Indices stay those of the file, so the cursor, the
+// selection, and every motion still name the same hunk. Unchanged marks cost a comparison, so the
+// caller may push them on every message.
+func (m *Model) SetHidden(hidden []bool) {
+	if m.fileChange == nil || slices.Equal(hidden, m.hidden) {
+		return
+	}
+
+	m.relayout(func() { m.hidden = slices.Clone(hidden) })
 }
 
 func (m *Model) isFolded(hunkIdx int) bool {
@@ -390,7 +413,7 @@ func (m *Model) rowOf(hunkIdx, lineIdx int) (int, bool) {
 	}
 
 	row := m.lineIndex.HunkOffsets[hunkIdx]
-	if lineIdx >= 0 && !m.isFolded(hunkIdx) {
+	if lineIdx >= 0 && !m.isFolded(hunkIdx) && !m.isHidden(hunkIdx) {
 		row += 1 + min(lineIdx, m.lineIndex.HunkLineCounts[hunkIdx]-2) //nolint:mnd // the header and the last row
 	}
 
@@ -669,7 +692,7 @@ func (m *Model) renderRows(width, height int) []string {
 }
 
 func (m *Model) renderBody(hunkIdx, first, width, limit int) []string {
-	if limit <= 0 {
+	if limit <= 0 || m.isHidden(hunkIdx) {
 		return nil
 	}
 
@@ -1117,8 +1140,10 @@ type headerState struct {
 	current, selected, read bool
 }
 
-// ReadGlyph leads the header of a hunk that has been read.
-const ReadGlyph = "✓"
+// ReadGlyph leads the header of a hunk that has been read. It is the cell jojo's read strip fills
+// (▰ read, ▱ unread), and never a check: in -i a selected hunk ends its header in a green ✓, so a
+// check for read put two checks on one row that differed only by color and side.
+const ReadGlyph = "▰"
 
 func (m *Model) drawHunkHeader(width, hunkIdx int, tags []SplitTag, st headerState) string {
 	hunk := &m.fileChange.Hunks[hunkIdx]

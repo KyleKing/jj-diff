@@ -124,9 +124,11 @@ mode. The two must name one directory and one id per hunk, so nothing is jj-diff
   a secondary workspace's pointer to the main store. jojo keys by the same store from its
   workspace root, and `TestOpen_AgreesWithJojo` writes jojo's derivation out longhand and holds
   `reads.Open` to it from a root, a subdirectory, and a second workspace
-- The scope is the revision's change id as jojo writes it everywhere, `change_id.shortest(8)`
-  (`Client.ScopeID`, with `--ignore-working-copy` since it runs beside the diff's own jj call); the
-  full id would name a file jojo never writes. A hunk's id is `seen.Parse` over the same
+- The scope is the revision's full change id, as jojo files it since v0.20.0 (`Client.ScopeID`,
+  with `--ignore-working-copy` since it runs beside the diff's own jj call). A shortest prefix grows
+  once another change comes to share it, which renamed the file and lost every mark on the change,
+  so the scope command also runs aragonite's `seen.Store.Migrate`, moving the one file an older jojo
+  filed under a prefix of the id into the full id's, under the save lock. A hunk's id is `seen.Parse` over the same
   `jj diff --git` text jj-diff parses. `reads.Map` pairs those ids with jj-diff's hunks by path
   and order, and leaves a file whose hunk count the two parsers disagree on unmarked rather than
   marked wrong
@@ -138,6 +140,14 @@ mode. The two must name one directory and one id per hunk, so nothing is jj-diff
 - The diff editor and the conflict viewer have no change to scope marks by and show none; their
   keymaps bind no `]u`. Where marks show, `]u` / `[u` are also bound on the file list, the screen
   a session opens on
+- `U` keeps indices whole: a read hunk is drawn as its header alone (`diffview.SetHidden`, zero
+  body rows in the line index) rather than taken out of the file, so the cursor, the selection,
+  and every patch still name the hunk jj's diff numbers. The cursor's own hunk stays whole, so
+  `]h` onto a read hunk still shows it. Files read whole leave the drawn list, and the list's
+  motions (`j`/`k`, `gg`/`G`, `]f`) step over them
+- The read mark is `▰`, the cell jojo's read strip fills, and never a check: `-i` ends a selected
+  hunk's header in a green `✓`, and a read check at the start of the same row differed only by
+  color and side. `TestReads_ReadAndSelectedMarksDiffer` holds the two apart
 
 ### Design Principles
 
