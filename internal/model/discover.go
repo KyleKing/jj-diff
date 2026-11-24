@@ -144,10 +144,12 @@ func (m *Model) entries(mode palette.Mode) []palette.Entry {
 				Prose: []string{"The band names each next step, why, and the jj command it runs."},
 			},
 			palette.Entry{
-				Action: cmdTipsOff, What: "stop tips about keys not yet used", Group: screenWord, Keys: typed(cmdTipsOff),
+				Action: cmdTipsOff, What: "stop tips about keys not yet used", Group: screenWord,
+				Keys: typed(cmdTipsOff),
 			},
 			palette.Entry{
-				Action: cmdTipsOn, What: "show tips about keys not yet used", Group: screenWord, Keys: typed(cmdTipsOn),
+				Action: cmdTipsOn, What: "show tips about keys not yet used", Group: screenWord,
+				Keys: typed(cmdTipsOn),
 			},
 		)
 	}
