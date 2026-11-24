@@ -51,7 +51,7 @@ type SelectionState interface {
 }
 ```
 
-Keys are data. Dispatch, the help overlay, the footer, and the which-key panel all come from the one table in `internal/model/keymap.go`, merged with aragonite `tui/keys` (`Global()`, `DiffView()`). Adding a key means a row there, its handler, and the README Keys section. `TestKeymap_AgreesWithShared` fails when jj-diff binds a shared key to a different action, and the help screens are pinned by `internal/model/testdata/help_*.golden`.
+Keys are data. Dispatch, the `?`/`:` palette (aragonite `tui/palette`, browse and run modes), the footer, the which-key panel, and refused-key reasons (`gate(action)`) all come from the one table in `internal/model/keymap.go`, merged with aragonite `tui/keys` (`Global()`, `DiffView()`). Adding a key means a row there, its handler, and the README Keys section. `TestKeymap_AgreesWithShared` fails when jj-diff binds a shared key to a different action, and the palette and footers are pinned by `internal/model/testdata/help_*.golden`, `palette_*`, `footers.golden` and `empty_*`. Every jj call goes through the client's `trail.Trail`, which `gm` lists.
 
 Patch generation in `internal/diff/patch.go` copies whole hunks as-is. For partial hunks it extracts the selected lines plus three lines of context on each side and recalculates the hunk header line counts.
 
