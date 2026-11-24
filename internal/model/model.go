@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/overlay"
 
 	"github.com/kyleking/jj-diff/internal/components/commitmsg"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
@@ -1657,28 +1658,15 @@ func (m *Model) render() string {
 	return composite(panels, frame.overlayView(), frame.width, frame.height)
 }
 
-// composite centers overlay over base. Drawing the panels underneath is what lets you still read the
-// diff you are searching or the revision you are picking a destination from.
-func composite(base, overlay string, width, height int) string {
-	if overlay == "" {
+// composite centers overlay over base. The panels stay drawn underneath, so you can still read the
+// revision you are picking a destination from, but faint and without their colors, so the box the
+// keys now go to is the one thing on screen that stands out.
+func composite(base, box string, width, height int) string {
+	if box == "" {
 		return base
 	}
 
-	// Compositor rather than Canvas.Compose, which draws every layer at the canvas origin and so
-	// discards the offsets that center the modal.
-	return lipgloss.NewCompositor(
-		lipgloss.NewLayer(base),
-		lipgloss.NewLayer(overlay).
-			X(centerOffset(width, lipgloss.Width(overlay))).
-			Y(centerOffset(height, lipgloss.Height(overlay))).
-			Z(1),
-	).Render()
-}
-
-func centerOffset(outer, inner int) int {
-	const halves = 2
-
-	return max((outer-inner)/halves, 0)
+	return overlay.Over(base, box, width, height, overlay.Styles{Dim: theme.Skin.Muted})
 }
 
 // overlayView returns the modal box that is up, or the empty string when no modal is open. The order
@@ -1695,8 +1683,6 @@ func (m *Model) overlayView() string {
 		return m.splitPreview.View(m.width, m.height)
 	case m.commitMsg.IsVisible():
 		return m.commitMsg.View(m.width, m.height)
-	case m.searchModal.IsVisible():
-		return m.searchModal.View(m.width, m.height)
 	case m.fileFinder.IsVisible():
 		return m.fileFinder.View(m.width, m.height)
 	}
@@ -1803,6 +1789,10 @@ func (m *Model) renderDiffView(height int) string {
 }
 
 func (m *Model) renderStatusBar() string {
+	if m.searchModal.IsVisible() {
+		return m.searchModal.Line(m.width)
+	}
+
 	focusedPanelStr := "files"
 	if m.focusedPanel == PanelDiffView {
 		focusedPanelStr = "diff"

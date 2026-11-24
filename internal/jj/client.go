@@ -309,7 +309,7 @@ func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 	// template has to terminate each record itself for the parser to find the
 	// three-line boundaries.
 	template := `separate("\n",` +
-		`change_id.shortest(),` +
+		`change_id.shortest() ++ "\t" ++ change_id.short(8) ++ "\t" ++ if(current_working_copy, "@"),` +
 		`if(description, description.first_line(), "(no description)")) ++ "\n---\n"`
 
 	cmd := c.jjCommand("log",
@@ -326,10 +326,14 @@ func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
 }
 
 // RevisionEntry is one row of the destination picker. ChangeID is jj's shortest unique prefix, so it
-// is only valid against the repository it came from.
+// is only valid against the repository it came from. Short is the eight-character form a person
+// reads, which starts with ChangeID unless the prefix is longer than eight.
 type RevisionEntry struct {
 	ChangeID    string
+	Short       string
 	Description string
+	// WorkingCopy marks the revision @ points at.
+	WorkingCopy bool
 }
 
 // SplitDestinationType separates a split target that already exists from one that will be created.
@@ -472,7 +476,8 @@ func parseRevisionEntries(output string) []RevisionEntry {
 			break
 		}
 
-		changeID := strings.TrimSpace(lines[i])
+		ids := strings.Split(strings.TrimSpace(lines[i]), "\t")
+		changeID := ids[0]
 		description := strings.TrimSpace(lines[i+1])
 		separator := strings.TrimSpace(lines[i+2])
 
@@ -484,10 +489,14 @@ func parseRevisionEntries(output string) []RevisionEntry {
 			continue
 		}
 
-		entries = append(entries, RevisionEntry{
-			ChangeID:    changeID,
-			Description: description,
-		})
+		entry := RevisionEntry{ChangeID: changeID, Short: changeID, Description: description}
+		if len(ids) > 1 && strings.HasPrefix(ids[1], changeID) {
+			entry.Short = ids[1]
+		}
+
+		const markField = 2
+		entry.WorkingCopy = len(ids) > markField && ids[markField] == "@"
+		entries = append(entries, entry)
 	}
 
 	return entries

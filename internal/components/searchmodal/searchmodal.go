@@ -1,4 +1,4 @@
-// Package searchmodal shows the incremental search prompt and its match counter. It holds no
+// Package searchmodal shows the incremental search prompt and its match counter in the footer row. It holds no
 // search logic: the parent model matches against the diff and pushes the query and the result
 // counts in for display.
 package searchmodal
@@ -8,15 +8,14 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-const (
-	modalWidthMargin    = 4
-	preferredModalWidth = 60
-	viewLineCount       = 7
-)
+// margin keeps the prompt off the terminal's edge, in line with the panes and the footer it replaces.
+const margin = 2
 
 // Model is the search prompt. It mirrors state the parent model owns, so the query and counts
 // it displays are only as current as the last SetQuery and UpdateResults call.
@@ -66,90 +65,59 @@ func (m *Model) UpdateResults(matchCount, currentIdx int) {
 	m.currentIdx = currentIdx
 }
 
-// View renders the prompt centered in the given terminal size, returning the empty string while
-// hidden.
-func (m Model) View(width, _ int) string {
-	if !m.visible {
+// Line renders the prompt as the footer row, exactly width cells, returning the empty string while
+// hidden. It takes the footer's place rather than sitting over the diff, so every match it
+// highlights stays in view while the query is typed, as / does in less and vim.
+func (m Model) Line(width int) string {
+	if !m.visible || width <= 0 {
 		return ""
 	}
 
-	modalWidth := min(preferredModalWidth, width-modalWidthMargin)
+	lead := strings.Repeat(" ", min(margin, width))
+	prompt := theme.Skin.Accent.Render("/") + theme.Skin.Body.Render(m.query) + theme.Skin.Accent.Render("▏")
+	status := theme.Skin.Subtitle.Render(m.statusText())
 
-	title := "Search"
-	inputLine := fmt.Sprintf("Query: %s█", m.query)
-	footer := "Enter: close search | Esc: cancel | Ctrl-N/P: next/prev"
+	if m.query != "" && m.matchCount == 0 {
+		status = theme.Skin.Warning.Render(m.statusText())
+	}
 
-	lines := make([]string, 0, viewLineCount)
-	lines = append(lines,
-		styleTitle(title, modalWidth),
-		"",
-		styleInput(inputLine, modalWidth),
-		"",
-		styleStatus(m.statusText(), modalWidth),
-		"",
-		styleFooter(footer, modalWidth),
-	)
+	head := prompt + theme.HintGap + status
+	room := width - margin - lipgloss.Width(head) - len(theme.HintGap)
 
-	content := strings.Join(lines, "\n")
+	// Listed in the order they are shed: the way out stays longest.
+	hints := []keyhint.Hint{
+		{Key: "ctrl-n/p", What: "next/prev"}, {Key: "enter", What: "keep"}, {Key: "esc", What: "cancel", Pin: true},
+	}
+	for i := range hints {
+		hints[i].Priority = i + 1
+	}
 
-	return renderModal(content)
+	line := head
+	if room > 0 {
+		line += theme.HintGap + keyhint.Fit(theme.Hints(), hints, room)
+	}
+
+	return fit(lead+line, width)
 }
 
 func (m Model) statusText() string {
-	if m.matchCount > 0 {
-		return fmt.Sprintf("Match %d of %d", m.currentIdx+1, m.matchCount)
+	switch {
+	case m.matchCount > 0 && m.currentIdx >= 0:
+		return fmt.Sprintf("%d of %d", m.currentIdx+1, m.matchCount)
+	case m.matchCount > 0:
+		return fmt.Sprintf("%d matches", m.matchCount)
+	case m.query == "":
+		return "type to search"
 	}
 
-	if m.query == "" {
-		return "Type to search..."
+	return "no matches"
+}
+
+// fit cuts a styled line to width cells or pads it out, so the footer never wraps to a second row.
+func fit(line string, width int) string {
+	if lipgloss.Width(line) > width {
+		line = ansi.Truncate(line, width, "")
 	}
 
-	return "No matches"
-}
-
-func styleTitle(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleInput(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.Text).
-		Width(width)
-
-	return style.Render(text)
-}
-
-func styleStatus(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.Accent).
-		Bold(true).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleFooter(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-// renderModal draws the bordered box only. The model composites it over the panels, so a
-// modal never blanks the diff behind it.
-func renderModal(content string) string {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.Primary).
-		Padding(0, 1).
-		Render(content)
+	return line + strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
 }

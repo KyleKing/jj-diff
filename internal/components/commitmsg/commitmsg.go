@@ -4,22 +4,14 @@
 package commitmsg
 
 import (
-	"fmt"
-	"strings"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
-	"charm.land/lipgloss/v2"
-
+	"github.com/kyleking/jj-diff/internal/components/modal"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-const (
-	inputBoxMargin     = 4
-	maxModalWidth      = 80
-	minModalWidth      = 50
-	modalHorizontalPad = 2
-	modalWidthMargin   = 20
-	viewLineCount      = 5
-)
+// preferredWidth leaves room for a commit subject line at its conventional length.
+const preferredWidth = 60
 
 // SplitTag names one destination of a multi-split by its display letter ('A', 'B', ...).
 type SplitTag rune
@@ -94,69 +86,14 @@ func (m Model) View(width, _ int) string {
 		return ""
 	}
 
-	modalWidth := min(max(width-modalWidthMargin, minModalWidth), maxModalWidth)
+	inner := modal.Width(width, preferredWidth)
 
-	inputBox := styleInput(m.message, modalWidth-inputBoxMargin)
-
-	lines := make([]string, 0, viewLineCount)
-	lines = append(
-		lines,
-		styleHeader(fmt.Sprintf("Commit Message for Tag [%s]", string(m.tag)), modalWidth),
-		"",
-		"  "+inputBox,
-		"",
-		styleFooter("Enter: Confirm | Esc: Cancel | Type to edit", modalWidth),
-	)
-
-	content := strings.Join(lines, "\n")
-
-	return renderModal(content)
-}
-
-func styleHeader(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleFooter(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleInput(text string, width int) string {
-	displayText := text
-	if displayText == "" {
-		displayText = "(enter message...)"
+	field := modal.Prompt(m.message)
+	if m.message == "" {
+		field = modal.Prompt("") + theme.Skin.Muted.Render("describe what goes in this commit")
 	}
 
-	if len(displayText) > width {
-		displayText = displayText[:width]
-	}
-
-	style := lipgloss.NewStyle().
-		Background(theme.MutedBg).
-		Foreground(theme.Text).
-		Width(width).
-		Padding(0, 1)
-
-	return style.Render(displayText)
-}
-
-// renderModal draws the bordered box only. The model composites it over the panels, so a
-// modal never blanks the diff behind it.
-func renderModal(content string) string {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.Primary).
-		Padding(1, modalHorizontalPad).
-		Render(content)
+	return modal.Box("Commit message", "tag "+string(m.tag), []string{field}, []keyhint.Hint{
+		{Key: "enter", What: "confirm"}, {Key: "esc", What: "cancel"},
+	}, inner)
 }

@@ -4,12 +4,15 @@
 package splitassign
 
 import (
-	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
+	"github.com/kyleking/jj-diff/internal/components/destpicker"
+	"github.com/kyleking/jj-diff/internal/components/modal"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -18,16 +21,10 @@ import (
 // hits minModalWidth and stops growing at maxModalWidth. The two panels split that width evenly
 // minus the " | " separator between them.
 const (
-	changeIDReserve     = 10
-	descriptionReserve  = 15
-	ellipsisWidth       = 3
-	maxModalWidth       = 100
-	minModalWidth       = 60
-	modalPaddingX       = 2
-	modalPaddingY       = 1
-	modalWidthMargin    = 20
-	panelCount          = 2
-	panelSeparatorWidth = 3
+	panelCount     = 2
+	preferredWidth = 84
+	// The tag pane is wide enough for a tag, its arrow, and a change id or a short new-commit message.
+	tagPaneWidth = 32
 )
 
 // SplitTag is the single character a hunk carries while a multi-way split is being assembled.
@@ -197,168 +194,87 @@ func (m *Model) View(width, _ int) string {
 		return ""
 	}
 
-	modalWidth := clamp(width-modalWidthMargin, minModalWidth, maxModalWidth)
-	leftWidth := modalWidth / panelCount
-	rightWidth := modalWidth - leftWidth - panelSeparatorWidth
+	inner := modal.Width(width, preferredWidth)
+	leftWidth := min(inner/panelCount, tagPaneWidth)
+	rightWidth := inner - leftWidth - lipgloss.Width(paneGap)
 
-	lines := []string{
-		styleHeader("Assign Destinations to Tags", modalWidth),
-		"",
-		m.renderSplitView(leftWidth, rightWidth),
-		"",
-		styleFooter("Tab: Switch Panel | Enter: Assign | N: New Commit | Esc: Cancel", modalWidth),
-	}
-
-	content := strings.Join(lines, "\n")
-
-	return renderModal(content)
+	return modal.Box("Assign destinations", strconv.Itoa(len(m.tags)), m.panes(leftWidth, rightWidth), []keyhint.Hint{
+		{Key: "tab", What: "switch pane"},
+		{Key: "enter", What: "assign"},
+		{Key: "N", What: "new commit"},
+		{Key: "esc", What: "cancel"},
+	}, inner)
 }
 
-func (m *Model) renderSplitView(leftWidth, rightWidth int) string {
-	tagLines := m.renderTagList(leftWidth)
-	revLines := m.renderRevisionList(rightWidth)
+// paneGap parts the tag pane from the revision pane with a hairline.
+var paneGap = " " + "│" + " "
 
-	maxLines := len(tagLines)
-	if len(revLines) > maxLines {
-		maxLines = len(revLines)
+func (m *Model) panes(leftWidth, rightWidth int) []string {
+	left := m.tagLines(leftWidth)
+	right := m.revisionLines(rightWidth)
+	rows := max(len(left), len(right))
+	gap := theme.Skin.Hairline.Render(paneGap)
+
+	out := make([]string, 0, rows)
+	for i := range rows {
+		l, r := strings.Repeat(" ", leftWidth), ""
+		if i < len(left) {
+			l = left[i]
+		}
+
+		if i < len(right) {
+			r = right[i]
+		}
+
+		out = append(out, l+gap+r)
 	}
 
-	for len(tagLines) < maxLines {
-		tagLines = append(tagLines, strings.Repeat(" ", leftWidth))
-	}
-	for len(revLines) < maxLines {
-		revLines = append(revLines, strings.Repeat(" ", rightWidth))
-	}
-
-	combined := make([]string, 0, maxLines)
-	for i := range maxLines {
-		combined = append(combined, fmt.Sprintf("%s │ %s", tagLines[i], revLines[i]))
-	}
-
-	return strings.Join(combined, "\n")
+	return out
 }
 
-func (m *Model) renderTagList(width int) []string {
-	var lines []string
-
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(theme.Primary)
-	if m.focusOnTags {
-		headerStyle = headerStyle.Background(theme.MutedBg)
+// heading names a pane, at full weight while it has the keyboard and a step back when it does not.
+func heading(name string, focused bool, width int) string {
+	face := theme.Skin.Muted
+	if focused {
+		face = theme.Skin.Title
 	}
-	lines = append(lines, headerStyle.Render(truncateOrPad("Tags", width)))
+
+	return modal.Fit(face.Render(name), width)
+}
+
+func (m *Model) tagLines(width int) []string {
+	lines := make([]string, 0, 1+len(m.tags))
+	lines = append(lines, heading("Tags", m.focusOnTags, width))
 
 	for i, tag := range m.tags {
-		isSelected := i == m.selectedTag
-		dest := m.destinations[tag]
-		var line string
-		if dest != nil {
-			if dest.Type == DestNewCommit {
-				line = fmt.Sprintf(
-					"[%s] → NEW: %s",
-					string(tag),
-					truncate(dest.Description, width-descriptionReserve),
-				)
-			} else {
-				line = fmt.Sprintf("[%s] → %s", string(tag), truncate(dest.ChangeID, width-changeIDReserve))
-			}
-		} else {
-			line = fmt.Sprintf("[%s] (unassigned)", string(tag))
-		}
-
-		if isSelected && m.focusOnTags {
-			lines = append(lines, styleSelected(truncateOrPad(line, width)))
-		} else {
-			lines = append(lines, truncateOrPad(line, width))
-		}
+		lines = append(lines, modal.Row(m.tagLine(tag), width, m.focusOnTags && i == m.selectedTag))
 	}
 
 	return lines
 }
 
-func (m *Model) renderRevisionList(width int) []string {
-	var lines []string
+// tagLine is a tag and where its hunks go, or that they go nowhere yet.
+func (m *Model) tagLine(tag SplitTag) string {
+	head := theme.Skin.Cursor.Render(string(tag)) + theme.Skin.Muted.Render(" → ")
 
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(theme.Primary)
-	if !m.focusOnTags {
-		headerStyle = headerStyle.Background(theme.MutedBg)
+	dest := m.destinations[tag]
+	switch {
+	case dest == nil:
+		return head + theme.Skin.Warning.Render("unassigned")
+	case dest.Type == DestNewCommit:
+		return head + theme.Skin.Accent.Render("new ") + theme.Skin.Body.Render(dest.Description)
 	}
-	lines = append(lines, headerStyle.Render(truncateOrPad("Revisions", width)))
 
-	for i, rev := range m.revisions {
-		isSelected := i == m.selectedRev
-		desc := truncate(rev.Description, width-descriptionReserve)
-		line := fmt.Sprintf("%-10s %s", rev.ChangeID, desc)
+	return head + theme.Skin.Body.Render(dest.ChangeID)
+}
 
-		if isSelected && !m.focusOnTags {
-			lines = append(lines, styleSelected(truncateOrPad(line, width)))
-		} else {
-			lines = append(lines, truncateOrPad(line, width))
-		}
+func (m *Model) revisionLines(width int) []string {
+	lines := make([]string, 0, 1+len(m.revisions))
+	lines = append(lines, heading("Revisions", !m.focusOnTags, width))
+
+	for i := range m.revisions {
+		lines = append(lines, modal.Row(destpicker.Line(&m.revisions[i]), width, !m.focusOnTags && i == m.selectedRev))
 	}
 
 	return lines
-}
-
-func clamp(value, lower, upper int) int {
-	return min(max(value, lower), upper)
-}
-
-func styleHeader(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleFooter(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleSelected(text string) string {
-	return lipgloss.NewStyle().
-		Background(theme.SelectedBg).
-		Foreground(theme.Text).
-		Render(text)
-}
-
-func truncate(text string, width int) string {
-	if len(text) > width {
-		if width > ellipsisWidth {
-			return text[:width-ellipsisWidth] + "..."
-		}
-
-		return text[:width]
-	}
-
-	return text
-}
-
-func truncateOrPad(text string, width int) string {
-	if len(text) > width {
-		if width > ellipsisWidth {
-			return text[:width-ellipsisWidth] + "..."
-		}
-
-		return text[:width]
-	}
-
-	return text + strings.Repeat(" ", width-len(text))
-}
-
-// renderModal draws the bordered box only. The model composites it over the panels, so a
-// modal never blanks the diff behind it.
-func renderModal(content string) string {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.Primary).
-		Padding(modalPaddingY, modalPaddingX).
-		Render(content)
 }

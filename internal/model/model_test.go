@@ -765,9 +765,11 @@ func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
 	tests := []struct {
 		open   func(m *Model)
 		name   string
+		footer string
 		height int
 	}{
-		{name: "search", height: 30, open: func(m *Model) { m.searchModal.Show() }},
+		// Search takes the footer's row, so its prompt is what the last line holds.
+		{name: "search", height: 30, footer: "type to search", open: func(m *Model) { m.searchModal.Show() }},
 		// The help overlay is nearly 30 rows, so it needs a terminal it does not fill.
 		{name: "help", height: 60, open: func(m *Model) { m.help.Show("Interactive") }},
 		{name: "commit message", height: 30, open: func(m *Model) { m.commitMsg.Show() }},
@@ -793,8 +795,13 @@ func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
 				t.Errorf("the file list should stay visible behind the modal, got:\n%s", got)
 			}
 
-			if !strings.Contains(got, "Interactive") {
-				t.Errorf("the status bar should stay visible behind the modal, got:\n%s", got)
+			footer := tt.footer
+			if footer == "" {
+				footer = "Interactive"
+			}
+
+			if !strings.Contains(got, footer) {
+				t.Errorf("the footer should read %q, got:\n%s", footer, got)
 			}
 		})
 	}

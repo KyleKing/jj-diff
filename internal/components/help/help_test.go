@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/kyleking/jj-diff/internal/components/help"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -37,28 +39,28 @@ func TestView_ShortTerminalScrollsInsteadOfClipping(t *testing.T) {
 
 	m := shown(t)
 
-	top := m.View(80, 24)
-	if !strings.Contains(top, "Keybindings") {
-		t.Error("the title should be visible before scrolling")
+	top := ansi.Strip(m.View(80, 24))
+	if !strings.Contains(top, "Keys 1–") {
+		t.Error("the title should say where the window is before scrolling")
 	}
 
-	if strings.Contains(top, "Interactive Mode") {
-		t.Fatal("this test assumes the guide starts below the fold at 24 rows")
+	if strings.Contains(top, "Moving changes") {
+		t.Fatal("this test assumes the interactive keys start below the fold at 24 rows")
 	}
 
-	if !strings.Contains(top, "j/k to scroll") {
+	if !strings.Contains(top, "j/k scroll") {
 		t.Error("the footer should say the overlay scrolls")
 	}
 
 	m.ScrollToEnd()
 
-	end := m.View(80, 24)
-	if !strings.Contains(end, "Interactive Mode") {
-		t.Error("scrolling to the end should reach the guide that starts below the fold")
+	end := ansi.Strip(m.View(80, 24))
+	if !strings.Contains(end, "Moving changes") {
+		t.Error("scrolling to the end should reach the keys that start below the fold")
 	}
 
-	if !strings.Contains(end, "100%") {
-		t.Error("the footer should report the position after scrolling to the end")
+	if !strings.Contains(end, "Keys") {
+		t.Error("the title should stay in view after scrolling")
 	}
 }
 
@@ -67,8 +69,8 @@ func TestView_AlwaysOffersTheCloseHint(t *testing.T) {
 	t.Parallel()
 
 	for _, height := range []int{8, 16, 24, 40, 80} {
-		got := shown(t).View(80, height)
-		if !strings.Contains(got, "? or Esc to close") {
+		got := ansi.Strip(shown(t).View(80, height))
+		if !strings.Contains(got, "esc close") {
 			t.Errorf("height %d dropped the close hint", height)
 		}
 	}
@@ -103,15 +105,15 @@ func TestView_ClampsScrollPastEitherEnd(t *testing.T) {
 func TestView_TallTerminalShowsEverythingWithoutScrolling(t *testing.T) {
 	t.Parallel()
 
-	got := shown(t).View(80, 60)
+	got := ansi.Strip(shown(t).View(80, 60))
 
-	for _, want := range []string{"Keybindings", "Navigation", "Interactive Mode", "Press ? or Esc to close"} {
+	for _, want := range []string{"── Keys ─", "── Navigation ─", "── Moving changes ─", "esc close"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("%q missing from a 60-row render", want)
 		}
 	}
 
-	if strings.Contains(got, "j/k to scroll") {
+	if strings.Contains(got, "j/k scroll") {
 		t.Error("a terminal that fits the overlay should not offer scrolling")
 	}
 }

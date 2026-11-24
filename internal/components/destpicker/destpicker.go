@@ -4,30 +4,24 @@
 package destpicker
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
-	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
+	"github.com/kyleking/jj-diff/internal/components/modal"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// Layout of the centered modal, in terminal cells. The modal shrinks with the terminal until it
-// hits the minimums, and stops growing at the maximums. Three rows are chrome (the header, the
-// blank line under it, and the footer), so the scrolling window of revisions fits in the rest.
 const (
-	halfDivisor       = 2
-	listChromeHeight  = 3
-	maxModalHeight    = 20
-	maxModalWidth     = 80
-	minModalHeight    = 5
-	minModalWidth     = 40
-	modalHeightMargin = 4
-	modalPaddingX     = 2
-	modalPaddingY     = 1
-	modalWidthMargin  = 20
-	rowIndentWidth    = 2
+	halfDivisor    = 2
+	maxRows        = 16
+	preferredWidth = 64
+	// The column a change id takes is the eight characters jj log shows.
+	idWidth = 8
+	// The log template writes this for a revision with no message.
+	noDescription = "(no description)"
 )
 
 // Model is the destination picker. Mutators take a pointer receiver, so a parent holding it
@@ -96,41 +90,30 @@ func (m Model) GetSelected() *jj.RevisionEntry {
 	return nil
 }
 
-// View centers the picker in a terminal of the given cell dimensions, scrolling a window of
-// rows that keeps the cursor near the middle. It returns an empty string while hidden.
+// View draws the picker for a terminal of the given cell dimensions, scrolling a window of rows
+// that keeps the cursor near the middle. It returns an empty string while hidden.
 func (m Model) View(width, height int) string {
 	if !m.visible {
 		return ""
 	}
 
-	maxHeight := clamp(height-modalHeightMargin, minModalHeight, maxModalHeight)
-	modalWidth := clamp(width-modalWidthMargin, minModalWidth, maxModalWidth)
-
-	lines := []string{
-		styleHeader("Select Destination", modalWidth),
-		"",
-	}
-
-	visibleRows := maxHeight - listChromeHeight
+	inner := modal.Width(width, preferredWidth)
+	visibleRows := min(modal.BodyRows(height), maxRows)
 	startIdx := m.scrollStart(visibleRows)
 	endIdx := min(startIdx+visibleRows, len(m.revisions))
 
+	body := make([]string, 0, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
-		rev := m.revisions[i]
-		isSelected := i == m.selected
-		line := renderRevisionLine(rev, isSelected, modalWidth-rowIndentWidth)
-		lines = append(lines, "  "+line)
+		body = append(body, modal.Row(Line(&m.revisions[i]), inner, i == m.selected))
 	}
 
-	lines = append(
-		lines,
-		"",
-		styleFooter("Enter: Select | Esc: Cancel | j/k: Navigate", modalWidth),
-	)
+	if len(body) == 0 {
+		body = append(body, theme.Skin.Muted.Render("No revisions to move into"))
+	}
 
-	content := strings.Join(lines, "\n")
-
-	return renderModal(content)
+	return modal.Box("Destination", strconv.Itoa(len(m.revisions)), body, []keyhint.Hint{
+		{Key: "j/k", What: "move"}, {Key: "enter", What: "choose"}, {Key: "esc", What: "cancel"},
+	}, inner)
 }
 
 func (m Model) scrollStart(visibleRows int) int {
@@ -143,65 +126,22 @@ func (m Model) scrollStart(visibleRows int) int {
 	return min(centered, len(m.revisions)-visibleRows)
 }
 
-func clamp(value, lower, upper int) int {
-	return min(max(value, lower), upper)
-}
-
-func renderRevisionLine(rev jj.RevisionEntry, selected bool, width int) string {
-	desc := rev.Description
-	if len(desc) > width-15 {
-		desc = desc[:width-18] + "..."
+// Line reads like a row of jj log: a mark for @, the change id with the prefix that names it
+// uniquely in the accent and the rest a step back, then the description, muted when there is none.
+func Line(rev *jj.RevisionEntry) string {
+	mark := "  "
+	if rev.WorkingCopy {
+		mark = theme.Skin.Accent.Render("@") + " "
 	}
 
-	line := fmt.Sprintf("%-10s %s", rev.ChangeID, desc)
+	rest := strings.TrimPrefix(rev.Short, rev.ChangeID)
+	id := theme.Skin.Cursor.Render(rev.ChangeID) + theme.Skin.Muted.Render(rest)
+	id += strings.Repeat(" ", max(idWidth-len(rev.Short), 0))
 
-	if selected {
-		return styleSelected(truncateOrPad(line, width))
+	desc := theme.Skin.Body.Render(rev.Description)
+	if rev.Description == noDescription {
+		desc = theme.Skin.Muted.Render(rev.Description)
 	}
 
-	return truncateOrPad(line, width)
-}
-
-func styleHeader(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleFooter(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleSelected(text string) string {
-	return lipgloss.NewStyle().
-		Background(theme.SelectedBg).
-		Foreground(theme.Text).
-		Render(text)
-}
-
-func truncateOrPad(text string, width int) string {
-	if len(text) > width {
-		return text[:width-3] + "..."
-	}
-
-	return text + strings.Repeat(" ", width-len(text))
-}
-
-// renderModal draws the bordered box only. The model composites it over the panels, so a
-// modal never blanks the diff behind it.
-func renderModal(content string) string {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.Primary).
-		Padding(modalPaddingY, modalPaddingX).
-		Render(content)
+	return mark + id + "  " + desc
 }

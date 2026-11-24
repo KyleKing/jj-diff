@@ -4,27 +4,18 @@ package splitpreview
 
 import (
 	"fmt"
-	"strings"
+	"strconv"
 
-	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
+	"github.com/kyleking/jj-diff/internal/components/modal"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 // Layout of the centered modal, in terminal cells. The modal shrinks with the terminal until it
 // hits minModalWidth and stops growing at maxModalWidth. A summary row is drawn with a two-cell
 // indent and a matching gap after it, which is what rowInsetWidth accounts for.
-const (
-	ellipsisWidth      = 3
-	existingDescWidth  = 20
-	maxModalWidth      = 100
-	minModalWidth      = 60
-	modalPaddingX      = 2
-	modalPaddingY      = 1
-	modalWidthMargin   = 20
-	newCommitDescWidth = 30
-	rowInsetWidth      = 4
-)
+const preferredWidth = 72
 
 // SplitTag is the single character a hunk carries while a multi-way split is being assembled. It is
 // declared here rather than shared with the parent model so this component imports nothing from it.
@@ -99,117 +90,42 @@ func (m Model) View(width, _ int) string {
 		return ""
 	}
 
-	modalWidth := clamp(width-modalWidthMargin, minModalWidth, maxModalWidth)
+	inner := modal.Width(width, preferredWidth)
 
-	lines := []string{
-		styleHeader("Split Preview", modalWidth),
-		"",
+	body := make([]string, 0, len(m.summaries))
+	for _, summary := range m.summaries {
+		body = append(body, summaryLine(summary))
 	}
 
-	if len(m.summaries) == 0 {
-		lines = append(lines, styleInfo("No tags assigned", modalWidth))
-	} else {
-		for _, summary := range m.summaries {
-			lines = append(lines, renderSummaryLine(summary, modalWidth))
-		}
+	if len(body) == 0 {
+		body = append(body, theme.Skin.Muted.Render("No tags assigned"))
 	}
 
-	lines = append(
-		lines,
-		"",
-		styleFooter("Enter: Apply | e: Edit | Esc: Cancel", modalWidth),
-	)
-
-	content := strings.Join(lines, "\n")
-
-	return renderModal(content)
+	return modal.Box("Split", strconv.Itoa(len(m.summaries)), body, []keyhint.Hint{
+		{Key: "enter", What: "apply"}, {Key: "e", What: "edit"}, {Key: "esc", What: "cancel"},
+	}, inner)
 }
 
-func clamp(value, lower, upper int) int {
-	return min(max(value, lower), upper)
-}
+// summaryLine reads as one move: the tag, where its changes go, and how much of the diff it takes.
+func summaryLine(summary SplitSummary) string {
+	tag := theme.Skin.Cursor.Render(string(summary.Tag))
 
-func renderSummaryLine(summary SplitSummary, width int) string {
-	var destStr string
-	if summary.Destination.Type == DestNewCommit {
-		destStr = "NEW: " + truncate(summary.Destination.Description, newCommitDescWidth)
-	} else {
-		destStr = fmt.Sprintf(
-			"%s (%s)",
-			summary.Destination.ChangeID,
-			truncate(summary.Destination.Description, existingDescWidth),
-		)
+	dest := theme.Skin.Accent.Render("new ") + theme.Skin.Body.Render(summary.Destination.Description)
+	if summary.Destination.Type != DestNewCommit {
+		dest = theme.Skin.Body.Render(summary.Destination.ChangeID) + " " +
+			theme.Skin.Muted.Render(summary.Destination.Description)
 	}
 
-	line := fmt.Sprintf("[%s] → %s | %d files, %d hunks",
-		string(summary.Tag),
-		destStr,
-		summary.FileCount,
-		summary.HunkCount,
-	)
+	size := theme.Skin.Muted.Render(fmt.Sprintf("%d %s, %d %s",
+		summary.FileCount, plural(summary.FileCount, "file"), summary.HunkCount, plural(summary.HunkCount, "hunk")))
 
-	return "  " + truncateOrPad(line, width-rowInsetWidth)
+	return tag + theme.Skin.Muted.Render(" → ") + dest + "   " + size
 }
 
-func styleHeader(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleFooter(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleInfo(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func truncate(text string, width int) string {
-	if len(text) > width {
-		if width > ellipsisWidth {
-			return text[:width-ellipsisWidth] + "..."
-		}
-
-		return text[:width]
+func plural(n int, noun string) string {
+	if n == 1 {
+		return noun
 	}
 
-	return text
-}
-
-func truncateOrPad(text string, width int) string {
-	visibleLen := len(text)
-	if visibleLen > width {
-		if width > ellipsisWidth {
-			return text[:width-ellipsisWidth] + "..."
-		}
-
-		return text[:width]
-	}
-
-	return text + strings.Repeat(" ", width-visibleLen)
-}
-
-// renderModal draws the bordered box only. The model composites it over the panels, so a
-// modal never blanks the diff behind it.
-func renderModal(content string) string {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.Primary).
-		Padding(modalPaddingY, modalPaddingX).
-		Render(content)
+	return noun + "s"
 }

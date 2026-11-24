@@ -22,8 +22,8 @@ const (
 
 	// The footer keeps margin columns off the terminal's edge, in line with the panes above it.
 	margin = 2
-	// Three spaces part the facts from the hints and one hint from the next, as second-look's do.
-	partGap = "   "
+	// The facts are parted from the hints as one hint is from the next.
+	partGap = theme.HintGap
 	// Two part one fact from the next.
 	factGap = "  "
 

@@ -68,11 +68,15 @@ execution, not concept. Ordered by payoff.
 ### Modals replace the whole screen
 
 Fixed on 2026-09-02. `render` composites the modal over the rendered panels, so the
-diff, the file list, and the status bar stay readable behind a search box or a
-destination picker. Each component's `renderModal` returns the bordered box and the
-model centres it, because `Canvas.Compose` draws every layer at the canvas origin and
-throws away a layer's X and Y. `lipgloss.NewCompositor` is the type that honours them.
+diff and the file list stay readable behind a destination picker.
 `TestRender_ModalsCompositeOverThePanels` pins it.
+
+Since 2026-11-24 every overlay draws through `internal/components/modal`: a rounded edge,
+the title as a labeled rule, and its keys as the last row in the footer's shape. The
+model places it with aragonite's `overlay.Over`, which leaves the panels faint and
+uncolored behind it, so the box is the one thing that stands out. Search is not an
+overlay any more: its prompt takes the footer row, as `/` does in less, because a box in
+the middle of the diff covered the matches it was highlighting.
 
 ### The help overlay clips instead of scrolling
 

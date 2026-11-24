@@ -3,21 +3,20 @@ package filefinder
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
-	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
+	"github.com/kyleking/jj-diff/internal/components/modal"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
 const (
-	ellipsis            = "..."
-	matchTextMargin     = 2
-	maxResults          = 10
-	modalWidthMargin    = 4
-	preferredModalWidth = 80
-	viewChromeLines     = 8
+	// The list is capped so the finder stays a compact box on a tall terminal.
+	maxResults          = 12
+	preferredModalWidth = 72
 )
 
 // Model is the picker's state. The item and data slices are parallel, so a caller passing lists of
@@ -101,150 +100,80 @@ func (m *Model) GetSelected() any {
 	return nil
 }
 
-// View renders the picker centered in the given terminal size, returning the empty string while
-// hidden.
-func (m *Model) View(width, _ int) string {
+// View renders the picker for a terminal width by height cells, returning the empty string while
+// hidden. The list is a window that follows the cursor, so every match can be reached and seen.
+func (m *Model) View(width, height int) string {
 	if !m.visible {
 		return ""
 	}
 
-	modalWidth := min(preferredModalWidth, width-modalWidthMargin)
+	inner := modal.Width(width, preferredModalWidth)
+	const promptRows = 2
 
-	title := "Find File"
-	inputLine := fmt.Sprintf("Filter: %s█", m.query)
-	footer := "↑↓: navigate | Enter: select | Esc: cancel"
+	body := make([]string, 0, promptRows+maxResults)
+	body = append(body, modal.Prompt(m.query), "")
+	body = append(body, m.results(inner, min(modal.BodyRows(height)-promptRows, maxResults))...)
 
-	lines := make([]string, 0, viewChromeLines+maxResults)
-	lines = append(lines, styleTitle(title, modalWidth), "", styleInput(inputLine, modalWidth), "")
-	lines = append(lines, m.renderResults(modalWidth)...)
-	lines = append(lines, "", styleFooter(footer, modalWidth))
-
-	content := strings.Join(lines, "\n")
-
-	return renderModal(content)
+	return modal.Box("Find file", m.count(), body, []keyhint.Hint{
+		{Key: "↑↓", What: "move"}, {Key: "enter", What: "open"}, {Key: "esc", What: "cancel"},
+	}, inner)
 }
 
-func (m *Model) renderResults(width int) []string {
+// count is how many files match out of how many there are, or just the total before any filter.
+func (m *Model) count() string {
+	if m.query == "" {
+		return strconv.Itoa(len(m.items))
+	}
+
+	return fmt.Sprintf("%d/%d", len(m.matches), len(m.items))
+}
+
+func (m *Model) results(width, rows int) []string {
 	if len(m.matches) == 0 {
-		if m.query == "" {
-			return []string{styleHint("Type to filter files...", width)}
-		}
-
-		return []string{styleHint("No matches", width)}
+		return []string{theme.Skin.Muted.Render("No file matches")}
 	}
 
-	lines := make([]string, 0, min(len(m.matches), maxResults))
-	for i := range min(len(m.matches), maxResults) {
-		lines = append(lines, renderMatch(m.matches[i], i == m.selectedIdx, width))
-	}
+	rows = max(rows, 1)
+	start := min(max(m.selectedIdx-rows/halves, 0), max(len(m.matches)-rows, 0))
+	end := min(start+rows, len(m.matches))
 
-	if len(m.matches) > maxResults {
-		remaining := len(m.matches) - maxResults
-		lines = append(lines, "", styleHint(fmt.Sprintf("... and %d more", remaining), width))
+	lines := make([]string, 0, end-start)
+	for i := start; i < end; i++ {
+		lines = append(lines, modal.Row(matchLine(&m.matches[i]), width, i == m.selectedIdx))
 	}
 
 	return lines
 }
 
-func renderMatch(match fuzzy.Match, isSelected bool, width int) string {
-	prefix := "  "
-	if isSelected {
-		prefix = "> "
-	}
+const halves = 2
 
+// matchLine is a path as the file list draws one, its directory a step back from its name, with
+// the characters the query matched in the accent so the reader sees why it is on the list.
+func matchLine(match *fuzzy.Match) string {
 	text := match.Text
-	displayText := prefix + text
+	nameAt := strings.LastIndex(text, "/") + 1
+	hit := make(map[int]bool, len(match.Indices))
 
-	maxWidth := width - matchTextMargin
-	if len(displayText) > maxWidth {
-		if maxWidth <= len(ellipsis) {
-			displayText = displayText[:max(maxWidth, 0)]
-		} else {
-			displayText = displayText[:maxWidth-len(ellipsis)] + ellipsis
+	for _, i := range match.Indices {
+		hit[i] = true
+	}
+
+	var out strings.Builder
+
+	out.WriteString(theme.Icons.File(text).Prefix())
+
+	for i, r := range text {
+		face := theme.Skin.Muted
+		if i >= nameAt {
+			face = theme.Skin.Body
 		}
-	}
 
-	style := lipgloss.NewStyle().
-		Width(width).
-		Foreground(theme.Text)
-
-	if isSelected {
-		style = style.
-			Background(theme.SelectedBg).
-			Bold(true)
-	}
-
-	if match.Matched && len(match.Indices) > 0 && !isSelected {
-		displayText = highlightMatches(displayText, match.Indices, len(prefix))
-	}
-
-	return style.Render(displayText)
-}
-
-func highlightMatches(text string, indices []int, prefixLen int) string {
-	matchedPositions := make(map[int]bool, len(indices))
-	for _, idx := range indices {
-		matchedPositions[idx+prefixLen] = true
-	}
-
-	var result strings.Builder
-	for i, ch := range text {
-		if matchedPositions[i] {
-			highlighted := lipgloss.NewStyle().
-				Foreground(theme.Accent).
-				Bold(true).
-				Render(string(ch))
-			result.WriteString(highlighted)
-		} else {
-			result.WriteRune(ch)
+		if hit[i] {
+			face = theme.Skin.Cursor
 		}
+
+		out.WriteString(face.Render(string(r)))
 	}
 
-	return result.String()
-}
-
-func styleTitle(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(theme.Primary).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleInput(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.Text).
-		Width(width)
-
-	return style.Render(text)
-}
-
-func styleHint(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-func styleFooter(text string, width int) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.SoftMutedBg).
-		Width(width).
-		Align(lipgloss.Center)
-
-	return style.Render(text)
-}
-
-// renderModal draws the bordered box only. The model composites it over the panels, so a
-// modal never blanks the diff behind it.
-func renderModal(content string) string {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(theme.Primary).
-		Padding(0, 1).
-		Render(content)
+	return out.String()
 }
