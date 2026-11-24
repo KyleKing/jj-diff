@@ -1,3 +1,11 @@
+## v0.8.1 (2026-11-24)
+
+### Perf
+
+- **startup**: load the diff while the terminal and the label are read
+- **ui**: keep the file list, footer, and search hits between frames
+- **diffview**: lex off the first frame, draw through pens, and keep drawn rows
+
 ## v0.8.0 (2026-11-24)
 
 ### Feat
