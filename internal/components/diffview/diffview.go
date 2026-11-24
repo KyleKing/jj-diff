@@ -856,7 +856,7 @@ func (m *Model) renderHunkHeader(width, hunkIdx int, isCurrent, isSelected bool)
 
 	var b strings.Builder
 
-	b.WriteString(theme.Skin.Muted.Render(lineRange(hunk)))
+	b.WriteString(theme.Skin.Muted.Render(hunk.Range()))
 
 	if m.getHunkTags != nil {
 		for _, tag := range m.getHunkTags(hunkIdx) {
@@ -870,7 +870,7 @@ func (m *Model) renderHunkHeader(width, hunkIdx int, isCurrent, isSelected bool)
 
 	tail := b.String()
 
-	section := sectionOf(hunk.Header)
+	section := hunk.Section()
 	if section == "" {
 		return padRow(lead+fitStyled(tail, width-margin, &lipgloss.Style{}), width, &lipgloss.Style{})
 	}
@@ -888,60 +888,6 @@ func (m *Model) renderHunkHeader(width, hunkIdx int, isCurrent, isSelected bool)
 }
 
 const headerGap = "  "
-
-// sectionOf is the text git writes after a hunk's second @@: the enclosing function or type.
-func sectionOf(header string) string {
-	rest, ok := strings.CutPrefix(header, "@@")
-	if !ok {
-		return ""
-	}
-
-	_, section, ok := strings.Cut(rest, "@@")
-	if !ok {
-		return ""
-	}
-
-	return strings.TrimSpace(section)
-}
-
-// lineRange is the span a hunk covers in the new file, `L13–24`, or in the old one when it leaves
-// nothing behind there. A hunk built without its header counts is measured from its lines.
-func lineRange(hunk *diff.Hunk) string {
-	start, count := hunk.NewStart, hunk.NewLines
-	if count == 0 && hunk.OldLines > 0 {
-		start, count = hunk.OldStart, hunk.OldLines
-	}
-
-	if start == 0 && count == 0 {
-		start, count = measuredRange(hunk.Lines)
-	}
-
-	switch {
-	case count <= 1:
-		return fmt.Sprintf("L%d", start)
-	default:
-		return fmt.Sprintf("L%d–%d", start, start+count-1)
-	}
-}
-
-func measuredRange(lines []diff.Line) (int, int) {
-	first, last := 0, 0
-
-	for _, line := range lines {
-		number := line.NewLineNum
-		if line.Type == diff.LineDeletion {
-			number = line.OldLineNum
-		}
-
-		if first == 0 || number < first {
-			first = number
-		}
-
-		last = max(last, number)
-	}
-
-	return first, max(last-first+1, 0)
-}
 
 func truncateOrPad(text string, width int) string {
 	if width <= 0 {

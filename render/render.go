@@ -14,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/generated"
+	"github.com/kyleking/aragonite/tui/skin"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/highlight"
@@ -34,8 +35,13 @@ type Palette struct {
 	// when Options.WordDiff is set.
 	AddedWord   color.Color
 	RemovedWord color.Color
-	// Gutter is the line-number column, drawn only when Options.LineNumbers is set.
+	// Gutter is the line-number column, drawn only when Options.LineNumbers is set, and the line
+	// range Options.HunkLabels puts beside a hunk's function.
 	Gutter color.Color
+	// AddedWash and RemovedWash tint a changed line's whole row, out to Width when it is set. A
+	// washed line's text keeps Context's face, since the tint already says which side it is on.
+	AddedWash   color.Color
+	RemovedWash color.Color
 	// Syntax is the token faces. A zero Syntax renders code unhighlighted.
 	Syntax SyntaxPalette
 }
@@ -76,6 +82,12 @@ type Options struct {
 	CollapseGenerated bool
 	// FoldMechanical draws a reindent-only or whitespace-only hunk as one line, after a pass over every file.
 	FoldMechanical bool
+	// SignBar marks a changed line's side with a ▎ bar in Added or Removed instead of a + or -.
+	// Leave it off under NO_COLOR, where a bar cannot say which side a line is on.
+	SignBar bool
+	// HunkLabels heads each hunk with the function git found around it and the lines it covers,
+	// `func parse()  L13–24`, rather than the raw @@ line.
+	HunkLabels bool
 }
 
 // Lines renders diffText as one styled string per terminal row, in file order. Input that parses to
@@ -217,7 +229,7 @@ func (d *Document) row(seg *segment, row int) string {
 
 	hunk := &file.Hunks[seg.hunk]
 	if row == 0 {
-		return r.fit(r.styled(hunk.Header, r.opts.Palette.Hunk))
+		return r.hunkHead(hunk)
 	}
 
 	if seg.note != "" {
@@ -252,6 +264,22 @@ type renderer struct {
 	opts        Options
 }
 
+// hunkLabelGap separates a hunk's function from its line range.
+const hunkLabelGap = "  "
+
+func (r *renderer) hunkHead(hunk *diff.Hunk) string {
+	if !r.opts.HunkLabels {
+		return r.fit(r.styled(hunk.Header, r.opts.Palette.Hunk))
+	}
+
+	span := r.styled(hunk.Range(), r.opts.Palette.Gutter)
+	if section := hunk.Section(); section != "" {
+		span = r.styled(section, r.opts.Palette.Hunk) + hunkLabelGap + span
+	}
+
+	return r.fit(span)
+}
+
 func (r *renderer) wordsFor(file, hunk int, h *diff.Hunk) map[int]diff.WordDiffResult {
 	if !r.opts.WordDiff {
 		return nil
@@ -280,7 +308,7 @@ const gutterPad = " \u2502 "
 func (r *renderer) column(path string, pair diff.SidePair, words map[int]diff.WordDiffResult) string {
 	pane := r.paneWidth()
 	left := r.pane(path, pair.Left, false, words[pair.LeftIdx], pane)
-	right := r.pane(path, pair.Right, true, words[pair.RightIdx], pane)
+	right := r.pane(path, pair.Right, true, words[pair.RightIdx], r.rightWidth(pane))
 
 	return left + gutterPad + right
 }
@@ -297,6 +325,15 @@ func (r *renderer) paneWidth() int {
 	return max(1, (r.opts.Width-lipgloss.Width(gutterPad))/panes)
 }
 
+// rightWidth gives the right pane the cell an odd frame leaves over, so a row fills the frame.
+func (r *renderer) rightWidth(left int) int {
+	if r.opts.Width <= 0 {
+		return left
+	}
+
+	return max(left, r.opts.Width-lipgloss.Width(gutterPad)-left)
+}
+
 // pane draws one side of a row, padded to width so the separator stays in one column. A nil line is
 // the blank opposite an addition or a deletion with no counterpart.
 func (r *renderer) pane(path string, line *diff.Line, isRight bool, words diff.WordDiffResult, width int) string {
@@ -304,7 +341,11 @@ func (r *renderer) pane(path string, line *diff.Line, isRight bool, words diff.W
 		return strings.Repeat(" ", max(width, 0))
 	}
 
-	content := r.content(path, *line, words)
+	if r.restyled() {
+		return r.washed(r.numbers(sideNumber(*line, isRight), line.Type)+r.sign(line.Type), path, *line, words, width)
+	}
+
+	content := r.content(path, *line, words, lipgloss.Style{})
 	if r.opts.LineNumbers {
 		content = r.styled(sideNumber(*line, isRight), r.opts.Palette.Gutter) + content
 	}
@@ -334,7 +375,13 @@ func sideNumber(line diff.Line, isRight bool) string {
 }
 
 func (r *renderer) line(path string, line diff.Line, words diff.WordDiffResult) string {
-	text := line.Type.String() + r.content(path, line, words)
+	if r.restyled() {
+		lead := r.numbers(gutter(line), line.Type) + r.sign(line.Type)
+
+		return r.washed(lead, path, line, words, r.opts.Width)
+	}
+
+	text := line.Type.String() + r.content(path, line, words, lipgloss.Style{})
 	if r.opts.LineNumbers {
 		text = r.styled(gutter(line), r.opts.Palette.Gutter) + text
 	}
@@ -342,16 +389,114 @@ func (r *renderer) line(path string, line diff.Line, words diff.WordDiffResult) 
 	return r.fit(r.styled(text, r.face(line.Type)))
 }
 
-// content is the line's text with whatever highlighting the options ask for, and no marker.
-func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResult) string {
+// restyled says whether a changed line is drawn the newer way, washed or signed, rather than as
+// a + or - line in its side's color.
+func (r *renderer) restyled() bool {
+	p := &r.opts.Palette
+
+	return r.opts.SignBar || p.AddedWash != nil || p.RemovedWash != nil
+}
+
+// base is the face every part of a restyled line is drawn on: the wash behind it, and the text in
+// Context where there is a wash to say the side and in the side's own color where there is not.
+func (r *renderer) base(kind diff.LineType) lipgloss.Style {
+	style := lipgloss.NewStyle()
+
+	wash := r.wash(kind)
+	if wash != nil {
+		style = style.Background(wash)
+	}
+
+	face := r.face(kind)
+	if wash != nil {
+		face = r.opts.Palette.Context
+	}
+
+	if face != nil {
+		style = style.Foreground(face)
+	}
+
+	return style
+}
+
+func (r *renderer) wash(kind diff.LineType) color.Color {
+	switch kind {
+	case diff.LineAddition:
+		return r.opts.Palette.AddedWash
+	case diff.LineDeletion:
+		return r.opts.Palette.RemovedWash
+	case diff.LineContext:
+		return nil
+	}
+
+	return nil
+}
+
+// sign is the marker column: the bar in the side's color, or the +, -, or space a plain diff has.
+func (r *renderer) sign(kind diff.LineType) string {
+	base := r.base(kind)
+
+	if !r.opts.SignBar {
+		return base.Render(kind.String())
+	}
+
+	if kind == diff.LineContext {
+		return base.Render(" ")
+	}
+
+	if face := r.face(kind); face != nil {
+		base = base.Foreground(face)
+	}
+
+	return base.Render(skin.SignBar)
+}
+
+// numbers is the line-number gutter on the line's wash, or nothing when the options leave it off.
+func (r *renderer) numbers(text string, kind diff.LineType) string {
+	if !r.opts.LineNumbers {
+		return ""
+	}
+
+	style := r.base(kind)
+	if r.opts.Palette.Gutter != nil {
+		style = style.Foreground(r.opts.Palette.Gutter)
+	}
+
+	return style.Render(text)
+}
+
+// washed draws lead and the line's content on its wash, cut or padded to width so the tint runs
+// edge to edge. A zero width leaves the line its natural length.
+func (r *renderer) washed(lead, path string, line diff.Line, words diff.WordDiffResult, width int) string {
+	base := r.base(line.Type)
+	text := lead + r.content(path, line, words, base)
+
+	if width <= 0 {
+		return text
+	}
+
+	if over := lipgloss.Width(text) - width; over > 0 {
+		return r.cut(text, width)
+	}
+
+	return text + base.Render(strings.Repeat(" ", width-lipgloss.Width(text)))
+}
+
+// content is the line's text with whatever highlighting the options ask for, and no marker. Every
+// part of it is drawn on base, so a wash behind the line is not broken by a token's reset.
+//
+//nolint:gocritic // hugeParam: lipgloss.Style is passed by value throughout lipgloss.
+func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResult, base lipgloss.Style) string {
 	if spans := sideSpans(line.Type, words); len(spans) > 0 {
-		return r.emphasize(line, words)
+		return r.emphasize(line, words, base)
 	}
 
 	if r.highlighter != nil {
-		base := lipgloss.NewStyle()
-
 		return r.highlighter.Line(path, line, &base)
+	}
+
+	if r.restyled() {
+		return base.Render(line.Content)
 	}
 
 	return line.Content
@@ -359,7 +504,9 @@ func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResul
 
 // emphasize redraws the line from its word spans, so syntax highlighting is dropped for that line:
 // the two cannot both style the same bytes, and which bytes changed is the more useful of the two.
-func (r *renderer) emphasize(line diff.Line, words diff.WordDiffResult) string {
+//
+//nolint:gocritic // hugeParam: lipgloss.Style is passed by value throughout lipgloss.
+func (r *renderer) emphasize(line diff.Line, words diff.WordDiffResult, base lipgloss.Style) string {
 	var out strings.Builder
 
 	mark := r.opts.Palette.AddedWord
@@ -369,15 +516,27 @@ func (r *renderer) emphasize(line diff.Line, words diff.WordDiffResult) string {
 
 	for _, span := range sideSpans(line.Type, words) {
 		if span.Type == diff.SpanEqual || mark == nil {
-			out.WriteString(span.Text)
+			out.WriteString(r.plain(span.Text, base))
 
 			continue
 		}
 
-		out.WriteString(lipgloss.NewStyle().Background(mark).Render(span.Text))
+		out.WriteString(base.Background(mark).Render(span.Text))
 	}
 
 	return out.String()
+}
+
+// plain draws unmarked text on base, or leaves it bare for a line drawn the older way, whose face
+// is applied around the whole line.
+//
+//nolint:gocritic // hugeParam: lipgloss.Style is passed by value throughout lipgloss.
+func (r *renderer) plain(text string, base lipgloss.Style) string {
+	if !r.restyled() {
+		return text
+	}
+
+	return base.Render(text)
 }
 
 func sideSpans(kind diff.LineType, words diff.WordDiffResult) []diff.IntraLineSpan {
