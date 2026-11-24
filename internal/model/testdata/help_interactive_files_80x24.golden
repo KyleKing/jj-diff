@@ -12,13 +12,13 @@
     12 ▎ another line                                                           
 ── keys 26 of 26 ───────────────────────────────────────────────────────────────
 ── General ─────────────────────────────────────────────────────────────────────
-▌ ?                  help                                                       
-  :                  command palette                                            
-  q                  close, or quit at the …                                    
-  esc                back out one level                                         
-  ctrl+c             cancel the running com…                                    
-  u                  undo                                                       
-  ctrl+r             redo                                                       
-  ctrl+l             reload from the source   jj diff -r @ --git                
+▌ ?       help                                                                  
+  :       command palette                                                       
+  q       close, or quit at the root                                            
+  esc     back out one level                                                    
+  ctrl+c  cancel the running command,…                                          
+  u       undo                                                                  
+  ctrl+r  redo                                                                  
+  ctrl+l  reload from the source        jj diff -r @ --git                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
   Interactive  @   j/k nav   enter diff   f filter   / search   ? help          

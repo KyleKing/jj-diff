@@ -76,4 +76,6 @@ The invariant that makes it safe: the selection is the only content that changes
 
 `theme.Profile()` (aragonite `theme.Profile`, which honors `COLORTERM=truecolor` inside tmux) is the one color depth: the skin and diff faces are fitted to it (`skin.For`, `skin.DiffFor`) and `main.go` hands it to Bubble Tea with `tea.WithColorProfile`. Every background comes from those faces; the theme package paints none of its own. Frame goldens go through `frameGolden`, which runs aragonite `framecheck` first, and `TestChromeIsWidthStable` holds the source's literals to the glyph policy.
 
+A selected row is drawn through the skin, never by inheriting `Skin.Selection` into a cell's face: `theme.Skin.Select(row, width)` lays the selection under a drawn row, and `skin.On(base, face)` composes a cell on a band or tint. At 16 colors and under NO_COLOR the selection is reverse video, where a colored cell reverses into a colored block, and those two calls drop the colors so the row is one even bar. `TestSelectedRow_OneReverseBarAtSixteenColors`, `TestCursorLine_OneReverseBarAtSixteenColors`, and `TestRow_OneReverseBarAtSixteenColors` pin it per profile.
+
 Force a theme in tests with `t.Setenv("CATPPUCCIN_THEME", "macchiato")` followed by `theme.Init()`. Lip Gloss v2 has no global background override, so the environment variable is the only seam.

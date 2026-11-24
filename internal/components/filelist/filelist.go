@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/glyph"
+	"github.com/kyleking/aragonite/tui/skin"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
@@ -212,7 +213,7 @@ func (m *Model) renderCollapsed(width int) string {
 
 	right := m.counts[m.selected].render(&band, 0, 0) +
 		band.Render(headingGap) +
-		theme.Skin.Muted.Inherit(band).Render(fmt.Sprintf("%d/%d", m.selected+1, len(m.files))) +
+		skin.On(band, theme.Skin.Muted).Render(fmt.Sprintf("%d/%d", m.selected+1, len(m.files))) +
 		band.Render(" ")
 
 	lead := band.Render(strings.Repeat(" ", margin)) + statusCell(file.ChangeType, &band) + band.Render(" ")
@@ -400,16 +401,19 @@ func (m *Model) drawRow(originalIdx int, layout columnLayout) string {
 	selected := originalIdx == m.selected
 
 	base := lipgloss.NewStyle()
-	if selected {
-		base = theme.SelectionStyle
+	right := m.counts[originalIdx].render(&base, layout.addWidth, layout.delWidth) +
+		strings.Repeat(" ", rightPad)
+	lead := strings.Repeat(" ", margin) + statusCell(file.ChangeType, &base) + " "
+	room := layout.width - lipgloss.Width(lead) - lipgloss.Width(right) - len(headingGap)
+	row := fitRow(lead+pathCell(file.Path, max(room, 0), &base, selected), right, layout.width, &base)
+
+	if !selected {
+		return row
 	}
 
-	right := m.counts[originalIdx].render(&base, layout.addWidth, layout.delWidth) +
-		base.Render(strings.Repeat(" ", rightPad))
-	lead := base.Render(strings.Repeat(" ", margin)) + statusCell(file.ChangeType, &base) + base.Render(" ")
-	room := layout.width - lipgloss.Width(lead) - lipgloss.Width(right) - len(headingGap)
-
-	return fitRow(lead+pathCell(file.Path, max(room, 0), &base, selected), right, layout.width, &base)
+	// The skin lays the selection under the drawn row: a tint the cells keep their colors on, or
+	// at 16 colors and under NO_COLOR one even reverse bar with no colored cells inside it.
+	return theme.Skin.Select(row, layout.width)
 }
 
 // fitRow puts right against the row's right edge and pads the gap between in base, so a selection
@@ -434,19 +438,19 @@ func fitRow(left, right string, width int, base *lipgloss.Style) string {
 
 // statusCell is the one-letter status jj prints, in the color of what happened to the file.
 func statusCell(kind diff.ChangeType, base *lipgloss.Style) string {
-	face := base.Foreground(theme.Palette.Yellow)
+	hue := theme.Palette.Yellow
 
 	switch kind {
 	case diff.ChangeTypeAdded:
-		face = base.Foreground(theme.Palette.Green)
+		hue = theme.Palette.Green
 	case diff.ChangeTypeDeleted:
-		face = base.Foreground(theme.Palette.Red)
+		hue = theme.Palette.Red
 	case diff.ChangeTypeRenamed:
-		face = base.Foreground(theme.Palette.Blue)
+		hue = theme.Palette.Blue
 	case diff.ChangeTypeModified:
 	}
 
-	return face.Bold(true).Render(kind.String())
+	return skin.On(*base, lipgloss.NewStyle().Foreground(hue).Bold(true)).Render(kind.String())
 }
 
 // pathCell is a path in at most width cells: its type's icon, its directory a step back, and its own
@@ -476,17 +480,17 @@ func pathCell(path string, width int, base *lipgloss.Style, bright bool) string 
 		dir = ellipsis + ansi.TruncateLeft(dir, over+lipgloss.Width(ellipsis), "")
 	}
 
-	nameFace := theme.Skin.Body.Inherit(*base)
+	nameFace := skin.On(*base, theme.Skin.Body)
 	if bright {
-		nameFace = theme.Skin.Title.Inherit(*base)
+		nameFace = skin.On(*base, theme.Skin.Title)
 	}
 
 	out := ""
 	if prefix != "" {
-		out = base.Foreground(icon.Color).Render(prefix)
+		out = skin.On(*base, lipgloss.NewStyle().Foreground(icon.Color)).Render(prefix)
 	}
 
-	return out + theme.Skin.Muted.Inherit(*base).Render(dir) + nameFace.Render(name)
+	return out + skin.On(*base, theme.Skin.Muted).Render(dir) + nameFace.Render(name)
 }
 
 // splitPath cuts a path after its last slash, keeping the slash with the directory.
@@ -504,7 +508,8 @@ type changeCounts struct {
 // render draws the counts right-aligned in columns addWidth and delWidth wide, or as wide as they
 // are where a width is 0, leaving a zero count's cell blank.
 func (c changeCounts) render(base *lipgloss.Style, addWidth, delWidth int) string {
-	addFace, delFace := base.Foreground(theme.AddedLine), base.Foreground(theme.DeletedLine)
+	addFace := skin.On(*base, lipgloss.NewStyle().Foreground(theme.AddedLine))
+	delFace := skin.On(*base, lipgloss.NewStyle().Foreground(theme.DeletedLine))
 	added := statCell("+", c.additions, addWidth, &addFace)
 	deleted := statCell("-", c.deletions, delWidth, &delFace)
 

@@ -80,34 +80,16 @@ func pinLast(hints []keyhint.Hint) []keyhint.Hint {
 	return out
 }
 
-// Row draws one selectable line at width, on the selection tint when it is the cursor. The tint is
-// the one the file list and every sibling tool use, quiet enough to read the row through.
+// Row draws one selectable line at width, as the skin's selected row when it is the cursor: the
+// tint the file list and every sibling tool use, quiet enough to read the row through, or one even
+// reverse bar where the terminal has 16 colors or NO_COLOR.
 func Row(text string, width int, selected bool) string {
 	line := Fit(text, width)
 	if !selected {
 		return line
 	}
 
-	return onBackground(line, theme.Skin.Selection)
-}
-
-// onBackground lays a styled line on face's background. Each part of the line ends in a reset that
-// would drop a background set around it, so the background is set again after every one.
-//
-//nolint:gocritic // hugeParam: lipgloss.Style is passed by value throughout lipgloss.
-func onBackground(line string, face lipgloss.Style) string {
-	const probe = "\x00"
-
-	open, _, ok := strings.Cut(face.Render(probe), probe)
-	if !ok || open == "" {
-		return line
-	}
-
-	for _, reset := range []string{"\x1b[0m", "\x1b[m"} {
-		line = strings.ReplaceAll(line, reset, reset+open)
-	}
-
-	return open + line + "\x1b[m"
+	return theme.Skin.Select(line, width)
 }
 
 // Fit cuts a styled line to width cells, marking the cut, or pads it out to width.

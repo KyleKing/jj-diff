@@ -12,13 +12,13 @@
                                                                                 
 ── keys 34 of 34 ───────────────────────────────────────────────────────────────
 ── General ─────────────────────────────────────────────────────────────────────
-▌ ?                  help                                                       
-  :                  command palette                                            
-  q                  close, or quit at the …                                    
-  esc                back out one level                                         
-  ctrl+c             cancel the running com…                                    
-  u                  undo · nothing to undo                                     
-  ctrl+r             redo · nothing to redo                                     
-  ctrl+l             reload from the source   jj diff -r @ --git                
+▌ ?       help                                                                  
+  :       command palette                                                       
+  q       close, or quit at the root                                            
+  esc     back out one level                                                    
+  ctrl+c  cancel the running command,…                                          
+  u       undo · nothing to undo                                                
+  ctrl+r  redo · nothing to redo                                                
+  ctrl+l  reload from the source        jj diff -r @ --git                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
   ▸ next  3 of 3 regions unpicked · 1–9 side   0 base   a all   ? help          

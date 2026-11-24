@@ -346,3 +346,71 @@ func TestOverviewTrackIsAbsentWhenTheFileFits(t *testing.T) {
 		t.Errorf("track %q drawn for a file that fits", track)
 	}
 }
+
+// foreground matches an SGR sequence that sets a foreground color, basic, bright, or extended.
+var foreground = regexp.MustCompile(`\x1b\[(?:\d+;)*(?:3[0-8]|9[0-7])(?:;\d+)*m`)
+
+// The line under the cursor is drawn on the skin's selection. At 16 colors that is reverse video,
+// where the line number, the sign, and every syntax token would reverse into colored blocks, so
+// the row between the margin and the track carries no color and reads as one even bar. With
+// millions of colors the tokens keep their colors on the tint. Each profile is set through the
+// environment the theme reads it from; the cleanups (last registered first) restore it before
+// theme.Init rebuilds.
+func TestCursorLine_OneReverseBarAtSixteenColors(t *testing.T) {
+	for _, tc := range []struct {
+		name, term, colorterm string
+		reverse               bool
+	}{
+		{name: "16 colors", term: "xterm", reverse: true},
+		{name: "truecolor", term: "xterm-256color", colorterm: "truecolor"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(theme.Init)
+			t.Setenv("TERM", tc.term)
+			t.Setenv("COLORTERM", tc.colorterm)
+			theme.Init()
+
+			for _, width := range []int{60, 100} {
+				m := diffview.New(config.DefaultConfig())
+				m.SetFileChange(fileNamed(t, "main.go"))
+				m.SetSelection(0, func(int) bool { return false })
+				m.SetVisualState(4, true, 4, func(int, int) bool { return false })
+
+				row := cursorRow(t, m.View(width, 12, true))
+				colored := foreground.MatchString(row)
+
+				switch {
+				case tc.reverse && (colored || !strings.HasPrefix(row, "\x1b[7m")):
+					t.Errorf("width %d: cursor row %q, want one reverse bar with no colors in it", width, row)
+				case !tc.reverse && !colored:
+					t.Errorf("width %d: cursor row %q, want its tokens' colors on the tint", width, row)
+				}
+			}
+		})
+	}
+}
+
+// cursorRow is the cursor line's body: from its number to the end of its padding, past the
+// margin's indicator and short of the overview track.
+func cursorRow(t *testing.T, view string) string {
+	t.Helper()
+
+	for _, row := range strings.Split(view, "\n") {
+		if !strings.Contains(ansi.Strip(row), "const limit = 20") {
+			continue
+		}
+
+		_, rest, _ := strings.Cut(row, "┃ \x1b[m")
+		if at := strings.LastIndex(rest, "\x1b[m"); at >= 0 {
+			if track := strings.LastIndex(rest[:at], "\x1b[m"); track >= 0 {
+				return rest[:track+len("\x1b[m")]
+			}
+		}
+
+		return rest
+	}
+
+	t.Fatal("no cursor row in the view")
+
+	return ""
+}

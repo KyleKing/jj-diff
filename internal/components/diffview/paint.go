@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/pen"
+	"github.com/kyleking/aragonite/tui/skin"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/highlight"
@@ -111,7 +112,7 @@ func (m *Model) pensFor() *pens {
 				quiet = theme.Skin.Subtitle
 			}
 
-			r.number[k] = pen.Of(quiet.Inherit(base))
+			r.number[k] = pen.Of(skin.On(base, quiet))
 			r.sign[k] = pen.Of(signStyle(kind, &base))
 		}
 	}

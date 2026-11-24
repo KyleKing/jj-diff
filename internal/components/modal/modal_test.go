@@ -42,10 +42,23 @@ func TestBoxIsOneWidthAndCarriesTitleAndHints(t *testing.T) {
 	}
 }
 
+// useProfile rebuilds the theme as a terminal named by term and colorterm shows it. The cleanups run
+// last registered first, so the environment is restored before theme.Init rebuilds from it.
+func useProfile(t *testing.T, term, colorterm string) {
+	t.Helper()
+	t.Cleanup(theme.Init)
+	t.Setenv("CLICOLOR_FORCE", "1")
+	t.Setenv("TERM", term)
+	t.Setenv("COLORTERM", colorterm)
+	theme.Init()
+}
+
 // The cursor row keeps its tint across every styled part of it, rather than losing it at the first
 // part's reset.
+//
+//nolint:paralleltest // theme.Init rewrites the package-level faces every test here reads.
 func TestRowKeepsTheSelectionAcrossStyledParts(t *testing.T) {
-	t.Parallel()
+	useProfile(t, "xterm-256color", "truecolor")
 
 	open, _, _ := strings.Cut(theme.Skin.Selection.Render("\x00"), "\x00")
 	row := modal.Row(theme.Skin.Accent.Render("ab")+theme.Skin.Muted.Render("cd"), 10, true)
@@ -60,5 +73,22 @@ func TestRowKeepsTheSelectionAcrossStyledParts(t *testing.T) {
 
 	if w := lipgloss.Width(row); w != 10 {
 		t.Errorf("row is %d cells, want 10", w)
+	}
+}
+
+// At 16 colors the selection is reverse video, where a colored part would reverse into a colored
+// block, so the cursor row drops its parts' colors and draws as one even bar the full width.
+//
+//nolint:paralleltest // theme.Init rewrites the package-level faces every test here reads.
+func TestRow_OneReverseBarAtSixteenColors(t *testing.T) {
+	useProfile(t, "xterm", "")
+
+	for _, width := range []int{10, 24} {
+		row := modal.Row(theme.Skin.Accent.Render("ab")+theme.Skin.Muted.Render("cd"), width, true)
+		want := "\x1b[7mabcd" + strings.Repeat(" ", width-4) + "\x1b[m"
+
+		if row != want {
+			t.Errorf("width %d: row %q, want %q", width, row, want)
+		}
 	}
 }

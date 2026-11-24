@@ -2,6 +2,8 @@ package filelist_test
 
 import (
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -234,5 +236,98 @@ func TestExpandedListSettlesEmojiInPaths(t *testing.T) {
 		if end := strings.TrimRight(row, " "); !strings.HasSuffix(end, "-1") && !strings.HasSuffix(end, "+12") {
 			t.Errorf("row %q does not end in its counts", row)
 		}
+	}
+}
+
+// colors is what an SGR stream sets: a foreground color, a background color, or both.
+type colors struct{ fg, bg bool }
+
+// sgrColors reads the colors an SGR stream sets, skipping the sub-parameters of an extended color
+// so a 256-color index of 31 does not read as red.
+func sgrColors(row string) colors {
+	var c colors
+
+	for _, m := range sgr.FindAllStringSubmatch(row, -1) {
+		params := strings.Split(m[1], ";")
+		for i := 0; i < len(params); i++ {
+			n, err := strconv.Atoi(params[i])
+			if err != nil {
+				continue
+			}
+
+			switch {
+			case n == 38 || n == 48:
+				c.fg, c.bg = c.fg || n == 38, c.bg || n == 48
+				i += extendedArgs(params, i)
+			case n >= 30 && n <= 37, n >= 90 && n <= 97:
+				c.fg = true
+			case n >= 40 && n <= 47, n >= 100 && n <= 107:
+				c.bg = true
+			}
+		}
+	}
+
+	return c
+}
+
+// extendedArgs is how many parameters follow an extended color's 38 or 48 at i: an index after 5,
+// or three channels after 2.
+func extendedArgs(params []string, i int) int {
+	if i+1 < len(params) && params[i+1] == "5" {
+		return 2
+	}
+
+	return 4
+}
+
+var sgr = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
+
+// The selected row is drawn through the skin. Where the terminal has 16 colors the selection is
+// reverse video, and a colored cell inside it would reverse into a colored block, so the row
+// carries no color at all and reads as one even bar. With more colors the row keeps its cells'
+// colors on the tint. Each profile is set through the environment the program reads it from, so
+// the cleanups (last registered first) restore it before theme.Init rebuilds.
+func TestSelectedRow_OneReverseBarAtSixteenColors(t *testing.T) {
+	for _, tc := range []struct {
+		name, term, colorterm string
+		reverse               bool
+	}{
+		{name: "16 colors", term: "xterm", reverse: true},
+		{name: "256 colors", term: "xterm-256color"},
+		{name: "truecolor", term: "xterm-256color", colorterm: "truecolor"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(theme.Init)
+			t.Setenv("CLICOLOR_FORCE", "1")
+			t.Setenv("TERM", tc.term)
+			t.Setenv("COLORTERM", tc.colorterm)
+			theme.Init()
+
+			for _, width := range []int{30, 60} {
+				checkSelectedRow(t, width, tc.reverse)
+			}
+		})
+	}
+}
+
+func checkSelectedRow(t *testing.T, width int, reverse bool) {
+	t.Helper()
+
+	m := filelist.New()
+	m.SetExpanded(true)
+	m.SetFiles([]diff.FileChange{changedFile("dir/a.go", 3, 2), changedFile("b.go", 1, 0)})
+
+	row := strings.Split(m.View(width, m.ContentHeight(), true), "\n")[1]
+	if !strings.Contains(ansi.Strip(row), "a.go") {
+		t.Fatalf("row %q is not the selected file", ansi.Strip(row))
+	}
+
+	got := sgrColors(row)
+
+	switch {
+	case reverse && (got.fg || got.bg || !strings.HasPrefix(row, "\x1b[7m")):
+		t.Errorf("width %d: row %q, want one reverse bar with no colors in it", width, row)
+	case !reverse && (!got.fg || !got.bg):
+		t.Errorf("width %d: row %q, want its cells' colors on the tint", width, row)
 	}
 }

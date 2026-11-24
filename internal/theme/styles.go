@@ -30,18 +30,15 @@ var (
 
 // Exported style variables.
 var (
-	HeaderStyle            lipgloss.Style
-	HunkHeaderStyle        lipgloss.Style
-	SectionStyle           lipgloss.Style
-	KeyStyle               lipgloss.Style
-	AdditionStyle          lipgloss.Style
-	DeletionStyle          lipgloss.Style
-	SelectionStyle         lipgloss.Style
-	SelectedFocusedStyle   lipgloss.Style
-	SelectedUnfocusedStyle lipgloss.Style
-	BorderStyle            lipgloss.Style
-	WordDiffAddedStyle     lipgloss.Style
-	WordDiffDeletedStyle   lipgloss.Style
+	HeaderStyle          lipgloss.Style
+	HunkHeaderStyle      lipgloss.Style
+	SectionStyle         lipgloss.Style
+	KeyStyle             lipgloss.Style
+	AdditionStyle        lipgloss.Style
+	DeletionStyle        lipgloss.Style
+	BorderStyle          lipgloss.Style
+	WordDiffAddedStyle   lipgloss.Style
+	WordDiffDeletedStyle lipgloss.Style
 )
 
 // mutedTintShare keeps line numbers and comments readable without competing with code.
@@ -111,16 +108,6 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 
 	DeletionStyle = lipgloss.NewStyle().
 		Foreground(DeletedLine)
-
-	// The skin's selection is a tint of the accent, and reverse video under NO_COLOR, so the row
-	// under the cursor reads the same here as in second-look and jojo.
-	SelectionStyle = Skin.Selection
-
-	SelectedFocusedStyle = SelectionStyle.
-		Foreground(Text).
-		Bold(true)
-
-	SelectedUnfocusedStyle = Skin.Band.Foreground(Text)
 
 	BorderStyle = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).

@@ -14,6 +14,7 @@ import (
 	"github.com/kyleking/aragonite/generated"
 	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/overview"
+	"github.com/kyleking/aragonite/tui/skin"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -945,7 +946,7 @@ func lineIndicator(p *pens, isInVisualRange, isSelected, isCurrentLine bool) str
 // tokens. A changed line carries the shared wash, and the row under the cursor the selection.
 func rowBase(kind diff.LineType, isCursor bool) lipgloss.Style {
 	if isCursor {
-		return theme.SelectionStyle
+		return theme.Skin.Selection
 	}
 
 	switch kind {
@@ -962,9 +963,9 @@ func rowBase(kind diff.LineType, isCursor bool) lipgloss.Style {
 func signStyle(kind diff.LineType, base *lipgloss.Style) lipgloss.Style {
 	switch kind {
 	case diff.LineAddition:
-		return theme.Diff.AddSign.Inherit(*base)
+		return skin.On(*base, theme.Diff.AddSign)
 	case diff.LineDeletion:
-		return theme.Diff.RemoveSign.Inherit(*base)
+		return skin.On(*base, theme.Diff.RemoveSign)
 	case diff.LineContext:
 	}
 

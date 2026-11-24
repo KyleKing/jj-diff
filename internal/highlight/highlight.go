@@ -15,6 +15,7 @@ import (
 	agdiff "github.com/kyleking/aragonite/diff"
 	aghighlight "github.com/kyleking/aragonite/highlight"
 	"github.com/kyleking/aragonite/tui/pen"
+	"github.com/kyleking/aragonite/tui/skin"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -63,12 +64,14 @@ func (p *Palette) Faces(base lipgloss.Style) *Faces {
 	f := &Faces{Base: pen.Of(base)}
 
 	for c := range classes {
-		style, face := p.face(aghighlight.Class(c), base)
+		style, face := p.face(aghighlight.Class(c), lipgloss.NewStyle())
 		if face != nil {
 			style = style.Foreground(face)
 		}
 
-		f.class[c] = pen.Of(style)
+		// skin.On drops the token's color where base is reverse video, so a selected row at 16
+		// colors is one even bar rather than a white bar with colored blocks in it.
+		f.class[c] = pen.Of(skin.On(base, style))
 	}
 
 	return f
