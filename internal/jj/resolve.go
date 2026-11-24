@@ -43,9 +43,7 @@ type ConflictedFile struct {
 
 // Conflicts lists revision's conflicted files with their text, empty when it has none.
 func (c *Client) Conflicts(revision string) ([]ConflictedFile, error) {
-	cmd := c.jjCommand("resolve", "--list", "-r", revision)
-
-	out, err := cmd.Output()
+	out, err := c.output(c.jjCommand("resolve", "--list", "-r", revision))
 	if err != nil {
 		if strings.Contains(stderrOf(err), "No conflicts found") {
 			return nil, nil
@@ -62,7 +60,7 @@ func (c *Client) Conflicts(revision string) ([]ConflictedFile, error) {
 			continue
 		}
 
-		text, err := c.executeJJ("file", "show", "-r", revision, "--config", markerStyle, "--", Fileset(m[1]))
+		text, err := c.executeJJ("file", "show", "-r", revision, flagConfig, markerStyle, "--", Fileset(m[1]))
 		if err != nil {
 			return nil, fmt.Errorf("reading %s: %w", m[1], err)
 		}
@@ -151,7 +149,7 @@ func (c *Client) Resolve(revision string, resolutions []Resolution) (_ Outcome, 
 
 	editor := "ui.editor=[" + tomlString(program) + ", " + tomlString("--"+FlagResolveWith) + ", " +
 		tomlString(planPath) + "]"
-	args := []string{"resolve", "-r", revision, "--tool", ":editor", "--config", editor, "--config", markerStyle}
+	args := []string{"resolve", "-r", revision, flagTool, ":editor", flagConfig, editor, flagConfig, markerStyle}
 
 	opID, err := c.getCurrentOperationID()
 	if err != nil {

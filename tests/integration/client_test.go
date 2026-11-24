@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/trail"
+
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/tests/integration"
@@ -537,5 +539,34 @@ func BenchmarkStartupJJCalls(b *testing.B) {
 		if _, err := source.GetDiff(); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// TestTrail_RecordsTheWriteItRan is what the status line's echo rests on: the trail holds the jj
+// command a write ran, marked a write, and the echo drops only the editor plumbing.
+func TestTrail_RecordsTheWriteItRan(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+
+	client := writer(t, repo)
+	if _, err := client.MoveChanges(repo.Patch("@", firstHunk), "@", "@-", jj.MoveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	call, ok := client.LastWrite()
+	if !ok {
+		t.Fatal("the trail holds no write")
+	}
+
+	if got, want := trail.Shell(jj.Echoed(call.Argv)), "jj squash --from @ --into @-"; got != want {
+		t.Errorf("echo = %q, want %q", got, want)
+	}
+
+	if reads := len(client.Trail().Calls(false)) - len(client.Trail().Calls(true)); reads == 0 {
+		t.Error("the trail holds no reads, but the write read the operation log first")
 	}
 }

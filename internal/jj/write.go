@@ -16,6 +16,12 @@ const patchFileMode = 0o600
 // distinct from any jj-diff entry a user configured, so their settings cannot change what runs.
 const editorTool = "jj-diff-selection"
 
+// The global flags a write passes jj to run this program as its editor.
+const (
+	flagConfig = "--config"
+	flagTool   = "--tool"
+)
+
 // FlagApplyPatch and FlagUnapplyPatch are the flags this program takes when jj runs it as the diff
 // editor for a write. The two trees follow them, and the program rewrites the right one from the
 // patches without drawing anything.
@@ -255,14 +261,12 @@ func (c *Client) toolArgs(editArgs []string) ([]string, error) {
 		quoted = append(quoted, tomlString(a))
 	}
 
-	const config = "--config"
-
 	return []string{
-		"--tool", editorTool,
-		config, "merge-tools." + editorTool + ".program=" + tomlString(program),
-		config, "merge-tools." + editorTool + ".edit-args=[" + strings.Join(quoted, ", ") + "]",
-		config, "ui.diff-instructions=false",
-		config, `ui.editor="false"`,
+		flagTool, editorTool,
+		flagConfig, "merge-tools." + editorTool + ".program=" + tomlString(program),
+		flagConfig, "merge-tools." + editorTool + ".edit-args=[" + strings.Join(quoted, ", ") + "]",
+		flagConfig, "ui.diff-instructions=false",
+		flagConfig, `ui.editor="false"`,
 	}, nil
 }
 
@@ -326,4 +330,24 @@ func conflictNotice(stderr string) string {
 	}
 
 	return ""
+}
+
+// Echoed is argv as a status line names it: the command as a reader would type it, without the
+// --tool and --config pairs that point jj at this program as its editor, which change how jj runs
+// it and not what it does.
+func Echoed(argv []string) []string {
+	out := make([]string, 0, len(argv))
+
+	for i := 0; i < len(argv); i++ {
+		switch {
+		case argv[i] == flagConfig && i+1 < len(argv):
+			i++
+		case argv[i] == flagTool && i+1 < len(argv) && argv[i+1] == editorTool:
+			i++
+		default:
+			out = append(out, argv[i])
+		}
+	}
+
+	return out
 }

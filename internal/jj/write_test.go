@@ -1,7 +1,10 @@
 //nolint:testpackage // white-box: the quoting and the notice parsing are unexported.
 package jj
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestTomlString_QuotesWhatTOMLRefusesRaw(t *testing.T) {
 	t.Parallel()
@@ -36,5 +39,37 @@ func TestConflictNotice_ReadsJJsLineAndTheRevisionsUnderIt(t *testing.T) {
 
 	if got := conflictNotice("Working copy  (@) now at: x\n"); got != "" {
 		t.Errorf("a clean write reported %q", got)
+	}
+}
+
+func TestEchoed_DropsTheEditorPlumbing(t *testing.T) {
+	t.Parallel()
+
+	got := Echoed([]string{
+		"jj", "squash", "--from", "@", "--into", "rnzx", "-u", "--tool", editorTool,
+		"--config", "merge-tools.x.program=y", "--config", "ui.editor=false",
+	})
+
+	if want := "jj squash --from @ --into rnzx -u"; strings.Join(got, " ") != want {
+		t.Errorf("Echoed = %q, want %q", got, want)
+	}
+
+	resolve := Echoed([]string{"jj", "resolve", "-r", "@", "--tool", ":editor", "--config", "ui.editor=[]"})
+	if want := "jj resolve -r @ --tool :editor"; strings.Join(resolve, " ") != want {
+		t.Errorf("Echoed keeps the resolve tool: got %q, want %q", resolve, want)
+	}
+}
+
+func TestIsWrite(t *testing.T) {
+	t.Parallel()
+
+	for args, want := range map[string]bool{
+		"squash --from @": true, "split -r @": true, "restore --changes-in @": true, "undo": true,
+		"op restore abc": true, "resolve -r @": true, "resolve --list -r @": false, "diff -r @": false,
+		"op log": false, "log -r @": false,
+	} {
+		if got := isWrite(strings.Fields(args)); got != want {
+			t.Errorf("isWrite(%s) = %v, want %v", args, got, want)
+		}
 	}
 }

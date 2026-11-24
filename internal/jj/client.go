@@ -9,8 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/kyleking/aragonite/trail"
 )
 
 // statusFieldCount is the smallest number of whitespace-separated fields a jj status line carries: a
@@ -20,6 +23,8 @@ const statusFieldCount = 2
 // Client runs jj in one repository. Every call shells out and blocks, so callers in the UI wrap them
 // in a tea.Cmd. No call is cancellable, so each one runs under a background context.
 type Client struct {
+	// trail logs every jj command the client runs, which the status line echoes and gm lists.
+	trail   *trail.Trail
 	baseDir string
 	// editor is the jj-diff binary jj runs as the diff editor for a write, empty for this process.
 	editor string
@@ -34,15 +39,92 @@ func WithEditor(path string) Option {
 	return func(c *Client) { c.editor = path }
 }
 
+// WithTrail logs the client's commands into t rather than a trail of its own.
+func WithTrail(t *trail.Trail) Option {
+	return func(c *Client) { c.trail = t }
+}
+
 // NewClient runs jj with baseDir as the working directory, so baseDir decides which repository every
-// call acts on.
+// call acts on. Every command it runs is logged in its trail.
 func NewClient(baseDir string, opts ...Option) *Client {
 	c := &Client{baseDir: baseDir}
 	for _, opt := range opts {
 		opt(c)
 	}
 
+	if c.trail == nil {
+		c.trail = trail.New(0)
+	}
+
 	return c
+}
+
+// Trail is the log of every command the client has run, newest first.
+func (c *Client) Trail() *trail.Trail { return c.trail }
+
+// LastWrite is the newest command that changed the repository, false before any has.
+func (c *Client) LastWrite() (trail.Call, bool) {
+	return c.trail.Last(func(call *trail.Call) bool { return call.Write })
+}
+
+// writeVerbs are the jj subcommands that change the repository, which the trail shows by default
+// where reads are behind a toggle.
+const writeVerbs = "squash split restore undo resolve"
+
+// isWrite reports whether args change the repository: a write subcommand, or an operation restore.
+// Listing conflicts with resolve --list only reads.
+func isWrite(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+
+	if args[0] == "op" {
+		return len(args) > 1 && args[1] == "restore"
+	}
+
+	return slices.Contains(strings.Fields(writeVerbs), args[0]) && !slices.Contains(args, "--list")
+}
+
+// run runs cmd and logs it in the trail, stdout and stderr going wherever cmd already sends them.
+// The trail keeps stderr as a failure's account, and keeps none when the caller passes nil.
+func (c *Client) run(cmd *exec.Cmd, stderr *bytes.Buffer) error {
+	r := c.trail.Start(cmd.Args, "", isWrite(cmd.Args[1:]))
+	err := cmd.Run()
+
+	var said []byte
+	if stderr != nil {
+		said = stderr.Bytes()
+	}
+
+	r.Done(err, said)
+
+	return err //nolint:wrapcheck // every caller wraps it with the command it ran.
+}
+
+// output runs cmd for its stdout, logging it in the trail with what it said on stderr.
+func (c *Client) output(cmd *exec.Cmd) ([]byte, error) {
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+
+	err := c.run(cmd, &stderr)
+	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			exit.Stderr = stderr.Bytes()
+		}
+	}
+
+	return stdout.Bytes(), err
+}
+
+// combined runs cmd for its stdout and stderr together, logging it in the trail.
+func (c *Client) combined(cmd *exec.Cmd) ([]byte, error) {
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+
+	err := c.run(cmd, &out)
+
+	return out.Bytes(), err
 }
 
 // Dir is the directory jj runs in, which decides the repository.
@@ -78,9 +160,7 @@ func (c *Client) Diff(revision string) (string, error) {
 // Status lists the working copy's changed files. Lines jj prints that are not file entries are
 // dropped, so an unparsable output yields an empty slice rather than an error.
 func (c *Client) Status() ([]FileStatus, error) {
-	cmd := c.jjCommand("status", "--no-pager")
-
-	output, err := cmd.CombinedOutput()
+	output, err := c.combined(c.jjCommand("status", "--no-pager"))
 	if err != nil {
 		return nil, fmt.Errorf("jj status failed: %w: %s", err, output)
 	}
@@ -91,9 +171,7 @@ func (c *Client) Status() ([]FileStatus, error) {
 // ShowRevision returns one revision's metadata. Fields jj did not print are left empty rather than
 // reported, so the result is never nil on success.
 func (c *Client) ShowRevision(revision string) (*RevisionInfo, error) {
-	cmd := c.jjCommand("show", "-r", revision, "--no-graph", "--summary")
-
-	output, err := cmd.CombinedOutput()
+	output, err := c.combined(c.jjCommand("show", "-r", revision, "--no-graph", "--summary"))
 	if err != nil {
 		return nil, fmt.Errorf("jj show failed: %w: %s", err, output)
 	}
@@ -125,9 +203,7 @@ func (c *Client) RevisionLabel(revset string) (string, error) {
 
 // Undo reverts the last jj operation in the repository, whether or not this client caused it.
 func (c *Client) Undo() error {
-	cmd := c.jjCommand("undo")
-
-	output, err := cmd.CombinedOutput()
+	output, err := c.combined(c.jjCommand("undo"))
 	if err != nil {
 		return fmt.Errorf("jj undo failed: %w: %s", err, output)
 	}
@@ -383,7 +459,7 @@ func (c *Client) executeJJStderr(args ...string) (string, error) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := c.run(cmd, &stderr); err != nil {
 		return "", fmt.Errorf("jj %s failed: %w: %s", args[0], err, strings.TrimSpace(stderr.String()))
 	}
 
@@ -397,7 +473,7 @@ func (c *Client) executeJJ(args ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err := c.run(cmd, &stderr)
 	if err != nil {
 		return "", fmt.Errorf("jj %s failed: %w: %s", strings.Join(args, " "), err, stderr.String())
 	}
