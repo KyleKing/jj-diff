@@ -1,3 +1,14 @@
+## v0.10.0 (2026-11-24)
+
+### Feat
+
+- **resolve**: pick conflict sides in a viewer and write them as one jj operation
+- **split**: split a revision into columns, one per commit
+
+### Fix
+
+- **split**: land a chain whose earlier group took a whole file
+
 ## v0.9.0 (2026-11-24)
 
 ### BREAKING CHANGE
