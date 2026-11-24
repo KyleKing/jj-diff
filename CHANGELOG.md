@@ -1,3 +1,19 @@
+## v0.9.0 (2026-11-24)
+
+### BREAKING CHANGE
+
+- keys follow the shared keymap. [ / ] -> [f / ]f; p -> N or
+[h; n/N repeat the last motion or search; g/G -> gg/G; s -> \s (side by
+side); l -> \n (line numbers); W -> \r (word diff); z -> za (plus zi zR zM
+zz zt zb); F -> f (one fuzzy filter); r -> ctrl+l; d (destination) then a
+(apply) -> s then enter, or c with -d; S / tag letters / D / P multi-split
+-> S (split the selection out); e in the split preview -> removed. q in the
+diff editor without writing now aborts the jj command.
+
+### Feat
+
+- **keys**: adopt the shared keymap and make every write one jj operation
+
 ## v0.8.1 (2026-11-24)
 
 ### Perf
