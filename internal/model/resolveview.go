@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -30,6 +32,9 @@ const (
 // pane is one labeled box of text: a side, the base, or the result.
 type pane struct {
 	title string
+	// note is the revision's description. It follows the title in the top edge where the two fit
+	// whole, and otherwise heads the box on rows of its own, so it is never cut to a few letters.
+	note  string
 	lines []string
 	// on draws the border in the accent, for the side the region takes.
 	on bool
@@ -153,15 +158,18 @@ func sidePanes(region *conflict.Region, p conflict.Pick) []pane {
 	var out []pane
 
 	for i, s := range region.Sides {
+		id, desc := splitLabel(s.Label)
 		out = append(out, pane{
-			title: fmt.Sprintf("%d %s", i+1, shortLabel(s.Label)),
+			title: fmt.Sprintf("%d %s", i+1, id),
+			note:  desc,
 			lines: s.Lines(),
 			on:    (p.Kind == conflict.TakeSide && p.Side == i+1) || p.Kind == conflict.TakeAll,
 		})
 
 		if i == 0 && len(region.Bases) > 0 {
+			id, desc := splitLabel(region.Bases[0].Label)
 			out = append(out, pane{
-				title: "0 base " + shortLabel(region.Bases[0].Label), lines: region.Bases[0].Lines(),
+				title: "0 base " + id, note: desc, lines: region.Bases[0].Lines(),
 				on: p.Kind == conflict.TakeBase,
 			})
 		}
@@ -170,18 +178,23 @@ func sidePanes(region *conflict.Region, p conflict.Pick) []pane {
 	return out
 }
 
-// shortLabel drops the commit hash from jj's side label (change ID, commit ID, then the quoted
-// description), since the change ID already names the revision and the description is what a reader
-// recognizes.
-func shortLabel(label string) string {
+// splitLabel parts jj's side label (change ID, commit ID, then the quoted description) into the
+// change ID and the description, dropping the commit hash, since the change ID already names the
+// revision and the description is what a reader recognizes. A label in any other shape is all ID.
+func splitLabel(label string) (string, string) {
 	f := strings.Fields(label)
 	const fields = 3 // change ID, commit ID, description
 
 	if len(f) < fields || !isHex(f[1]) {
-		return label
+		return label, ""
 	}
 
-	return f[0] + " " + strings.Join(f[2:], " ")
+	desc := strings.Join(f[2:], " ")
+	if unquoted, err := strconv.Unquote(desc); err == nil {
+		desc = unquoted
+	}
+
+	return f[0], desc
 }
 
 func isHex(s string) bool {
@@ -200,12 +213,12 @@ func (m *Model) paneRows(panes []pane, width int) []string {
 		return rows
 	}
 
-	w := (width - (n-1)*paneGap) / n
+	widths := paneWidths(panes, width-(n-1)*paneGap)
 	boxes := make([][]string, n)
 	height := 0
 
 	for i, p := range panes {
-		boxes[i] = box(p, w)
+		boxes[i] = box(p, widths[i])
 		height = max(height, len(boxes[i]))
 	}
 
@@ -214,7 +227,7 @@ func (m *Model) paneRows(panes []pane, width int) []string {
 		parts := make([]string, n)
 
 		for j, b := range boxes {
-			parts[j] = strings.Repeat(" ", w)
+			parts[j] = strings.Repeat(" ", widths[j])
 			if i < len(b) {
 				parts[j] = b[i]
 			}
@@ -226,7 +239,74 @@ func (m *Model) paneRows(panes []pane, width int) []string {
 	return rows
 }
 
-// box draws a pane in a rounded border width cells wide, its title in the top edge.
+// paneWidths shares avail among panes side by side by what each needs to show its title and lines
+// whole: a pane needing less than an even share gets what it needs, the others split the rest
+// evenly, and room left once every pane has its need is spread evenly so the row fills avail.
+func paneWidths(panes []pane, avail int) []int {
+	n := len(panes)
+	needs := make([]int, n)
+	order := make([]int, n)
+
+	for i, p := range panes {
+		needs[i], order[i] = paneNeed(p), i
+	}
+
+	sort.SliceStable(order, func(a, b int) bool { return needs[order[a]] < needs[order[b]] })
+
+	widths := make([]int, n)
+	left := avail
+
+	for k, i := range order {
+		share := left / (n - k)
+		if needs[i] > share {
+			// Every pane from here on needs more than an even share of what is left, so they split it.
+			for j, rest := range order[k:] {
+				widths[rest] = left / (n - k)
+				if j == n-k-1 {
+					widths[rest] += left % (n - k)
+				}
+			}
+
+			return widths
+		}
+
+		widths[i] = needs[i]
+		left -= needs[i]
+	}
+
+	for i := range widths {
+		widths[i] += left / n
+	}
+
+	widths[n-1] += left % n
+
+	return widths
+}
+
+// paneNeed is the width that draws p's title, its note beside it, and its widest line uncut.
+func paneNeed(p pane) int {
+	need := lipgloss.Width(fullTitle(p)) + titleInset + 1
+
+	for _, l := range p.lines {
+		need = max(need, lipgloss.Width(expand(l))+titleInset)
+	}
+
+	return max(need, minPaneWidth)
+}
+
+func fullTitle(p pane) string {
+	if p.note == "" {
+		return p.title
+	}
+
+	return p.title + ` "` + p.note + `"`
+}
+
+// noteRows is the most rows a note that does not fit in the top edge wraps to before it is cut.
+const noteRows = 2
+
+// box draws a pane in a rounded border width cells wide, its title in the top edge, with its note
+// beside the title when both fit and wrapped under it when they do not.
 func box(p pane, width int) []string {
 	edge := theme.Skin.Edge
 	if p.on {
@@ -234,21 +314,52 @@ func box(p pane, width int) []string {
 	}
 
 	inner := max(width-titleInset, 1)
-	title := ansi.Truncate(p.title, max(width-titleInset-1, 0), "…")
+	room := max(width-titleInset-1, 0)
+
+	title := fullTitle(p)
+
+	var lines []string
+
+	if lipgloss.Width(title) > room {
+		title = ansi.Truncate(p.title, room, "…")
+		lines = wrapNote(p.note, inner)
+	}
+
 	top := "╭ " + title + " " + strings.Repeat("─", max(width-lipgloss.Width(title)-titleInset, 0)) + "╮"
 
 	rows := []string{edge.Render(top)}
 
-	lines := p.lines
-	if len(lines) == 0 {
-		lines = []string{theme.Skin.Muted.Render("(empty)")}
+	if len(p.lines) == 0 {
+		lines = append(lines, theme.Skin.Muted.Render("(empty)"))
 	}
+
+	lines = append(lines, p.lines...)
 
 	for _, l := range lines {
 		rows = append(rows, edge.Render("│")+" "+fit(expand(l), inner)+" "+edge.Render("│"))
 	}
 
 	return append(rows, edge.Render("╰"+strings.Repeat("─", max(width-borders, 0))+"╯"))
+}
+
+// wrapNote breaks a note into at most noteRows rows of width cells, cutting the last with an
+// ellipsis when the note runs longer.
+func wrapNote(note string, width int) []string {
+	if note == "" {
+		return nil
+	}
+
+	rows := strings.Split(ansi.Wrap(note, width, ""), "\n")
+	if len(rows) > noteRows {
+		rows = rows[:noteRows]
+		rows[noteRows-1] = ansi.Truncate(rows[noteRows-1]+" …", width, "…")
+	}
+
+	for i := range rows {
+		rows[i] = theme.Skin.Muted.Render(strings.TrimRight(rows[i], " "))
+	}
+
+	return rows
 }
 
 // pickName says what a pick takes.

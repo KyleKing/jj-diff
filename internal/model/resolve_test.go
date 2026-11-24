@@ -4,6 +4,7 @@ package model
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -167,14 +168,104 @@ func TestResolve_Golden(t *testing.T) {
 	}
 }
 
-func TestShortLabel_DropsTheCommitHash(t *testing.T) {
+func TestSplitLabel_DropsTheCommitHash(t *testing.T) {
 	t.Parallel()
 
-	if got := shortLabel(`wwtworlq ec4ab3b0 "side1"`); got != `wwtworlq "side1"` {
-		t.Errorf("got %q", got)
+	tests := []struct{ label, id, desc string }{
+		{`wwtworlq ec4ab3b0 "side1"`, "wwtworlq", "side1"},
+		{`nwytptwx e926c67c "feat: read the port from PORT"`, "nwytptwx", "feat: read the port from PORT"},
+		{"side #1", "side #1", ""},
 	}
 
-	if got := shortLabel("side #1"); got != "side #1" {
-		t.Errorf("got %q", got)
+	for _, tt := range tests {
+		if id, desc := splitLabel(tt.label); id != tt.id || desc != tt.desc {
+			t.Errorf("splitLabel(%q) = %q, %q, want %q, %q", tt.label, id, desc, tt.id, tt.desc)
+		}
 	}
+}
+
+// longLabels is the demo merge: descriptions far longer than a third of an 80- or 100-cell screen.
+const longLabels = "package main\n<<<<<<< conflict 1 of 1\n" +
+	"+++++++ nwytptwx e926c67c \"feat: read the port from PORT\"\nimport (\n\t\"net/http\"\n\t\"os\"\n)\n" +
+	"------- opmvqunm d6c0903d \"feat: serve hello\"\nimport \"net/http\"\n" +
+	"+++++++ uklyztnw 8ebf646b \"fix: listen on 9090 and log\"\nimport (\n\t\"log\"\n\t\"net/http\"\n)\n" +
+	">>>>>>> conflict 1 of 1 ends\n"
+
+// A side's description is what a reader recognizes it by, so however narrow the panes get it is
+// drawn whole, beside the title where it fits and under it where it does not, and never cut to a
+// few letters in the top edge.
+func TestResolve_PaneTitlesShowTheWholeDescription(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range []struct{ w, h int }{{80, 24}, {100, 30}, {140, 40}} {
+		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
+			t.Parallel()
+
+			m := NewTestModel(t, ModeResolve)
+			m.revision = "@"
+			m = Update(t, m, conflictsLoadedMsg{files: []jj.ConflictedFile{
+				{Path: "server.go", Kind: "2-sided conflict", Text: longLabels},
+			}})
+			m.width, m.height = size.w, size.h
+
+			frame := ansi.Strip(m.render())
+			panes := paneTexts(frame)
+
+			for i, want := range [][2]string{
+				{"1 nwytptwx", "feat: read the port from PORT"},
+				{"0 base opmvqunm", "feat: serve hello"},
+				{"2 uklyztnw", "fix: listen on 9090 and log"},
+			} {
+				if i >= len(panes) || !strings.Contains(panes[i], want[0]) || !strings.Contains(panes[i], want[1]) {
+					t.Errorf("pane %d does not show %q whole:\n%s", i+1, want, frame)
+				}
+			}
+
+			for i, line := range strings.Split(frame, "\n") {
+				if got := ansi.StringWidth(line); got > size.w {
+					t.Errorf("row %d is %d cells, want at most %d", i, got, size.w)
+				}
+			}
+		})
+	}
+}
+
+// paneTexts reads the side panes out of a frame, one string per pane with its rows joined and its
+// borders dropped, so a description wrapped under a title reads as one run of words.
+func paneTexts(frame string) []string {
+	lines := strings.Split(frame, "\n")
+
+	for top, line := range lines {
+		row := []rune(line)
+		if !strings.Contains(line, "╭ 1 ") {
+			continue
+		}
+
+		var out []string
+
+		for left := range row {
+			if row[left] != '╭' {
+				continue
+			}
+
+			right := left + slices.Index(row[left:], '╮')
+
+			var words []string
+
+			for _, l := range lines[top:] {
+				r := []rune(l)
+				if right >= len(r) || r[left] == '╰' {
+					break
+				}
+
+				words = append(words, strings.Fields(strings.Trim(string(r[left+1:right]), "─ "))...)
+			}
+
+			out = append(out, strings.Join(words, " "))
+		}
+
+		return out
+	}
+
+	return nil
 }
