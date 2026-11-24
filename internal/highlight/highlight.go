@@ -1,5 +1,10 @@
 // Package highlight colors diff content by the byte-range spans aragonite's highlight package
 // lexes, once per file, so drawing a frame costs a lookup per line rather than a lexer pass.
+//
+// Lexing a large file takes hundreds of milliseconds, so a screen asks for it in the background
+// with Start and draws with Peek, which answers plain text until the spans land, rather than
+// blocking its first frame. Colors are drawn through pens made once per base style (Faces), not
+// through lipgloss's renderer once per token.
 package highlight
 
 import (
@@ -9,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 	agdiff "github.com/kyleking/aragonite/diff"
 	aghighlight "github.com/kyleking/aragonite/highlight"
+	"github.com/kyleking/aragonite/tui/pen"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -40,8 +46,37 @@ func ThemePalette() Palette {
 	}
 }
 
-// Highlighter colors the lines of one set of files. Its lexing is cached per file, so it is not
-// safe for concurrent use and a changed diff needs a new Highlighter.
+// classes is one past the highest aragonite class, the size of a Faces table.
+const classes = int(aghighlight.Escape) + 1
+
+// Faces is one base style and every token class drawn on it, as pens, so a line costs no style
+// work beyond writing escape sequences. Build one per base a screen draws on and keep it.
+type Faces struct {
+	Base  pen.Pen
+	class [classes]pen.Pen
+}
+
+// Faces returns the pens for base under p.
+//
+//nolint:gocritic // hugeParam: a style is a value, and Faces is built once per base.
+func (p *Palette) Faces(base lipgloss.Style) *Faces {
+	f := &Faces{Base: pen.Of(base)}
+
+	for c := range classes {
+		style, face := p.face(aghighlight.Class(c), base)
+		if face != nil {
+			style = style.Foreground(face)
+		}
+
+		f.class[c] = pen.Of(style)
+	}
+
+	return f
+}
+
+// Highlighter colors the lines of one set of files. Its lexing is cached per file and safe to
+// run in the background, but drawing is not safe for concurrent use, and a changed diff needs a
+// new Highlighter.
 type Highlighter struct {
 	spans   *aghighlight.Cache
 	text    map[agdiff.LineRef]string
@@ -70,71 +105,91 @@ func NewWith(p Palette, files ...diff.FileChange) *Highlighter {
 	return &Highlighter{spans: aghighlight.NewCache(converted), text: text, palette: p}
 }
 
-// Line draws line's content on base. A line whose content differs from the diff's own under its numbers
-// (hidden whitespace changes) draws unhighlighted rather than with the spans of the text it replaced.
-func (h *Highlighter) Line(path string, line diff.Line, base *lipgloss.Style) string {
+// Palette is the palette the Highlighter draws in, for a caller building Faces for it.
+func (h *Highlighter) Palette() *Palette {
+	return &h.palette
+}
+
+// Start lexes path in the background and returns a channel closed once its colors are ready.
+// Calling it again for the same path answers the same channel.
+func (h *Highlighter) Start(path string) <-chan struct{} {
+	return h.spans.Start(path)
+}
+
+// Paint appends line's content in f to b, lexing its file first if that has not happened.
+func (h *Highlighter) Paint(b *strings.Builder, path string, line diff.Line, f *Faces) {
+	h.draw(b, path, line, f, true)
+}
+
+// Peek appends line's content in f to b without ever lexing: until Start's lexing of path has
+// landed it draws the content plain. It reports whether the colors were ready.
+func (h *Highlighter) Peek(b *strings.Builder, path string, line diff.Line, f *Faces) bool {
+	return h.draw(b, path, line, f, false)
+}
+
+func (h *Highlighter) draw(b *strings.Builder, path string, line diff.Line, f *Faces, wait bool) bool {
 	content := line.Content
 	if content == "" {
-		return ""
+		return true
 	}
 
 	agLine := diff.AragoniteLine(line)
 	if h.text[refOf(path, agLine)] != content {
-		return base.Render(content)
+		f.Base.Write(b, content)
+
+		return true
 	}
 
-	spans := h.spans.Spans(path, agLine)
-	if len(spans) == 0 {
-		return base.Render(content)
-	}
+	var spans []aghighlight.Span
 
-	var out strings.Builder
+	ready := true
+	if wait {
+		spans = h.spans.Spans(path, agLine)
+	} else {
+		spans, ready = h.spans.Peek(path, agLine)
+	}
 
 	at := 0
 
 	for _, span := range spans {
 		if span.From > at {
-			out.WriteString(base.Render(content[at:span.From]))
+			f.Base.Write(b, content[at:span.From])
 		}
 
-		style, face := h.face(span.Class, base)
-		if face != nil {
-			style = style.Foreground(face)
-		}
-
-		out.WriteString(style.Render(content[span.From:span.To]))
+		f.class[span.Class].Write(b, content[span.From:span.To])
 		at = span.To
 	}
 
 	if at < len(content) {
-		out.WriteString(base.Render(content[at:]))
+		f.Base.Write(b, content[at:])
 	}
 
-	return out.String()
+	return ready
 }
 
 func refOf(path string, line agdiff.Line) agdiff.LineRef {
 	return agdiff.LineRef{Path: path, Kind: line.Kind, Old: line.Old, New: line.New}
 }
 
-func (h *Highlighter) face(class aghighlight.Class, base *lipgloss.Style) (lipgloss.Style, color.Color) {
-	style := *base
+//nolint:gocritic // hugeParam: a style is a value, and this runs once per Faces.
+func (p *Palette) face(class aghighlight.Class, base lipgloss.Style) (lipgloss.Style, color.Color) {
+	style := base
 
 	switch class {
 	case aghighlight.Comment:
-		return style, h.palette.Comment
+		return style, p.Comment
 	case aghighlight.Keyword:
-		return style.Bold(true), h.palette.Keyword
+		return style.Bold(true), p.Keyword
 	case aghighlight.String, aghighlight.Escape:
-		return style, h.palette.String
+		return style, p.String
 	case aghighlight.Number, aghighlight.Constant:
-		return style, h.palette.Number
+		return style, p.Number
 	case aghighlight.Name, aghighlight.Function:
-		return style, h.palette.Name
+		return style, p.Name
 	case aghighlight.Type, aghighlight.Namespace:
-		return style, h.palette.Type
+		return style, p.Type
 	case aghighlight.Operator:
-		return style, h.palette.Operator
+		return style, p.Operator
 	case aghighlight.Plain, aghighlight.Punctuation, aghighlight.Field:
 	}
 

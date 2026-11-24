@@ -6,6 +6,7 @@ package diffview
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -100,7 +101,9 @@ type Model struct {
 	changeMarks    []overview.Mark
 	hits           []SearchHit
 	wordDiffCache  *WordDiffCache
+	lexed          <-chan struct{}
 	highlighter    *highlight.Highlighter
+	cache          *drawCache
 	fileChange     *diff.FileChange
 	mechanical     map[int]string
 	expanded       map[int]bool
@@ -120,6 +123,8 @@ type Model struct {
 	showWhitespace  bool
 	showLineNumbers bool
 	wordLevelDiff   bool
+	// announced is set once HighlightCmd has handed out the wait for the current file's colors.
+	announced bool
 }
 
 // New builds a pane with no file loaded, so View renders a placeholder until SetFileChange is called.
@@ -131,6 +136,7 @@ func New(cfg config.Config) Model {
 	}
 
 	return Model{
+		cache:           &drawCache{},
 		offset:          0,
 		generated:       generated.New(nil),
 		viewMode:        viewMode,
@@ -148,6 +154,14 @@ func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
 	m.highlighter = highlight.New(file)
+	m.lexed = m.highlighter.Start(file.Path)
+	m.announced = false
+
+	if m.cache == nil {
+		m.cache = &drawCache{}
+	}
+
+	m.invalidate()
 	m.expanded = map[int]bool{}
 	m.generatedOpen = false
 	m.mechanical = map[int]string{}
@@ -262,6 +276,7 @@ func (m *Model) relayout(change func()) {
 	}
 
 	change()
+	m.invalidate()
 	m.buildLineIndex()
 
 	if index := m.lineIndex; index != nil && top.HunkIdx < len(index.HunkOffsets) {
@@ -368,6 +383,7 @@ func (m *Model) ToggleWhitespace() {
 // ToggleLineNumbers flips the old/new line-number gutter.
 func (m *Model) ToggleLineNumbers() {
 	m.showLineNumbers = !m.showLineNumbers
+	m.invalidate()
 }
 
 // ToggleWordDiff flips intra-line highlighting and recomputes the word diffs for the current file,
@@ -375,6 +391,7 @@ func (m *Model) ToggleLineNumbers() {
 func (m *Model) ToggleWordDiff() {
 	m.wordLevelDiff = !m.wordLevelDiff
 	m.computeWordDiffs()
+	m.invalidate()
 }
 
 // ToggleSideBySide switches between the unified and side-by-side layouts.
@@ -469,25 +486,53 @@ func (m *Model) View(width, height int, _ bool) string {
 		return strings.Join(fillRows(rows, width, height), "\n")
 	}
 
-	var rows []string
-
 	body := height
 	if m.viewMode == ViewModeSideBySide {
 		body = height - 1
 	}
 
-	bar := m.track(body)
-	inner := width - bar.Width()
+	bar := m.trackCells(body)
+	inner := width - min(len(bar), 1)
+
+	// One builder for the whole frame: a row and its track cell are written side by side rather
+	// than joined, which was a copy of every row on every frame.
+	var out strings.Builder
+
+	out.Grow(height * (width*bytesPerCell + 1))
+
+	drawn := 0
+	line := func(row, cell string) {
+		if drawn >= height {
+			return
+		}
+
+		if drawn > 0 {
+			out.WriteByte('\n')
+		}
+
+		out.WriteString(row)
+		out.WriteString(cell)
+		drawn++
+	}
 
 	if m.viewMode == ViewModeSideBySide {
-		rows = append(rows, renderPaneTitles(inner)+trackPad(bar))
+		line(m.renderPaneTitles(inner), strings.Repeat(" ", min(len(bar), 1)))
 	}
 
 	for i, row := range fillRows(m.renderRows(inner, body), inner, max(body, 0)) {
-		rows = append(rows, row+bar.Cell(i))
+		cell := ""
+		if i < len(bar) {
+			cell = bar[i]
+		}
+
+		line(row, cell)
 	}
 
-	return strings.Join(fillRows(rows, width, height), "\n")
+	for drawn < height {
+		line(strings.Repeat(" ", max(width, 0)), "")
+	}
+
+	return out.String()
 }
 
 // fillRows pads rows with blank ones out to height, and cuts any past it.
@@ -540,7 +585,7 @@ func (m *Model) renderBody(hunkIdx, first, width, limit int) []string {
 
 	for at := first; at < count && len(rows) < limit; at++ {
 		if m.viewMode == ViewModeSideBySide {
-			rows = append(rows, m.renderPair(m.pairs[hunkIdx][at], hunkIdx, width))
+			rows = append(rows, m.renderPair(m.pairs[hunkIdx][at], hunkIdx, at, width))
 
 			continue
 		}
@@ -613,18 +658,106 @@ func (m *Model) renderLine(line diff.Line, width, hunkIdx, lineIdx int) string {
 	isCurrentLine := m.isVisualMode && m.lineCursor == lineIdx && hunkIdx == m.selectedHunk
 	isInVisualRange := m.isVisualMode && hunkIdx == m.selectedHunk && m.isLineInVisualRange(lineIdx)
 	isSelected := m.isLineSelected != nil && m.isLineSelected(hunkIdx, lineIdx)
+	matches := m.matchesFor(hunkIdx, lineIdx)
 
-	base := rowBase(line.Type, isInVisualRange || isCurrentLine)
+	key := rowKey{hunk: hunkIdx, at: lineIdx, width: width, state: rowState(isCurrentLine, isInVisualRange, isSelected)}
+	if matches == nil {
+		if row, ok := m.cachedRow(key); ok {
+			return row
+		}
+	}
+
+	p := m.pensFor()
+	rp := &p.row[baseOf(line.Type, isInVisualRange || isCurrentLine)]
+
+	var b strings.Builder
+
+	b.Grow(width * bytesPerCell)
+	b.WriteString(lineIndicator(p, isInVisualRange, isSelected, isCurrentLine))
+
 	number := line.NewLineNum
 	if line.Type == diff.LineDeletion {
 		number = line.OldLineNum
 	}
 
-	head := lineIndicator(isInVisualRange, isSelected, isCurrentLine) + m.gutter(line.Type, number, &base)
+	headWidth := margin + m.writeGutter(&b, rp, line.Type, number)
+	ready := m.writeFitted(&b, rp, p, line, hunkIdx, lineIdx, matches, width-headWidth)
 
-	content := fitStyled(m.lineContent(line, hunkIdx, lineIdx, &base), width-lipgloss.Width(head), &base)
+	row := b.String()
+	if matches == nil && ready {
+		m.keepRow(key, row)
+	}
 
-	return padRow(head+content, width, &base)
+	return row
+}
+
+func rowState(isCurrentLine, isInVisualRange, isSelected bool) uint8 {
+	var state uint8
+
+	if isCurrentLine {
+		state |= stateCurrent
+	}
+
+	if isInVisualRange {
+		state |= stateInRange
+	}
+
+	if isSelected {
+		state |= stateSelected
+	}
+
+	return state
+}
+
+// matchesFor is the search hits on a line, or nil when no search is drawing any there.
+func (m *Model) matchesFor(hunkIdx, lineIdx int) []MatchRange {
+	if !m.isSearching || m.getMatches == nil {
+		return nil
+	}
+
+	matches := m.getMatches(hunkIdx, lineIdx)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	return matches
+}
+
+// writeFitted draws the line's content in room cells, cut with a marker when it is wider, then the
+// row's wash out to the room's edge. It reports whether syntax colors were ready for it.
+func (m *Model) writeFitted(
+	b *strings.Builder, rp *rowPens, p *pens, line diff.Line, hunkIdx, lineIdx int, matches []MatchRange, room int,
+) bool {
+	if room <= 0 {
+		return true
+	}
+
+	cells := plainWidth(line.Content)
+	if cells >= 0 && cells <= room {
+		ready := m.writeContent(b, rp, p, line, hunkIdx, lineIdx, matches)
+		rp.faces.Base.Spaces(b, room-cells)
+
+		return ready
+	}
+
+	var content strings.Builder
+
+	ready := m.writeContent(&content, rp, p, line, hunkIdx, lineIdx, matches)
+	styled := content.String()
+
+	if cells < 0 {
+		cells = lipgloss.Width(styled)
+	}
+
+	if cells > room {
+		styled = ansi.Truncate(styled, room-1, "") + "\x1b[m" + rp.marker.Render(truncationMarker)
+		cells = lipgloss.Width(styled)
+	}
+
+	b.WriteString(styled)
+	rp.faces.Base.Spaces(b, room-cells)
+
+	return ready
 }
 
 // The gutter's columns: a four-digit number and its space, then the sign and its space.
@@ -636,19 +769,18 @@ const (
 // gutter is the line's number and its sign, drawn on the row's base so the wash runs from the number
 // to the pane's edge. The sign carries the side, so the number stays quiet: a changed line's is only
 // a step brighter than a context line's, which is all it needs to say "changed".
-func (m *Model) gutter(kind diff.LineType, number int, base *lipgloss.Style) string {
-	out := ""
+func (m *Model) writeGutter(b *strings.Builder, rp *rowPens, kind diff.LineType, number int) int {
+	cells := 0
 
 	if m.showLineNumbers {
-		quiet := theme.Skin.Muted
-		if kind != diff.LineContext {
-			quiet = theme.Skin.Subtitle
-		}
-
-		out = quiet.Inherit(*base).Render(fmt.Sprintf("%4d ", number))
+		writeNumber(b, &rp.number[kindOf(kind)], number)
+		cells += max(len(strconv.Itoa(number))+1, numberWidth)
 	}
 
-	return out + signStyle(kind, base).Render(sign(kind)) + base.Render(" ")
+	rp.sign[kindOf(kind)].Write(b, sign(kind))
+	rp.faces.Base.Write(b, " ")
+
+	return cells + signWidth
 }
 
 // sign is the gutter glyph for a line: the sign bar on a changed line, or + and − where NO_COLOR
@@ -665,19 +797,24 @@ func sign(kind diff.LineType) string {
 	return " "
 }
 
-// lineContent ranks search hits over word-level marks over syntax colors, since each styles the same bytes.
-func (m *Model) lineContent(line diff.Line, hunkIdx, lineIdx int, base *lipgloss.Style) string {
-	if m.isSearching && m.getMatches != nil {
-		if matches := m.getMatches(hunkIdx, lineIdx); len(matches) > 0 {
-			return highlightMatches(line.Content, matches, base)
-		}
+// writeContent ranks search hits over word-level marks over syntax colors, since each styles the
+// same bytes. It reports whether syntax colors were ready, which they always are for the first two.
+func (m *Model) writeContent(
+	b *strings.Builder, rp *rowPens, p *pens, line diff.Line, hunkIdx, lineIdx int, matches []MatchRange,
+) bool {
+	if len(matches) > 0 {
+		writeMatches(b, line.Content, matches, rp, p)
+
+		return true
 	}
 
 	if wordDiff, ok := m.lookupWordDiff(line.Type, hunkIdx, lineIdx); ok {
-		return applyWordDiffHighlight(line.Content, line.Type, wordDiff, base)
+		writeWordDiff(b, line.Content, line.Type, wordDiff, rp, p)
+
+		return true
 	}
 
-	return m.highlighter.Line(m.fileChange.Path, line, base)
+	return m.highlighter.Peek(b, m.fileChange.Path, line, rp.faces)
 }
 
 func (m *Model) lookupWordDiff(
@@ -700,14 +837,14 @@ func (m *Model) lookupWordDiff(
 
 // lineIndicator is the margin's glyph for a line under the line cursor, inside a visual range, or
 // picked for a split. It sits outside the wash, so it reads against the plain background.
-func lineIndicator(isInVisualRange, isSelected, isCurrentLine bool) string {
+func lineIndicator(p *pens, isInVisualRange, isSelected, isCurrentLine bool) string {
 	switch {
 	case isInVisualRange:
-		return theme.Skin.Cursor.Render("┃ ")
+		return p.inRange
 	case isSelected:
-		return theme.Skin.Cursor.Render("• ")
+		return p.picked
 	case isCurrentLine:
-		return theme.Skin.Cursor.Render("▸ ")
+		return p.current
 	default:
 		return strings.Repeat(" ", margin)
 	}
@@ -779,43 +916,35 @@ func (m *Model) isLineInVisualRange(lineIdx int) bool {
 	return lineIdx >= start && lineIdx <= end
 }
 
-func highlightMatches(content string, matches []MatchRange, base *lipgloss.Style) string {
-	if len(matches) == 0 {
-		return base.Render(content)
-	}
-
-	var segments []string
+func writeMatches(b *strings.Builder, content string, matches []MatchRange, rp *rowPens, p *pens) {
 	lastEnd := 0
 
+	// Each byte is drawn once, so a hit at the line's end or overlapping the last one cannot
+	// repeat text and push the row past its width.
 	for _, match := range matches {
-		if lastEnd < match.Start && match.Start <= len(content) {
-			segments = append(segments, base.Render(content[lastEnd:match.Start]))
+		start := max(match.Start, lastEnd)
+		if lastEnd < start && start <= len(content) {
+			rp.faces.Base.Write(b, content[lastEnd:start])
+			lastEnd = start
 		}
 
-		if match.Start < len(content) {
-			endIdx := min(match.End, len(content))
-			segments = append(segments, lipgloss.NewStyle().
-				Background(theme.Accent).
-				Foreground(theme.ModalBg).
-				Render(content[match.Start:endIdx]))
+		if start < len(content) {
+			endIdx := max(min(match.End, len(content)), start)
+			p.match.Write(b, content[start:endIdx])
 			lastEnd = endIdx
 		}
 	}
 
 	if lastEnd < len(content) {
-		segments = append(segments, base.Render(content[lastEnd:]))
+		rp.faces.Base.Write(b, content[lastEnd:])
 	}
-
-	return strings.Join(segments, "")
 }
 
-func applyWordDiffHighlight(
-	content string,
-	lineType diff.LineType,
-	wordDiff diff.WordDiffResult,
-	base *lipgloss.Style,
-) string {
+func writeWordDiff(
+	b *strings.Builder, content string, lineType diff.LineType, wordDiff diff.WordDiffResult, rp *rowPens, p *pens,
+) {
 	var spans []diff.IntraLineSpan
+
 	switch lineType {
 	case diff.LineDeletion:
 		spans = wordDiff.OldSpans
@@ -825,47 +954,80 @@ func applyWordDiffHighlight(
 	}
 
 	if len(spans) == 0 {
-		return base.Render(content)
+		rp.faces.Base.Write(b, content)
+
+		return
 	}
 
-	var result strings.Builder
 	for _, span := range spans {
 		switch span.Type {
 		case diff.SpanEqual:
-			result.WriteString(base.Render(span.Text))
+			rp.faces.Base.Write(b, span.Text)
 		case diff.SpanDeleted:
-			result.WriteString(theme.WordDiffDeletedStyle.Render(span.Text))
+			p.wordRemoved.Write(b, span.Text)
 		case diff.SpanAdded:
-			result.WriteString(theme.WordDiffAddedStyle.Render(span.Text))
+			p.wordAdded.Write(b, span.Text)
 		}
 	}
-
-	return result.String()
 }
 
 // renderHunkHeader names a hunk by the code it sits in, the function or type git found above it,
 // and the lines it spans, rather than by raw @@ syntax. The current hunk carries the cursor glyph in
 // the margin and its name in the accent; tags and a selection mark follow the range.
 func (m *Model) renderHunkHeader(width, hunkIdx int, isCurrent, isSelected bool) string {
-	hunk := &m.fileChange.Hunks[hunkIdx]
+	var tags []SplitTag
+	if m.getHunkTags != nil {
+		tags = m.getHunkTags(hunkIdx)
+	}
 
-	lead, name := strings.Repeat(" ", margin), theme.Skin.Subtitle
+	key := headerKey{
+		hunk: hunkIdx, width: width, current: isCurrent, selected: isSelected, tags: string(tagRunes(tags)),
+	}
+	if row, ok := m.cache.headers[key]; ok {
+		return row
+	}
+
+	row := m.drawHunkHeader(width, hunkIdx, tags, isCurrent, isSelected)
+
+	if m.cache.headers == nil || len(m.cache.headers) >= maxCachedRows {
+		m.cache.headers = map[headerKey]string{}
+	}
+
+	m.cache.headers[key] = row
+
+	return row
+}
+
+func tagRunes(tags []SplitTag) []rune {
+	out := make([]rune, len(tags))
+	for i, tag := range tags {
+		out[i] = rune(tag)
+	}
+
+	return out
+}
+
+func (m *Model) drawHunkHeader(width, hunkIdx int, tags []SplitTag, isCurrent, isSelected bool) string {
+	hunk := &m.fileChange.Hunks[hunkIdx]
+	p := m.pensFor()
+
+	lead, name := strings.Repeat(" ", margin), p.subtitle
 	if isCurrent {
-		lead, name = theme.Skin.Cursor.Render("▸ "), theme.Skin.Cursor
+		lead, name = p.current, p.cursor
 	}
 
 	var b strings.Builder
 
-	b.WriteString(theme.Skin.Muted.Render(hunk.Range()))
+	p.muted.Write(&b, hunk.Range())
 
-	if m.getHunkTags != nil {
-		for _, tag := range m.getHunkTags(hunkIdx) {
-			b.WriteString(" " + theme.Skin.Accent.Render("["+string(tag)+"]"))
-		}
+	for _, tag := range tags {
+		b.WriteString(" ")
+		p.accent.Write(&b, "["+string(tag)+"]")
 	}
 
 	if isSelected {
-		b.WriteString(" " + theme.Skin.Success.Render("✓"))
+		b.WriteString(" ")
+		p.success.Write(&b, "✓")
 	}
 
 	tail := b.String()

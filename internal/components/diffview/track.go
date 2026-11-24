@@ -1,8 +1,6 @@
 package diffview
 
 import (
-	"strings"
-
 	"github.com/kyleking/aragonite/tui/overview"
 
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -37,9 +35,46 @@ func (m *Model) track(height int) *overview.Bar {
 	return bar.Place(m.changeMarks...).Place(m.foundMarks()...)
 }
 
-// trackPad is the blank a row the track does not run beside (the column titles) puts in its column.
-func trackPad(bar *overview.Bar) string {
-	return strings.Repeat(" ", bar.Width())
+// trackKey is everything the drawn track depends on, so a frame that only moved the cursor reuses
+// the last frame's column. The marks are rebuilt with the layout, which invalidates the row cache
+// and with it the track.
+type trackKey struct {
+	height, total, offset, hits int
+	generation                  uint64
+}
+
+// trackCells is the track's cell for each body row, or nil when the content fits.
+func (m *Model) trackCells(height int) []string {
+	if m.lineIndex == nil {
+		return nil
+	}
+
+	key := trackKey{
+		height: height, total: m.lineIndex.TotalLines, offset: m.offset, hits: len(m.hits),
+		generation: theme.Generation(),
+	}
+	if m.cache.track != nil && m.cache.trackKey == key && m.cache.trackHits == hitsID(m.hits) {
+		return m.cache.track
+	}
+
+	cells := m.track(height).Lines()
+	m.cache.track, m.cache.trackKey, m.cache.trackHits = cells, key, hitsID(m.hits)
+
+	if cells == nil {
+		m.cache.track = []string{}
+	}
+
+	return cells
+}
+
+// hitsID tells one hits slice from another without comparing them, since SetSearchHits replaces the
+// slice whenever the matches change.
+func hitsID(hits []SearchHit) *SearchHit {
+	if len(hits) == 0 {
+		return nil
+	}
+
+	return &hits[0]
 }
 
 // buildChangeMarks types every changed row once per layout, since they only move when the layout
@@ -51,7 +86,15 @@ func (m *Model) buildChangeMarks() {
 		return
 	}
 
-	added, removed := theme.Palette.Green, theme.Palette.Red
+	// A mark carries a whole style, so growing the slice a row at a time copied the marks over and
+	// over; counting first sizes it once.
+	if changed := m.changedRows(); cap(m.changeMarks) < changed {
+		m.changeMarks = make([]overview.Mark, 0, changed)
+	}
+
+	// Every changed row carries one of two marks, so each is built once and copied with its row,
+	// rather than building a style per row of a file that can run to thousands.
+	added, removed := overview.Change(0, theme.Palette.Green), overview.Change(0, theme.Palette.Red)
 
 	for hunkIdx := range m.shown {
 		if m.isFolded(hunkIdx) {
@@ -65,13 +108,34 @@ func (m *Model) buildChangeMarks() {
 
 			switch kind {
 			case diff.LineAddition:
-				m.changeMarks = append(m.changeMarks, overview.Change(first+at, added))
+				added.Row = first + at
+				m.changeMarks = append(m.changeMarks, added)
 			case diff.LineDeletion:
-				m.changeMarks = append(m.changeMarks, overview.Change(first+at, removed))
+				removed.Row = first + at
+				m.changeMarks = append(m.changeMarks, removed)
 			case diff.LineContext:
 			}
 		}
 	}
+}
+
+// changedRows counts the body rows buildChangeMarks marks.
+func (m *Model) changedRows() int {
+	n := 0
+
+	for hunkIdx := range m.shown {
+		if m.isFolded(hunkIdx) {
+			continue
+		}
+
+		for at := range m.bodyRows(hunkIdx) {
+			if m.rowKind(hunkIdx, at) != diff.LineContext {
+				n++
+			}
+		}
+	}
+
+	return n
 }
 
 // rowKind is the change a body row shows: an addition wherever the new side has one.

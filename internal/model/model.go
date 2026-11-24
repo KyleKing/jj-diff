@@ -419,8 +419,24 @@ func (m *Model) loadRevisions() tea.Cmd {
 }
 
 // Update handles one message in place and returns the receiver, so the concrete type is always
-// *Model and callers chaining updates can assert it.
+// *Model and callers chaining updates can assert it. A file the diff pane loaded is lexed in the
+// background, so every update also hands out the wait for its colors, once per file; the message
+// that wait answers needs no handling, since the redraw after it is what draws them.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(diffview.HighlightedMsg); ok {
+		return m, nil
+	}
+
+	model, cmd := m.handle(msg)
+
+	if lit := m.diffView.HighlightCmd(); lit != nil {
+		cmd = tea.Batch(cmd, lit)
+	}
+
+	return model, cmd
+}
+
+func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		cmd := m.handleKeyPress(msg)

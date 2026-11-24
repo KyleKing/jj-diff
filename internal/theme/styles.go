@@ -6,6 +6,7 @@ package theme
 import (
 	"image/color"
 	"os"
+	"sync/atomic"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
@@ -142,6 +143,18 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 	WordDiffDeletedStyle = lipgloss.NewStyle().
 		Background(WordDiffDelBg).
 		Foreground(Text)
+
+	generation.Add(1)
+}
+
+// generation counts the times the styles were rebuilt, so a component that caches what it drew
+// with them knows when that cache went stale.
+var generation atomic.Uint64
+
+// Generation is the number of times Init (or a test's theme swap) has rebuilt the styles. A
+// component caching rendered rows or pens keys them by it, since Init can run again in tests.
+func Generation() uint64 {
+	return generation.Load()
 }
 
 // PaneStyle returns a dynamic border style for panes.

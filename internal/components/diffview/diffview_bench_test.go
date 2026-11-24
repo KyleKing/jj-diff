@@ -64,6 +64,7 @@ func BenchmarkDiffViewRender_SmallDiff(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+	<-m.Highlighted()
 
 	_ = m.View(80, 40, false)
 
@@ -83,6 +84,7 @@ func BenchmarkDiffViewRender_MediumDiff(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+	<-m.Highlighted()
 
 	_ = m.View(80, 40, false)
 
@@ -102,6 +104,7 @@ func BenchmarkDiffViewRender_LargeDiff(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+	<-m.Highlighted()
 
 	_ = m.View(80, 40, false)
 
@@ -121,6 +124,7 @@ func BenchmarkDiffViewRender_HugeDiff(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+	<-m.Highlighted()
 
 	_ = m.View(80, 40, false)
 
@@ -140,6 +144,7 @@ func BenchmarkDiffViewRender_WithSelection(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+	<-m.Highlighted()
 	m.SetSelection(5, func(hunkIdx int) bool {
 		return hunkIdx == 5
 	})
@@ -162,6 +167,7 @@ func BenchmarkDiffViewRender_WithSearchMatches(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+	<-m.Highlighted()
 	m.SetSearchState(true, func(_, _ int) []diffview.MatchRange {
 		// Simulate one match per line
 		return []diffview.MatchRange{{Start: 10, End: 15}}
@@ -185,6 +191,7 @@ func BenchmarkDiffViewScroll(b *testing.B) {
 
 	m := diffview.New(testConfig())
 	m.SetFileChange(fileChange)
+	<-m.Highlighted()
 
 	_ = m.View(80, 40, false)
 
@@ -218,7 +225,8 @@ func realisticFile(rows int) diff.FileChange {
 }
 
 // BenchmarkDiffViewFirstFrame_2000Rows benchmarks opening a 2000-row file: load it and draw the
-// first screen, which is where the file is lexed once.
+// first screen. The file is lexed in the background, so this is what the user waits for; the wait
+// for the lexer is outside the timer, so one iteration's lexing does not slow the next.
 func BenchmarkDiffViewFirstFrame_2000Rows(b *testing.B) {
 	file := realisticFile(2000)
 
@@ -229,6 +237,45 @@ func BenchmarkDiffViewFirstFrame_2000Rows(b *testing.B) {
 		m := diffview.New(testConfig())
 		m.SetFileChange(file)
 		_ = m.View(160, 44, false)
+
+		b.StopTimer()
+		<-m.Highlighted()
+		b.StartTimer()
+	}
+}
+
+// BenchmarkDiffViewColoredFrame_2000Rows is opening a 2000-row file through to the first frame
+// drawn with syntax colors: the background lex of both sides and one more frame.
+func BenchmarkDiffViewColoredFrame_2000Rows(b *testing.B) {
+	file := realisticFile(2000)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		m := diffview.New(testConfig())
+		m.SetFileChange(file)
+		_ = m.View(160, 44, false)
+		<-m.Highlighted()
+		_ = m.View(160, 44, false)
+	}
+}
+
+// BenchmarkDiffViewCursorMove_2000Rows is a frame where only the line cursor moved, which is what
+// holding j in visual mode draws: every row but two comes from the row cache.
+func BenchmarkDiffViewCursorMove_2000Rows(b *testing.B) {
+	m := diffview.New(testConfig())
+	m.SetFileChange(realisticFile(2000))
+	<-m.Highlighted()
+
+	_ = m.View(160, 44, false)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := range b.N {
+		m.SetVisualState(i%40, true, i%40, nil)
+		_ = m.View(160, 44, false)
 	}
 }
 
@@ -236,6 +283,7 @@ func BenchmarkDiffViewFirstFrame_2000Rows(b *testing.B) {
 func BenchmarkDiffViewScroll_2000Rows(b *testing.B) {
 	m := diffview.New(testConfig())
 	m.SetFileChange(realisticFile(2000))
+	<-m.Highlighted()
 
 	_ = m.View(160, 44, false)
 
