@@ -14,7 +14,8 @@ import (
 	"github.com/kyleking/aragonite/tui/keys"
 )
 
-var modes = []OperatingMode{ModeBrowse, ModeInteractive, ModeDiffEditor} //nolint:gochecknoglobals // a fixture
+//nolint:gochecknoglobals // a fixture
+var modes = []OperatingMode{ModeBrowse, ModeInteractive, ModeDiffEditor}
 
 // TestKeymap_AgreesWithShared is what keeps one key meaning one thing across jojo, jj-diff, and
 // second-look: no key jj-diff binds may be a key the shared table gives another action on a screen
@@ -22,7 +23,8 @@ var modes = []OperatingMode{ModeBrowse, ModeInteractive, ModeDiffEditor} //nolin
 func TestKeymap_AgreesWithShared(t *testing.T) {
 	t.Parallel()
 
-	shared := slices.Concat(keys.Global(), keys.DiffView(), keys.FlagBindings(keys.VerbSquash))
+	shared := slices.Concat(keys.Global(), keys.DiffView(), keys.FlagBindings(keys.VerbSquash),
+		keys.FlagBindings(keys.VerbSplit), keys.SplitColumns())
 
 	for _, mode := range modes {
 		if got := keys.Disagreements(shared, toolBindings(mode)); len(got) != 0 {
@@ -44,7 +46,7 @@ func TestHelp_ListsEveryBoundAction(t *testing.T) {
 		km := newKeymap(mode)
 		listed := map[string]bool{}
 
-		for _, ctx := range []keys.Context{keys.List, keys.View, keys.Select, keys.Picker} {
+		for _, ctx := range []keys.Context{keys.List, keys.View, keys.Select, keys.Picker, keys.Split} {
 			for _, h := range km.Legend(ctx) {
 				listed[h.Key+" "+h.What] = true
 			}
@@ -84,8 +86,32 @@ func TestFooter_OffersOnlyBoundKeys(t *testing.T) {
 	}
 }
 
+// The columns' footer comes from the keymap as well.
+func TestFooter_ColumnsOfferOnlyBoundKeys(t *testing.T) {
+	t.Parallel()
+
+	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
+	m.openColumns(nil)
+
+	for _, visual := range []bool{false, true} {
+		m.cols.visual = visual
+
+		for _, h := range m.footerHints() {
+			for _, key := range strings.Split(h.Key, "/") {
+				if !m.bound(key) && !m.bound(h.Key) {
+					t.Errorf("the columns' footer offers %q, which nothing binds", key)
+				}
+			}
+		}
+	}
+}
+
 func (m *Model) bound(label string) bool {
 	for _, b := range m.keymap.Bindings() {
+		if b.Labels() == label {
+			return true
+		}
+
 		for _, k := range b.Keys {
 			if strings.ReplaceAll(k, " ", "") == label || k == label {
 				return true
@@ -243,18 +269,20 @@ func TestHelp_Golden(t *testing.T) {
 	t.Parallel()
 
 	screens := []struct {
-		name   string
-		panel  FocusedPanel
-		picker bool
+		name    string
+		panel   FocusedPanel
+		picker  bool
+		columns bool
 	}{
 		{name: "files", panel: PanelFileList},
 		{name: "diff", panel: PanelDiffView},
 		{name: "picker", panel: PanelDiffView, picker: true},
+		{name: "columns", panel: PanelDiffView, columns: true},
 	}
 
 	for _, mode := range modes {
 		for _, screen := range screens {
-			if screen.picker && mode != ModeInteractive {
+			if (screen.picker || screen.columns) && mode != ModeInteractive {
 				continue
 			}
 
@@ -268,6 +296,10 @@ func TestHelp_Golden(t *testing.T) {
 
 				if screen.picker {
 					m.picker.Show()
+				}
+
+				if screen.columns {
+					m.openColumns(nil)
 				}
 
 				m.showHelp()

@@ -62,7 +62,7 @@
 │                   s  squash the selection into…                  │
 │                   S  split the selection out to a new commit     │
 │                   R  discard the selection from the revision     │
-│                   c  confirm: squash into the -d destination     │
+│                   c  confirm: squash into -d, or apply the split │
 │                                                                  │
 │ esc close                                                        │
 ╰──────────────────────────────────────────────────────────────────╯

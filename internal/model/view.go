@@ -36,6 +36,12 @@ func (m *Model) render() string {
 		return ""
 	}
 
+	if m.cols != nil && len(m.changes) > 0 {
+		frame := *m
+
+		return frame.whichKey(composite(frame.renderColumns(), frame.overlayView(), frame.width, frame.height))
+	}
+
 	if len(m.changes) == 0 {
 		return "No changes found.\n\nPress ctrl+l to reload or q to quit"
 	}
@@ -138,8 +144,6 @@ func (m *Model) overlayView() string {
 		return m.help.View(m.width, m.height)
 	case m.picker.IsVisible():
 		return m.picker.View(m.width, m.height)
-	case m.commitMsg.IsVisible():
-		return m.commitMsg.View(m.width, m.height)
 	}
 
 	return ""
@@ -226,6 +230,15 @@ func (m *Model) renderDiffView(height int) string {
 	return out.String()
 }
 
+// screenName is what the footer calls the screen: the mode, or the columns while they are up.
+func (m *Model) screenName() string {
+	if m.cols != nil {
+		return "Split"
+	}
+
+	return modeName(m.mode)
+}
+
 func (m *Model) renderStatusBar() string {
 	if m.searchModal.IsVisible() {
 		return m.searchModal.Line(m.width)
@@ -233,8 +246,8 @@ func (m *Model) renderStatusBar() string {
 
 	ctx := statusbar.Context{
 		Destination:  m.destination,
-		IsVisualMode: m.isVisualMode,
-		Mode:         modeName(m.mode),
+		IsVisualMode: m.isVisualMode || (m.cols != nil && m.cols.visual),
+		Mode:         m.screenName(),
 		Source:       m.source,
 		Notice:       m.notice,
 		Alarm:        m.alarm,

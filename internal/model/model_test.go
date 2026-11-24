@@ -789,7 +789,6 @@ func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
 		{name: "search", height: 30, footer: "type to search", open: func(m *Model) { m.searchModal.Show() }},
 		// The help overlay is nearly 30 rows, so it needs a terminal it does not fill.
 		{name: "help", height: 60, open: func(m *Model) { m.showHelp() }},
-		{name: "commit message", height: 30, open: func(m *Model) { m.commitMsg.Show() }},
 	}
 
 	for _, tt := range tests {

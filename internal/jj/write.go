@@ -59,6 +59,8 @@ type MoveOptions struct {
 type Outcome struct {
 	// Conflicts is jj's notice naming the revisions that now hold conflicts, empty when none do.
 	Conflicts string
+	// Undo is the command that reverses the write, empty when one jj undo does.
+	Undo string
 }
 
 // MoveChanges moves the changes the patch selects out of source and into destination as one jj
@@ -150,7 +152,19 @@ func (c *Client) Split(source string, groups []SplitGroup, parallel bool) (Outco
 		outcome.Conflicts = strings.TrimSpace(outcome.Conflicts + "\n" + got.Conflicts)
 	}
 
+	// Each group is its own operation, so one jj undo would take back only the last.
+	if len(groups) > 1 {
+		outcome.Undo = "jj op restore " + shortOp(opID)
+	}
+
 	return outcome, nil
+}
+
+// shortOp is an operation ID at the length jj prints it.
+func shortOp(id string) string {
+	const short = 12
+
+	return id[:min(len(id), short)]
 }
 
 // selection is what the diff editor does to the right tree: take unapply back out of it, then put
@@ -231,14 +245,9 @@ func (c *Client) runSelection(args []string, sel selection) (_ Outcome, err erro
 // program would otherwise read it as a file the revision adds, and the editor is turned off so a
 // description jj wants combined fails the command rather than waiting on a terminal it cannot have.
 func (c *Client) toolArgs(editArgs []string) ([]string, error) {
-	program := c.editor
-	if program == "" {
-		self, err := os.Executable()
-		if err != nil {
-			return nil, fmt.Errorf("finding this program to run as the diff editor: %w", err)
-		}
-
-		program = self
+	program, err := c.program()
+	if err != nil {
+		return nil, err
 	}
 
 	quoted := make([]string, 0, len(editArgs)+2)
@@ -255,6 +264,20 @@ func (c *Client) toolArgs(editArgs []string) ([]string, error) {
 		config, "ui.diff-instructions=false",
 		config, `ui.editor="false"`,
 	}, nil
+}
+
+// program is the jj-diff binary jj runs back for a write: the one WithEditor named, else this one.
+func (c *Client) program() (string, error) {
+	if c.editor != "" {
+		return c.editor, nil
+	}
+
+	self, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("finding this program to run as jj's editor: %w", err)
+	}
+
+	return self, nil
 }
 
 // tomlString quotes s as a TOML basic string, which is what jj reads a --config value as.

@@ -48,6 +48,7 @@ type flags struct {
 	destination    string
 	tabWidth       int
 	version        bool
+	split          bool
 	browse         bool
 	interactive    bool
 	showWhitespace bool
@@ -81,6 +82,7 @@ func parseFlags() flags {
 		"With LEFT RIGHT: make RIGHT the LEFT tree plus this patch, drawing nothing (jj-diff's own writes)")
 	flag.StringVar(&f.unapplyPatch, jj.FlagUnapplyPatch, "",
 		"With LEFT RIGHT: take this patch back out of the LEFT tree first (jj-diff's own writes)")
+	flag.BoolVar(&f.split, "split", false, "Open the revision in split columns (implies -i)")
 	flag.IntVar(
 		&f.tabWidth,
 		"tab-width",
@@ -101,6 +103,7 @@ func parseFlags() flags {
 		fmt.Fprintf(os.Stderr, "  jj-diff -r @-        # Browse parent's changes\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -i           # Interactive mode (squash, split, or discard hunks)\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -i -d @-     # c squashes the selection into the parent\n")
+		fmt.Fprintf(os.Stderr, "  jj-diff --split -r X # Split X into commits, one column each\n")
 		fmt.Fprintf(
 			os.Stderr,
 			"  jj-diff LEFT RIGHT   # Diff-editor mode (for jj split, diffedit)\n",
@@ -120,15 +123,7 @@ func main() {
 		return
 	}
 
-	if f.applyPatch != "" || f.unapplyPatch != "" {
-		if flag.NArg() != diffEditorArgCount {
-			log.Fatalf("Failed to apply the selection: %v", errBadArgs)
-		}
-
-		if err := jj.ApplySelection(flag.Arg(0), flag.Arg(1), f.unapplyPatch, f.applyPatch); err != nil {
-			log.Fatalf("Failed to apply the selection: %v", err)
-		}
-
+	if runEditorHalf(&f) {
 		return
 	}
 
@@ -173,6 +168,25 @@ func main() {
 	}
 }
 
+// runEditorHalf runs the half of a write jj hands back to this program, which draws nothing, and
+// reports whether there was one.
+func runEditorHalf(f *flags) bool {
+	switch {
+	case f.applyPatch != "" || f.unapplyPatch != "":
+		if flag.NArg() != diffEditorArgCount {
+			log.Fatalf("Failed to apply the selection: %v", errBadArgs)
+		}
+
+		if err := jj.ApplySelection(flag.Arg(0), flag.Arg(1), f.unapplyPatch, f.applyPatch); err != nil {
+			log.Fatalf("Failed to apply the selection: %v", err)
+		}
+	default:
+		return false
+	}
+
+	return true
+}
+
 // builder finishes a model once the theme and the config are known. The work prepare started in the
 // background (the diff, the revision's label) is waited on here.
 type builder func(cfg config.Config) (model.Model, error)
@@ -205,13 +219,14 @@ func prepareRevisionMode(f *flags) (builder, error) {
 	}
 
 	mode := model.ModeBrowse
-	if f.interactive {
+	if f.interactive || f.split {
 		mode = model.ModeInteractive
 	}
 
 	// The label and the diff are each a jj call the first frame waits on, so both run at once.
 	revision := diff.NewRevisionSource(client, f.revision)
 	source := diff.Prefetch(revision)
+
 	labeled := make(chan error, 1)
 
 	go func() { labeled <- revision.ResolveLabel() }()
@@ -224,6 +239,10 @@ func prepareRevisionMode(f *flags) (builder, error) {
 		m, err := model.NewModelWithSource(source, client, f.destination, mode, cfg)
 		if err != nil {
 			return model.Model{}, fmt.Errorf("building the revision model: %w", err)
+		}
+
+		if f.split {
+			m.StartInColumns()
 		}
 
 		return m, nil

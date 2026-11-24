@@ -18,6 +18,7 @@ const (
 	actionConfirm = "confirm"
 	actionOpen    = "open"
 	actionPick    = "pick"
+	actionApply   = "apply"
 )
 
 // Legend groups jj-diff files its own verbs under.
@@ -47,6 +48,37 @@ var unsupported = []string{
 //nolint:gochecknoglobals // a fixed table, read only.
 var supportedObjects = []string{keys.ObjHunk, keys.ObjFile}
 
+// columnsUnsupported is the shared vocabulary the split columns do not act on: they have one pane,
+// no search, and draw hunks without folds or view options. Each is taken off the Split screen so its
+// legend lists only what works there.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var columnsUnsupported = []string{
+	keys.ActionSwitchPane, keys.ActionRepeat, keys.ActionSearch, keys.ActionFilter, keys.ActionWhitespace,
+	keys.ActionScrollDown, keys.ActionScrollUp, keys.ActionReload,
+	keys.ActionFoldToggle, keys.ActionFoldInvert, keys.ActionFoldOpenAll, keys.ActionFoldAll,
+	keys.ActionFrameMiddle, keys.ActionFrameTop, keys.ActionFrameBottom,
+	keys.ActionViewSideBySide, keys.ActionViewNumbers, keys.ActionViewRefine,
+}
+
+// offColumns takes the bindings columnsUnsupported names off the Split screen, leaving them
+// everywhere else they applied.
+func offColumns(bindings []keys.Binding) []keys.Binding {
+	for i, b := range bindings {
+		if !slices.Contains(columnsUnsupported, b.Action) {
+			continue
+		}
+
+		if b.Contexts == 0 {
+			b.Contexts = ^keys.Context(0)
+		}
+
+		bindings[i].Contexts = b.Contexts &^ keys.Split
+	}
+
+	return bindings
+}
+
 // pickerFlags are the squash flags the destination picker offers. -m and -i are left out: the
 // selection is the interactive part, and a message prompt is not built yet.
 //
@@ -74,6 +106,10 @@ func sharedBindings(mode OperatingMode) []keys.Binding {
 	shared := keys.Without(slices.Concat(keys.Global(), keys.DiffView()), drop...)
 
 	if mode == ModeInteractive {
+		// The columns' -o, -A, and -B place the result for jojo's picker, which jj-diff has not got.
+		shared = append(offColumns(shared), splitFlag())
+		shared = append(shared, keys.SplitColumns()...)
+
 		for _, f := range keys.FlagBindings(keys.VerbSquash) {
 			if slices.Contains(pickerFlags, f.Keys[0][len("- "):]) {
 				shared = append(shared, f)
@@ -82,6 +118,20 @@ func sharedBindings(mode OperatingMode) []keys.Binding {
 	}
 
 	return shared
+}
+
+// splitFlag is -p, the one split flag the columns offer, on the columns alone: the squash picker's
+// own flags hold that prefix there.
+func splitFlag() keys.Binding {
+	for _, f := range keys.FlagBindings(keys.VerbSplit) {
+		if f.Action == keys.FlagAction(keys.VerbSplit, "p") {
+			f.Contexts = keys.Split
+
+			return f
+		}
+	}
+
+	panic("aragonite has no split -p flag")
 }
 
 // toolBindings is what jj-diff adds in mode: the verbs that select and write.
@@ -100,15 +150,15 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 	out = append(out,
 		keys.Binding{
 			Action: actionSelect, Keys: []string{"space"}, What: "select the hunk, or in visual the lines",
-			Short: "select", Group: groupSelect, Contexts: keys.Select,
+			Short: "select", Group: groupSelect, Contexts: keys.Select | keys.Split,
 		},
 		keys.Binding{
 			Action: keys.ActionVisual, Keys: []string{"v", "V"}, What: "select a range of lines",
-			Short: "lines", Group: groupSelect, Contexts: keys.Select,
+			Short: "lines", Group: groupSelect, Contexts: keys.Select | keys.Split,
 		},
 		keys.Binding{
 			Action: actionInvert, Keys: []string{"~"}, What: "invert the selection in the file",
-			Short: "invert", Group: groupSelect, Contexts: keys.Select,
+			Short: "invert", Group: groupSelect, Contexts: keys.Select | keys.Split,
 		},
 	)
 
@@ -133,8 +183,12 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 			Short: "discard", Group: groupWrite, Contexts: keys.Select,
 		},
 		keys.Binding{
-			Action: actionConfirm, Keys: []string{"c"}, What: "confirm: squash into the -d destination",
-			Short: "confirm", Group: groupWrite, Contexts: keys.Select,
+			Action: actionConfirm, Keys: []string{"c"}, What: "confirm: squash into -d, or apply the split",
+			Short: "confirm", Group: groupWrite, Contexts: keys.Select | keys.Split,
+		},
+		keys.Binding{
+			Action: actionApply, Keys: []string{keyEnter}, What: "apply the split", Short: "apply",
+			Group: groupWrite, Contexts: keys.Split,
 		},
 		keys.Binding{
 			Action: actionPick, Keys: []string{keyEnter}, What: "apply into the highlighted revision", Short: "apply",
@@ -155,38 +209,77 @@ func newKeymap(mode OperatingMode) *keys.Keymap {
 	return km
 }
 
-// footerActions is what the footer offers on a screen, most useful first: Fit sheds from the end,
+// hint is action's footer hint worded as word (its own Short when empty), nil when unbound.
+func (m *Model) hint(action, word string) []keyhint.Hint {
+	h, ok := m.keymap.Hint(action)
+	if !ok {
+		return nil
+	}
+
+	if word != "" {
+		h.What = word
+	}
+
+	return []keyhint.Hint{h}
+}
+
+// labeled is a hint keyed by every sequence of the action, for a range of digits ("1–9").
+func (m *Model) labeled(action, word string) []keyhint.Hint {
+	b, ok := m.keymap.Binding(action)
+	if !ok || len(b.Keys) == 0 {
+		return nil
+	}
+
+	h := b.Hint()
+	h.Key = b.Labels()
+
+	if word != "" {
+		h.What = word
+	}
+
+	return []keyhint.Hint{h}
+}
+
+// pair is one hint for two actions that go together, keyed "h/l".
+func (m *Model) pair(a, b, word string) []keyhint.Hint {
+	x, _ := m.keymap.Binding(a)
+	y, _ := m.keymap.Binding(b)
+
+	return []keyhint.Hint{{Key: x.Label() + "/" + y.Label(), What: word}}
+}
+
+// columnsHints is the split columns' footer.
+func (m *Model) columnsHints() []keyhint.Hint {
+	if m.cols.visual {
+		return slices.Concat(m.pair(keys.ActionLineDown, keys.ActionLineUp, "extend"),
+			m.hint(actionSelect, "confirm"), m.hint(keys.ActionBack, "cancel"))
+	}
+
+	return slices.Concat(m.pair(keys.ActionColumnLeft, keys.ActionColumnRight, "column"),
+		m.hint(actionSelect, ""), m.pair(keys.ActionMoveLeft, keys.ActionMoveRight, "move"),
+		m.labeled(keys.ActionSendTo, ""), m.hint(actionApply, ""), m.hint(keys.ActionDescribe, ""),
+		m.hint(keys.FlagAction(keys.VerbSplit, "p"), "parallel"), m.hint(keys.ActionHelp, ""))
+}
+
+// footerHints is what the footer offers on a screen, most useful first: Fit sheds from the end,
 // and the last one (help, or the way out of a mode) is pinned.
 func (m *Model) footerHints() []keyhint.Hint {
-	km := m.keymap
-	down, _ := km.Binding(keys.ActionLineDown)
-	up, _ := km.Binding(keys.ActionLineUp)
-	lines := func(word string) keyhint.Hint { return keyhint.Hint{Key: down.Label() + "/" + up.Label(), What: word} }
-	hint := func(action, word string) []keyhint.Hint {
-		h, ok := km.Hint(action)
-		if !ok {
-			return nil
-		}
-
-		if word != "" {
-			h.What = word
-		}
-
-		return []keyhint.Hint{h}
-	}
+	lines := func(word string) []keyhint.Hint { return m.pair(keys.ActionLineDown, keys.ActionLineUp, word) }
+	hint := m.hint
 
 	var hints []keyhint.Hint
 
 	switch ctx := m.context(); {
+	case ctx == keys.Split:
+		hints = m.columnsHints()
 	case m.isVisualMode:
-		hints = slices.Concat([]keyhint.Hint{lines("extend")},
-			hint(actionSelect, "confirm"), hint(keys.ActionBack, "cancel"))
+		hints = slices.Concat(lines("extend"), hint(actionSelect, "confirm"), hint(keys.ActionBack, "cancel"))
 	case ctx == keys.Picker:
-		hints = slices.Concat([]keyhint.Hint{lines("move")},
+		hints = slices.Concat(lines("move"),
 			hint(actionPick, ""), []keyhint.Hint{{Key: "-", What: "flags"}}, hint(keys.ActionSearch, "filter"),
 			hint(keys.ActionBack, "cancel"))
 	case ctx == keys.List:
-		hints = slices.Concat([]keyhint.Hint{lines("nav")},
+		hints = slices.Concat(lines("nav"),
 			hint(actionOpen, ""), hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))
 	case m.mode == ModeDiffEditor:
 		hints = slices.Concat(hint(actionSelect, "keep/drop"), hint(keys.ActionVisual, ""),
@@ -196,7 +289,7 @@ func (m *Model) footerHints() []keyhint.Hint {
 		hints = slices.Concat(hint(actionSelect, ""), hint(keys.ActionVisual, ""), hint(actionSquash, ""),
 			hint(actionSplit, ""), hint(actionRestore, ""), hint(keys.ActionUndo, ""), hint(keys.ActionHelp, ""))
 	default:
-		hints = slices.Concat([]keyhint.Hint{lines("scroll")},
+		hints = slices.Concat(lines("scroll"),
 			hint(keys.NextAction(keys.ObjHunk), ""), hint(keys.NextAction(keys.ObjFile), ""),
 			hint(keys.ActionWhitespace, ""), hint(keys.ActionViewSideBySide, ""), hint(keys.ActionHelp, ""))
 	}
@@ -215,6 +308,8 @@ func (m *Model) footerHints() []keyhint.Hint {
 // context is the screen the next key lands on, which decides what it means.
 func (m *Model) context() keys.Context {
 	switch {
+	case m.cols != nil:
+		return keys.Split
 	case m.picker.IsVisible():
 		return keys.Picker
 	case m.focusedPanel == PanelFileList:

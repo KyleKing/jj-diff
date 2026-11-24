@@ -21,8 +21,8 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case m.quitPrompt:
 		return m.handleQuitPrompt(key)
-	case m.commitMsg.IsVisible():
-		return m.handleCommitMsgKeyPress(msg)
+	case m.cols != nil && m.cols.describing:
+		return m.handleDescribeKeyPress(msg)
 	case m.searchModal.IsVisible():
 		return m.handleSearchKeyPress(msg)
 	case m.fileList.IsFilterMode():
@@ -36,13 +36,22 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	return m.dispatch(match.Action)
+	return m.dispatch(match.Action, match.Keys...)
 }
 
-// dispatch runs one action on the screen the user is on.
-func (m *Model) dispatch(action string) tea.Cmd {
+// dispatch runs one action on the screen the user is on. The sequence that pressed it is pressed,
+// which a digit action reads its number from.
+func (m *Model) dispatch(action string, pressed ...string) tea.Cmd {
 	if m.picker.IsVisible() {
 		return m.pickerAction(action)
+	}
+
+	if m.cols != nil && action != keys.ActionHelp && action != keys.ActionCancel {
+		if cmd, ok := m.columnsAction(action, pressed); ok {
+			return cmd
+		}
+
+		return nil
 	}
 
 	if step, ok := m.motion.Resolve(action); ok {
@@ -237,8 +246,12 @@ func (m *Model) handleHelpKeyPress(key string) {
 // showHelp opens the legend for the screen the user is on, drawn from the keymap itself.
 func (m *Model) showHelp() {
 	title := modeName(m.mode)
-	if m.picker.IsVisible() {
+
+	switch {
+	case m.picker.IsVisible():
 		title = "destination"
+	case m.cols != nil:
+		title = "Split columns"
 	}
 
 	legend := m.keymap.Legend(m.context())
@@ -246,7 +259,6 @@ func (m *Model) showHelp() {
 	// The picker stays open under the help, so closing the help returns to it.
 	m.searchModal.Hide()
 	m.fileList.SetFilterMode(false)
-	m.commitMsg.Hide()
 	m.help.Show(title, legend)
 }
 
@@ -521,7 +533,6 @@ func (m *Model) handleVisualNavigation(delta int) {
 func (m *Model) closeAllModals() {
 	m.help.Hide()
 	m.picker.Hide()
-	m.commitMsg.Hide()
 	m.searchModal.Hide()
 	m.fileList.SetFilterMode(false)
 	m.quitPrompt = false
@@ -535,25 +546,4 @@ func (m *Model) enterSearchMode() {
 		FocusedPanel: int(m.focusedPanel),
 	})
 	m.searchModal.Show()
-}
-
-// handleCommitMsgKeyPress collects the description a split gives its new commit.
-func (m *Model) handleCommitMsgKeyPress(msg tea.KeyPressMsg) tea.Cmd {
-	switch msg.String() {
-	case keyEsc, keyCtrlC:
-		m.commitMsg.Hide()
-		m.pending = nil
-	case keyEnter:
-		m.commitMsg.Hide()
-
-		return m.runSplit(m.commitMsg.GetMessage())
-	case keyBackspace:
-		m.commitMsg.Backspace()
-	default:
-		for _, r := range msg.Key().Text {
-			m.commitMsg.AppendChar(r)
-		}
-	}
-
-	return nil
 }

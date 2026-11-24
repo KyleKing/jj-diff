@@ -236,39 +236,16 @@ func (m *Model) runSquash(sel *SelectionState, dest string, opts jj.MoveOptions)
 	}
 }
 
-// split asks for the new commit's description, then splits the selection out beneath the revision.
+// split opens the split columns with the selection, else the hunk at the cursor, in a new commit's
+// column.
 func (m *Model) split() {
 	sel, ok := m.ready()
 	if !ok {
 		return
 	}
 
-	m.pending = sel
 	m.closeAllModals()
-	m.commitMsg.Show()
-}
-
-func (m *Model) runSplit(description string) tea.Cmd {
-	sel := m.pending
-	m.pending = nil
-
-	if sel == nil {
-		return nil
-	}
-
-	m.again = func(m *Model, _ *SelectionState) tea.Cmd { m.split(); return nil }
-
-	client, revision, changes, count := m.client, m.revision, m.changes, m.hunks(sel)
-
-	return func() tea.Msg {
-		groups := []jj.SplitGroup{{Through: diff.GeneratePatch(changes, sel), Description: description}}
-		outcome, err := client.Split(revision, groups, false)
-
-		return writtenMsg{
-			err: err, outcome: outcome,
-			summary: "split " + plural(count, "hunk") + " out to a new commit",
-		}
-	}
+	m.openColumns(sel)
 }
 
 // restore discards the selection from the revision.
@@ -296,8 +273,10 @@ func (m *Model) runRestore(sel *SelectionState) tea.Cmd {
 // confirm writes the selection: back to jj in the diff editor, else into the -d destination, else
 // through the picker.
 func (m *Model) confirm() tea.Cmd {
-	if m.mode == ModeDiffEditor {
+	switch m.mode {
+	case ModeDiffEditor:
 		return m.applyDiffEditorSelection()
+	case ModeBrowse, ModeInteractive:
 	}
 
 	if m.destination == "" {
@@ -339,12 +318,19 @@ func (m *Model) written(msg writtenMsg) tea.Cmd {
 		return nil
 	}
 
-	text := msg.summary + " · jj undo reverses it"
-	if msg.outcome.Conflicts != "" {
+	undo := msg.outcome.Undo
+	if undo == "" {
+		undo = "jj undo"
+	}
+
+	text := msg.summary + " · " + undo + " reverses it"
+
+	conflicts := msg.outcome.Conflicts != ""
+	if conflicts {
 		text = msg.summary + " · " + msg.outcome.Conflicts
 	}
 
-	m.say(text, msg.outcome.Conflicts != "")
+	m.say(text, conflicts)
 
 	if m.quitAfterWrite {
 		return tea.Quit

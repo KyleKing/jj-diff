@@ -10,7 +10,6 @@ import (
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/pen"
 
-	"github.com/kyleking/jj-diff/internal/components/commitmsg"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/components/filelist"
@@ -96,6 +95,8 @@ type Model struct {
 	// pending is the selection a picker or prompt opened on, which is what it writes when confirmed
 	// whatever moved while it was up.
 	pending *SelectionState
+	// cols is the split columns while they are up, nil otherwise.
+	cols *splitColumns
 	// again repeats the last write on the current selection, for the repeat action.
 	again func(m *Model, sel *SelectionState) tea.Cmd
 	// dim is the faint the diff pane is drawn in while the file list has focus.
@@ -116,7 +117,6 @@ type Model struct {
 	undo         []*SelectionState
 	redo         []*SelectionState
 	motion       keys.Motion
-	commitMsg    commitmsg.Model
 	help         help.Model
 	cfg          config.Config
 	picker       destpicker.Model
@@ -140,6 +140,8 @@ type Model struct {
 	// aborted is a diff-editor session ended without writing, which must exit non-zero so jj
 	// leaves the revision alone.
 	aborted bool
+	// startColumns opens the split columns once the diff loads, for --split.
+	startColumns bool
 }
 
 type errMsg struct {
@@ -214,13 +216,15 @@ func NewModelWithSource(
 	m.diffView = diffview.New(cfg)
 	m.statusBar = statusbar.New()
 	m.picker = destpicker.New()
-	m.commitMsg = commitmsg.New()
 	m.help = help.New()
 	m.searchModal = searchmodal.New()
 	m.searchState = search.NewState()
 
 	return m, nil
 }
+
+// StartInColumns opens the split columns as soon as the diff loads, with every change in column 1.
+func (m *Model) StartInColumns() { m.startColumns = true }
 
 // Aborted reports a diff-editor session that ended without writing. The program exits non-zero for
 // it, which is what tells jj to leave the revision as it was.
@@ -289,6 +293,9 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case diffEditorAppliedMsg:
 		return m, tea.Quit
+
+	case editedMsg:
+		m.edited(msg)
 	}
 
 	return m, nil
@@ -316,6 +323,14 @@ func (m *Model) loaded(changes []diff.FileChange) {
 	// on confirm.
 	if m.mode == ModeDiffEditor {
 		diff.SelectAll(m.changes, m.selection)
+	}
+
+	// Line indices from the last diff mean nothing in this one, so the columns close with it.
+	m.cols = nil
+
+	if m.startColumns && len(m.changes) > 0 {
+		m.startColumns = false
+		m.openColumns(nil)
 	}
 }
 

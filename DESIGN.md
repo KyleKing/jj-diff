@@ -39,6 +39,8 @@ jj-diff/
   jj-diff itself as the diff editor (`--apply-patch` / `--unapply-patch`), which makes `$right`
   the `$left` tree plus the precomputed selection without drawing anything. jj does the move,
   so it works for any destination and is one operation
+- A split chain's later steps see only the files that still differ, so a file an earlier group took
+  whole is dropped from both of a step's patches when they agree on it
 - Automatic rollback to the operation recorded before a write that fails after integrating
 
 **Diff Subsystem** (`internal/diff/`)
@@ -54,6 +56,11 @@ jj-diff/
 - DiffView: unified or side-by-side rendering with syntax highlighting, where a generated file or a
   hunk that only reindents folds to one line that `z` expands
 - Modals: help, search, destination picker, fuzzy finder
+
+**Screens beyond the diff** (`internal/model/columns*.go`)
+
+- Split columns: every changed line has one owner column (absent means column 1, the source).
+  Applying turns columns 2..N into `Split` groups, a chain's patches cumulative
 
 **Render** (`render/`)
 

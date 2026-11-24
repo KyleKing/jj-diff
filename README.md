@@ -95,15 +95,38 @@ or on the hunk under the cursor when nothing is selected:
 | `~` | invert the selection in the file | `-i`, editor |
 | `u` / `ctrl+r` | undo / redo a selection edit | `-i`, editor |
 | `s` | squash into…: a picker in jj log order, `/` filters, `enter` applies | `-i` |
-| `S` | split out to a new commit beneath the revision (asks for its description) | `-i` |
+| `S` | split into columns, the selection (or the hunk) in a new commit's column | `-i` |
 | `R` | discard from the revision | `-i` |
 | `c` | confirm: squash into the `-d` destination, or write and return to jj | `-i`, editor |
 | `.` | repeat the last write on the current selection | `-i` |
 | `-t` `-o` `-A` `-B` `-u` `-k` | in the picker: `--into` / new commit onto, after, before / keep the destination's message / keep the emptied source | `-i` |
 
 Every write is a single jj operation (`jj squash`, `jj split`, or `jj restore` with
-jj-diff as the diff editor), so `jj undo` reverses it whole. In the diff editor,
-leaving without `c` exits non-zero and jj leaves the revision as it was.
+jj-diff as the diff editor), so `jj undo` reverses it whole. A split into more than
+two commits is one `jj split` per new commit, and the footer names the
+`jj op restore` that takes the whole split back. In the diff editor, leaving
+without `c` exits non-zero and jj leaves the revision as it was.
+
+### Split columns
+
+`S` (or `jj-diff --split -r REV`) shows one column per commit the split makes.
+Column 1 is what stays in the revision, which keeps its change ID and description;
+every other column is a new commit, parent-most first, so the chain reads
+`2 → 3 → … → 1`. A move acts on the selection in the focused column, or on the hunk
+at its cursor:
+
+| Key | Action |
+| --- | --- |
+| `h` / `l` | focus the column to the left / right |
+| `j`/`k`, `]h`/`[h`, `]f`/`[f`, `gg`/`G` | move the hunk cursor in the column (lines, in visual mode) |
+| `space`, `v`/`V`, `~` | select the hunk, a line range, or invert the column's selection |
+| `<` / `>` | move to the column to the left / right; `>` from the last column makes a new one |
+| `1`–`9` | send to column N, making it when N is one past the last |
+| `d` / `D` | describe the focused column inline / in `$EDITOR` |
+| `-p` | toggle `--parallel`: the new commits become siblings of the revision instead of a chain |
+| `u` / `ctrl+r` | undo / redo a move or a description |
+| `enter` / `c` | apply: `jj split` per non-empty column; empty columns are dropped |
+| `esc` / `q` | back out: visual, then the selection, then the columns, writing nothing |
 
 Moving from 0.8: `[`/`]` became `[f`/`]f`, `p` became `N`/`[h`, `g` became `gg`,
 `s`/`l`/`W` (side by side, line numbers, word diff) became `\s`/`\n`/`\r`, `z`
@@ -117,7 +140,7 @@ became `za`, `F` merged into `f`, `r` became `ctrl+l`, `d` then `a` became `s` t
   its diff editor, so jj does the rewriting, only the selected lines move, and
   the working copy changes only when it is the revision you are writing to or from.
   A failed write restores the operation it started from
-- Commit, rebase, or edit commit descriptions. It squashes, splits out, or
+- Commit, rebase, or edit existing commit descriptions. It squashes, splits, or
   discards existing changes and nothing else
 - Browse the repository. There is no change graph, operation log, or bookmark
   management here. That is [jj-tui](https://github.com/KyleKing/jj-tui)'s job, and

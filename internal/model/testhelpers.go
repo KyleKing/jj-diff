@@ -300,9 +300,6 @@ func (a *Assertion) NoModalsVisible() {
 	if a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to NOT be visible")
 	}
-	if a.m.commitMsg.IsVisible() {
-		a.t.Error("Expected the split prompt to NOT be visible")
-	}
 	if a.m.picker.IsVisible() {
 		a.t.Error("Expected the destination picker to NOT be visible")
 	}
