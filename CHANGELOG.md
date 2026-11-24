@@ -1,3 +1,10 @@
+## v0.8.0 (2026-11-24)
+
+### Feat
+
+- **ui**: draw every overlay in one frame and move search to the footer
+- **render**: draw washes, the sign bar, and hunk labels for other tools
+
 ## v0.7.0 (2026-11-23)
 
 ### Feat
