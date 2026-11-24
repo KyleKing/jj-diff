@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/empty"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -206,12 +207,7 @@ func (m *Model) columnBody(col, width, height int) []string {
 	}
 
 	if len(items) == 0 && !m.collapsed(col) {
-		hint := "empty: > or a digit sends hunks here"
-		if col == 0 {
-			hint = "empty: the source keeps no change"
-		}
-
-		rows = []string{fit(theme.Skin.Muted.Render(hint), width)}
+		rows = emptyColumnRows(col, width)
 	}
 
 	// Once scrolled, the cursor's hunk sits a quarter of the way down.
@@ -292,4 +288,27 @@ func fit(s string, width int) string {
 	}
 
 	return ansi.Truncate(s, width, "…")
+}
+
+// emptyColumnCard is the narrowest column the empty card draws in, below which one line says it.
+const emptyColumnCard = 24
+
+// emptyColumnRows is what an empty column shows: the card naming why it is empty and the keys that
+// fill it, or one muted line where the column is too narrow for a card.
+func emptyColumnRows(col, width int) []string {
+	if width >= emptyColumnCard {
+		block := empty.Block(theme.Skin, emptyColumn(col), width)
+		for i := range block {
+			block[i] = fit(block[i], width)
+		}
+
+		return append([]string{""}, block...)
+	}
+
+	hint := "empty: > or a digit sends hunks here"
+	if col == 0 {
+		hint = "empty: the source keeps no change"
+	}
+
+	return []string{fit(theme.Skin.Muted.Render(hint), width)}
 }

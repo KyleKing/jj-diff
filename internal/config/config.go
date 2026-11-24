@@ -5,6 +5,8 @@ package config
 import (
 	"os"
 	"strconv"
+
+	"github.com/kyleking/aragonite/tui/coach"
 )
 
 // ViewModeType selects how the two sides of a diff are laid out.
@@ -20,7 +22,10 @@ const (
 // Config is the fully resolved settings for a session. Every field has a usable
 // zero-value replacement from DefaultConfig, so callers never build one by hand.
 type Config struct {
-	ViewMode        ViewModeType
+	ViewMode ViewModeType
+	// CoachLayout is where the next step shows: the footer's status slot (Inline, the default), or
+	// a labeled band above the footer, which JJ_DIFF_COACH_LAYOUT=band asks for.
+	CoachLayout     coach.Layout
 	TabWidth        int
 	ShowWhitespace  bool
 	ShowLineNumbers bool
@@ -71,6 +76,10 @@ func LoadConfig() Config {
 		if width, err := strconv.Atoi(v); err == nil && width > 0 && width <= 16 {
 			cfg.TabWidth = width
 		}
+	}
+
+	if layout, err := coach.ParseLayout(os.Getenv("JJ_DIFF_COACH_LAYOUT")); err == nil {
+		cfg.CoachLayout = layout
 	}
 
 	if v := os.Getenv("JJ_DIFF_WORD_DIFF"); v != "" {

@@ -1,8 +1,12 @@
 package model
 
 import (
+	"strings"
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/search"
@@ -14,11 +18,14 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 	key := msg.String()
 	m.notice, m.alarm = "", false
 
-	switch {
-	case m.help.IsVisible():
-		m.handleHelpKeyPress(key)
+	// Any key clears a tip on screen and restarts the coach's idle clock.
+	m.coach.Press(time.Now())
 
-		return nil
+	switch {
+	case m.pal.IsOpen():
+		return m.pal.Update(msg)
+	case m.msgs != nil:
+		return m.handleMessagesKey(key)
 	case m.quitPrompt:
 		return m.handleQuitPrompt(key)
 	case m.cols != nil && m.cols.describing:
@@ -33,15 +40,52 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 
 	match := m.matcher.Feed(m.context(), key)
 	if match.Action == "" {
-		return nil
+		return m.observe("")
 	}
 
-	return m.dispatch(match.Action, match.Keys...)
+	return m.press(match.Action, match.Keys)
+}
+
+// press runs the action a key sequence completed, unless the gate refuses it here, in which case the
+// footer says why rather than nothing happening. The usage log hears the keys, then the action.
+func (m *Model) press(action string, pressed []string) tea.Cmd {
+	ctx, seq := m.contextName(), strings.Join(pressed, "")
+	m.usage.Key(ctx, seq)
+
+	if m.refused(action) {
+		return m.observe("")
+	}
+
+	cmd := m.dispatch(action, pressed...)
+	m.usage.Action(ctx, action, seq)
+
+	return tea.Batch(cmd, m.observe(action))
+}
+
+// discoverAction runs the actions every screen shares, false for any other: the legend, the
+// command palette, and the command log.
+func (m *Model) discoverAction(action string) bool {
+	switch action {
+	case keys.ActionHelp:
+		m.openPalette(palette.Browse)
+	case keys.ActionPalette:
+		m.openPalette(palette.Run)
+	case keys.ActionMessages:
+		m.openMessages()
+	default:
+		return false
+	}
+
+	return true
 }
 
 // dispatch runs one action on the screen the user is on. The sequence that pressed it is pressed,
 // which a digit action reads its number from.
 func (m *Model) dispatch(action string, pressed ...string) tea.Cmd {
+	if m.discoverAction(action) {
+		return nil
+	}
+
 	if m.picker.IsVisible() {
 		return m.pickerAction(action)
 	}
@@ -50,7 +94,7 @@ func (m *Model) dispatch(action string, pressed ...string) tea.Cmd {
 		return m.resolveAction(action, pressed)
 	}
 
-	if m.cols != nil && action != keys.ActionHelp && action != keys.ActionCancel {
+	if m.cols != nil && action != keys.ActionCancel {
 		if cmd, ok := m.columnsAction(action, pressed); ok {
 			return cmd
 		}
@@ -72,8 +116,6 @@ func (m *Model) dispatch(action string, pressed ...string) tea.Cmd {
 // verb runs the actions that are neither moving nor drawing: help, quitting, the selection, writes.
 func (m *Model) verb(action string) tea.Cmd {
 	switch action {
-	case keys.ActionHelp:
-		m.showHelp()
 	case keys.ActionQuit:
 		return m.quit()
 	case keys.ActionCancel:
@@ -224,46 +266,6 @@ func (m *Model) step(s keys.Step) tea.Cmd {
 	}
 
 	return nil
-}
-
-// handleHelpKeyPress moves the help overlay's viewport or closes it. The overlay is taller than a
-// short terminal, so these are the only way to reach the bindings below the fold.
-func (m *Model) handleHelpKeyPress(key string) {
-	switch key {
-	case "q", keyEsc, "?":
-		m.help.Hide()
-	case "j", keyDown:
-		m.help.ScrollBy(1)
-	case "k", "up":
-		m.help.ScrollBy(-1)
-	case "ctrl+d", "ctrl+f":
-		m.help.ScrollBy(helpPageStep)
-	case "ctrl+u", "ctrl+b":
-		m.help.ScrollBy(-helpPageStep)
-	case "g":
-		m.help.ScrollToStart()
-	case "G":
-		m.help.ScrollToEnd()
-	}
-}
-
-// showHelp opens the legend for the screen the user is on, drawn from the keymap itself.
-func (m *Model) showHelp() {
-	title := modeName(m.mode)
-
-	switch {
-	case m.picker.IsVisible():
-		title = "destination"
-	case m.cols != nil:
-		title = "Split columns"
-	}
-
-	legend := m.keymap.Legend(m.context())
-
-	// The picker stays open under the help, so closing the help returns to it.
-	m.searchModal.Hide()
-	m.fileList.SetFilterMode(false)
-	m.help.Show(title, legend)
 }
 
 func modeName(mode OperatingMode) string {
@@ -543,7 +545,8 @@ func (m *Model) handleVisualNavigation(delta int) {
 }
 
 func (m *Model) closeAllModals() {
-	m.help.Hide()
+	m.pal.Close()
+	m.msgs = nil
 	m.picker.Hide()
 	m.searchModal.Hide()
 	m.fileList.SetFilterMode(false)

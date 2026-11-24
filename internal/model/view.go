@@ -39,17 +39,17 @@ func (m *Model) render() string {
 	if m.mode == ModeResolve {
 		frame := *m
 
-		return frame.whichKey(composite(frame.renderResolve(), frame.overlayView(), frame.width, frame.height))
+		return frame.finish(frame.renderResolve())
 	}
 
 	if m.cols != nil && len(m.changes) > 0 {
 		frame := *m
 
-		return frame.whichKey(composite(frame.renderColumns(), frame.overlayView(), frame.width, frame.height))
+		return frame.finish(frame.renderColumns())
 	}
 
 	if len(m.changes) == 0 {
-		return "No changes found.\n\nPress ctrl+l to reload or q to quit"
+		return m.finish(m.renderEmpty())
 	}
 
 	// The push* calls below install per-frame render state on the panel components, and the
@@ -86,7 +86,21 @@ func (m *Model) render() string {
 		frame.renderStatusBar(),
 	)
 
-	return frame.whichKey(composite(panels, frame.overlayView(), frame.width, frame.height))
+	return frame.finish(panels)
+}
+
+// finish lays everything that floats over a screen on it, bottom to top: the coach's band, the
+// modal that is up, the which-key panel, and last the palette over every row but the footer.
+func (m *Model) finish(screen string) string {
+	frame := m.whichKey(composite(m.withBand(screen), m.overlayView(), m.width, m.height))
+	if !m.pal.IsOpen() {
+		return frame
+	}
+
+	lines := strings.Split(frame, "\n")
+	last := len(lines) - 1
+
+	return strings.Join(append(m.pal.Over(lines[:last], m.width), lines[last]), "\n")
 }
 
 // fileListHeight is the rows the file list takes: one collapsed, or as many as it has files up to a
@@ -146,8 +160,8 @@ func composite(base, box string, width, height int) string {
 // is the stacking order on screen.
 func (m *Model) overlayView() string {
 	switch {
-	case m.help.IsVisible():
-		return m.help.View(m.width, m.height)
+	case m.msgs != nil:
+		return m.messagesView(m.width, m.height)
 	case m.picker.IsVisible():
 		return m.picker.View(m.width, m.height)
 	}
@@ -258,6 +272,10 @@ func (m *Model) renderStatusBar() string {
 		Notice:       m.notice,
 		Alarm:        m.alarm,
 		Hints:        m.footerHints(),
+	}
+
+	if !m.quitPrompt && m.notice == "" {
+		ctx.Lead, ctx.LeadKey, ctx.Hints = m.coachFooter(ctx.Hints)
 	}
 
 	if m.quitPrompt {

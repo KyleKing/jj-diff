@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
 
@@ -160,8 +161,6 @@ func (m *Model) pickerAction(action string) tea.Cmd {
 		m.quitAfterWrite = false
 	case keys.ActionCancel:
 		return m.cancel()
-	case keys.ActionHelp:
-		m.showHelp()
 	case actionPick:
 		return m.pick()
 	default:
@@ -230,7 +229,7 @@ func (m *Model) runSquash(sel *SelectionState, dest string, opts jj.MoveOptions)
 		outcome, err := client.MoveChanges(diff.GeneratePatch(changes, sel), revision, dest, opts)
 
 		return writtenMsg{
-			err: err, outcome: outcome,
+			err: err, outcome: outcome, call: lastWrite(client),
 			summary: fmt.Sprintf("squashed %s into %s", plural(count, "hunk"), dest),
 		}
 	}
@@ -266,7 +265,9 @@ func (m *Model) runRestore(sel *SelectionState) tea.Cmd {
 	return func() tea.Msg {
 		outcome, err := client.Restore(diff.GeneratePatch(changes, sel), revision)
 
-		return writtenMsg{err: err, outcome: outcome, summary: "discarded " + plural(count, "hunk")}
+		return writtenMsg{
+			err: err, outcome: outcome, call: lastWrite(client), summary: "discarded " + plural(count, "hunk"),
+		}
 	}
 }
 
@@ -326,6 +327,9 @@ func (m *Model) written(msg writtenMsg) tea.Cmd {
 	}
 
 	text := msg.summary + " · " + undo + " reverses it"
+	if msg.call != nil {
+		text = trail.Echo(msg.summary, msg.call, undo+" undoes it")
+	}
 
 	// A partial resolve leaves the conflicts it did not touch, which jj reports as new ones.
 	conflicts := msg.outcome.Conflicts != "" && m.mode != ModeResolve
@@ -344,6 +348,19 @@ func (m *Model) written(msg writtenMsg) tea.Cmd {
 	}
 
 	return m.loadDiff()
+}
+
+// lastWrite is the write the client just ran, as the status line names it: without the arguments
+// that point jj at this program as its editor. It is nil when nothing has written.
+func lastWrite(client *jj.Client) *trail.Call {
+	call, ok := client.LastWrite()
+	if !ok {
+		return nil
+	}
+
+	call.Argv = jj.Echoed(call.Argv)
+
+	return &call
 }
 
 func firstLine(err error) string {

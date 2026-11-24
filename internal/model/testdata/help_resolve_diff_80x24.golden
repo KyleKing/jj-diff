@@ -1,0 +1,24 @@
+  Resolve  jj resolve -r @ · 3 of 3 regions unpicked                            
+   d/e/g.txt 0/1   f.txt 0/2                                                    
+  ────────────────────────────────────────────────────────────────────────────  
+  conflict 1 of 1 in d/e/g.txt · 2-sided conflict · unpicked                    
+  ╭ 1 wwtworlq "side1" ──╮ ╭ 0 base ymzvyvxs ───────╮ ╭ 2 tvyqvpko "side2" ──╮  
+  │ x1                   │ │ base                   │ │ x2                   │  
+  ╰──────────────────────╯ │ x                      │ ╰──────────────────────╯  
+                           ╰────────────────────────╯                           
+  ╭ result ──────────────────────────────────────────────────────────────────╮  
+  │ unpicked: the markers stay                                               │  
+  ╰──────────────────────────────────────────────────────────────────────────╯  
+                                                                                
+── keys 34 of 34 ───────────────────────────────────────────────────────────────
+── General ─────────────────────────────────────────────────────────────────────
+▌ ?         help                                                                
+  :         command palette                                                     
+  q         close, or quit at the root                                          
+  esc       back out one level                                                  
+  ctrl+c    cancel the running command…                                         
+  u         undo · nothing to undo                                              
+  ctrl+r    redo · nothing to redo                                              
+  ctrl+l    reload from the source       jj diff -r @ --git                     
+a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
+  ▸ next  3 of 3 regions unpicked · 1–9 side   0 base   a all   ? help          

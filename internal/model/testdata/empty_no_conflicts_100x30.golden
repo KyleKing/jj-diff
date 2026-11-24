@@ -1,0 +1,30 @@
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                  ╭─ Nothing conflicted in @ ────────────────────────────────────╮                  
+                  │ jj resolve --list -r @ found no conflicted file, so there is │                  
+                  │ nothing to pick. jj log -r 'conflicts()' lists revisions     │                  
+                  │ that have some.                                              │                  
+                  │                                                              │                  
+                  │ ctrl+l reload  q quit                                        │                  
+                  ╰──────────────────────────────────────────────────────────────╯                  
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+  Resolve  @   1–9 side   0 base   a all   c confirm   ]x conflict   u undo   ? help                

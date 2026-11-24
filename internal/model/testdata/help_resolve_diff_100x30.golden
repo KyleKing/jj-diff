@@ -1,0 +1,30 @@
+  Resolve  jj resolve -r @ · 3 of 3 regions u╭─ keys · 34 of 34 ───────────────────────────────────╮
+   d/e/g.txt 0/1   f.txt 0/2                 │ a key explains itself · / filters                   │
+  ───────────────────────────────────────────│ ── General ──────────────────────────────────────── │
+  conflict 1 of 1 in d/e/g.txt · 2-sided conf│ ▌ ?         help                                    │
+  ╭ 1 wwtworlq "side1" ────────╮ ╭ 0 base ymz│   :         command palette                         │
+  │ x1                         │ │ x         │   q         close, or quit at the root              │
+  ╰────────────────────────────╯ ╰───────────│   esc       back out one level                      │
+  ╭ result ──────────────────────────────────│   ctrl+c    cancel the running command, else quit   │
+  │ unpicked: the markers stay               │   u         undo · nothing to undo                  │
+  ╰──────────────────────────────────────────│   ctrl+r    redo · nothing to redo                  │
+                                             │   ctrl+l    reload from the source                  │
+                                             │   gm        messages and the last failure           │
+                                             │ ── Move ─────────────────────────────────────────── │
+                                             │   gg        top                                     │
+                                             │   G         bottom                                  │
+                                             │   j/down    down a line                             │
+                                             │   k/up      up a line                               │
+                                             │   ctrl+d    half a page down                        │
+                                             │   ctrl+u    half a page up                          │
+                                             │   ctrl+f    a page down                             │
+                                             │   ctrl+b    a page up                               │
+                                             │   ctrl+e/…  scroll a line down                      │
+                                             │   ctrl+y/…  scroll a line up                        │
+                                             │ ── Jump ─────────────────────────────────────────── │
+                                             │                                                     │
+                                             │ ── General · ?  help ────────────────────────────── │
+                                             │                                                     │
+                                             │ enter run  / filter  ↑↓ move  esc back              │
+                                             ╰─────────────────────────────────────────────────────╯
+  Resolve  @  ▸ next  3 of 3 regions unpicked · 1–9 side   0 base   a all   ]x conflict   ? help    

@@ -3,6 +3,7 @@ package model
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -263,58 +264,90 @@ func TestFolds_ZFamilyReachesTheDiffView(t *testing.T) {
 
 var update = flag.Bool("update", false, "rewrite the golden files") //nolint:gochecknoglobals // the test flag
 
-// TestHelp_Golden pins the legend each mode's help draws, which the keymap generates, so a change to
-// a binding shows up as a reviewed diff of what the user reads.
+// TestHelp_Golden pins the legend on each screen: the palette in browse mode, drawn over the screen it
+// explains at the strip's width and the drawer's, so a change to a binding or a gate shows up as a
+// reviewed diff of what the user reads.
 func TestHelp_Golden(t *testing.T) {
 	t.Parallel()
 
-	screens := []struct {
-		name    string
-		panel   FocusedPanel
-		picker  bool
-		columns bool
-	}{
-		{name: "files", panel: PanelFileList},
-		{name: "diff", panel: PanelDiffView},
-		{name: "picker", panel: PanelDiffView, picker: true},
-		{name: "columns", panel: PanelDiffView, columns: true},
-	}
-
-	for _, mode := range modes {
-		for _, screen := range screens {
-			if (screen.picker || screen.columns) && mode != ModeInteractive {
-				continue
-			}
-
-			// The conflict viewer is one screen.
-			if mode == ModeResolve && screen.name != "diff" {
-				continue
-			}
-
-			name := strings.ToLower(modeName(mode)) + "_" + screen.name
+	for _, s := range helpScreens() {
+		for _, size := range frameSizes {
+			name := fmt.Sprintf("help_%s_%dx%d", s.name, size.w, size.h)
 
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 
-				m := NewTestModel(t, mode).WithChanges(TestChanges())
-				m.focusedPanel = screen.panel
+				m := s.build(t)
+				m.width, m.height = size.w, size.h
 
-				if screen.picker {
-					m.picker.Show()
+				m = Press(t, m, "?")
+				if !m.helpOpen() {
+					t.Fatal("? did not open the legend")
 				}
 
-				if screen.columns {
-					m.openColumns(nil)
-				}
-
-				m.showHelp()
-
-				got := ansi.Strip(m.help.View(80, 200)) + "\n"
-				golden(t, filepath.Join("testdata", "help_"+name+".golden"), got)
+				golden(t, filepath.Join("testdata", name+".golden"), ansi.Strip(m.render())+"\n")
 			})
 		}
 	}
 }
+
+// helpScreen is one screen the legend is pinned on.
+type helpScreen struct {
+	build func(t *testing.T) *Model
+	name  string
+}
+
+// helpScreens is every mode's file list and diff, the picker and the columns where interactive mode
+// has them, and the conflict viewer, which is one screen.
+func helpScreens() []helpScreen {
+	var out []helpScreen
+
+	for _, mode := range modes {
+		prefix := strings.ToLower(modeName(mode)) + "_"
+
+		if mode == ModeResolve {
+			out = append(out, helpScreen{name: prefix + "diff", build: inResolve})
+
+			continue
+		}
+
+		out = append(out,
+			helpScreen{name: prefix + "files", build: func(t *testing.T) *Model {
+				t.Helper()
+
+				return NewTestModel(t, mode).WithChanges(TestChanges())
+			}},
+			helpScreen{name: prefix + "diff", build: func(t *testing.T) *Model {
+				t.Helper()
+
+				return onDiff(t, mode)
+			}},
+		)
+
+		if mode == ModeInteractive {
+			out = append(out,
+				helpScreen{name: prefix + "picker", build: withPicker},
+				helpScreen{name: prefix + "columns", build: inColumns},
+			)
+		}
+	}
+
+	return out
+}
+
+func withPicker(t *testing.T) *Model {
+	t.Helper()
+
+	m := onDiff(t, ModeInteractive)
+	m.picker.Show()
+
+	return m
+}
+
+// frameSizes are the terminal sizes the frame goldens pin: the strip's and the drawer's.
+//
+//nolint:gochecknoglobals // a fixture
+var frameSizes = []struct{ w, h int }{{80, 24}, {100, 30}}
 
 func golden(t *testing.T, path, got string) {
 	t.Helper()

@@ -1,0 +1,24 @@
+  Split  jj split -r @ · chain 2 → 1                                            
+                                                                                
+   1  stays in @                       │  2  (no description)                   
+  3 hunks · +3 −2                      │ 1 hunk · +1 −0                         
+  ────────────────────────────────────────────────────────────────────────────  
+  file1.txt                            │ file1.txt                              
+    @@ -10,2 +11,3 @@                  │ ▌ @@ -1,3 +1,4 @@                      
+     line 10                           │ ▌  line 1                              
+    +another line                      │ ▌ +new line                            
+  file2.txt                            │ ▌  line 2                              
+    @@ -0,0 +1,2 @@                    │                                        
+    +first line                        │                                        
+── keys 35 of 35 ───────────────────────────────────────────────────────────────
+── General ─────────────────────────────────────────────────────────────────────
+▌ ?       help                                                                  
+  :       command palette                                                       
+  q       close, or quit at the root                                            
+  esc     back out one level                                                    
+  ctrl+c  cancel the running command,…                                          
+  u       undo · nothing to undo                                                
+  ctrl+r  redo · nothing to redo                                                
+  gm      messages and the last failu…                                          
+a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
+  ▸ next  2 commits ready · enter apply   h/l column   space select   ? help    

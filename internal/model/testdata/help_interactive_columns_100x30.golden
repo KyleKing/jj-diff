@@ -1,0 +1,30 @@
+  Split  jj split -r @ · chain 2 → 1         ╭─ keys · 35 of 35 ───────────────────────────────────╮
+                                             │ a key explains itself · / filters                   │
+   1  stays in @                             │ ── General ──────────────────────────────────────── │
+  3 hunks · +3 −2                            │ ▌ ?       help                                      │
+  ───────────────────────────────────────────│   :       command palette                           │
+  file1.txt                                  │   q       close, or quit at the root                │
+    @@ -10,2 +11,3 @@                        │   esc     back out one level                        │
+     line 10                                 │   ctrl+c  cancel the running command, else quit     │
+    +another line                            │   u       undo · nothing to undo                    │
+  file2.txt                                  │   ctrl+r  redo · nothing to redo                    │
+    @@ -0,0 +1,2 @@                          │   gm      messages and the last failure             │
+    +first line                              │ ── Move ─────────────────────────────────────────── │
+    +second line                             │   gg      top                                       │
+  file3.txt                                  │   G       bottom                                    │
+    @@ -1,3 +0,0 @@                          │   j/down  down a line                               │
+    -deleted line 1                          │   k/up    up a line                                 │
+    -deleted line 2                          │   ctrl+d  half a page down                          │
+                                             │   ctrl+u  half a page up                            │
+                                             │   ctrl+f  a page down                               │
+                                             │   ctrl+b  a page up                                 │
+                                             │ ── Jump ─────────────────────────────────────────── │
+                                             │   n       repeat the last motion                    │
+                                             │   N       repeat the last motion backward           │
+                                             │   ]h      next hunk                                 │
+                                             │                                                     │
+                                             │ ── General · ?  help ────────────────────────────── │
+                                             │                                                     │
+                                             │ enter run  / filter  ↑↓ move  esc back              │
+                                             ╰─────────────────────────────────────────────────────╯
+  Split  @  ▸ next  2 commits ready · enter apply   h/l column   space select   </> move   ? help   

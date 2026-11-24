@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/empty"
 
 	"github.com/kyleking/jj-diff/internal/conflict"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -47,27 +48,25 @@ func (m *Model) renderResolve() string {
 	inner := max(m.width-2*paneMargin, 1)
 	bodyHeight := max(m.height-resolveChrome-1, 1)
 
-	var rows []string
-
 	if r == nil || len(r.files) == 0 {
-		note := "reading the conflicts…"
-		if r != nil {
-			note = m.source + " has no conflicts left · q quits"
+		e := m.noConflicts()
+		if r == nil {
+			e = empty.Empty{Title: "Reading the conflicts", Why: "jj resolve --list is running."}
 		}
 
-		rows = []string{theme.Skin.Title.Render("Resolve") + "  " + theme.Skin.Muted.Render(note)}
-	} else {
-		left, total := r.unresolved()
-		title := theme.Skin.Title.Render("Resolve") + "  " + theme.Skin.Muted.Render(fmt.Sprintf(
-			"jj resolve -r %s · %d of %d regions unpicked", m.revision, left, total,
-		))
-		hairline := theme.Skin.Hairline.Render(strings.Repeat("─", inner))
-		rows = append(rows, fit(title, inner), m.fileTabs(inner), hairline)
-
-		body := m.regionRows(inner)
-		body = body[min(r.scroll, max(len(body)-bodyHeight, 0)):]
-		rows = append(rows, body[:min(len(body), bodyHeight)]...)
+		return strings.Join(append(empty.Card(theme.Skin, e, m.width, max(m.height-1, 1)), m.renderStatusBar()), "\n")
 	}
+
+	left, total := r.unresolved()
+	title := theme.Skin.Title.Render("Resolve") + "  " + theme.Skin.Muted.Render(fmt.Sprintf(
+		"jj resolve -r %s · %d of %d regions unpicked", m.revision, left, total,
+	))
+	hairline := theme.Skin.Hairline.Render(strings.Repeat("─", inner))
+	rows := []string{fit(title, inner), m.fileTabs(inner), hairline}
+
+	body := m.regionRows(inner)
+	body = body[min(r.scroll, max(len(body)-bodyHeight, 0)):]
+	rows = append(rows, body[:min(len(body), bodyHeight)]...)
 
 	for len(rows) < m.height-1 {
 		rows = append(rows, "")

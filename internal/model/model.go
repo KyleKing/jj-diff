@@ -4,17 +4,21 @@ package model
 
 import (
 	"errors"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/trail"
+	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/pen"
 
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/components/filelist"
-	"github.com/kyleking/jj-diff/internal/components/help"
 	"github.com/kyleking/jj-diff/internal/components/searchmodal"
 	"github.com/kyleking/jj-diff/internal/components/statusbar"
 	"github.com/kyleking/jj-diff/internal/config"
@@ -66,8 +70,8 @@ const (
 	paneMargin = 2
 )
 
-// helpPageStep is how far Ctrl-d and Ctrl-f move the help overlay, which sizes itself to the
-// terminal and so has no page height of its own.
+// helpPageStep is how far a page key moves a list that sizes itself to the terminal and so has no
+// page height of its own: the destination picker and the conflict viewer's scroll.
 const helpPageStep = 10
 
 // Key names the text inputs branch on.
@@ -96,6 +100,18 @@ type Model struct {
 	searchIndex *matchIndex
 	keymap      *keys.Keymap
 	matcher     *keys.Matcher
+	// pal is the command palette on : and the legend on ?, one list both read.
+	pal *palette.Model
+	// coach names the next step and, now and then, a key not yet used.
+	coach *coach.Coach[coachState]
+	// ledger is where the coach remembers tips and runs across sessions, nil for none.
+	ledger *coach.Ledger
+	// usage is the opt-in usage log, nil when it is off.
+	usage *keyusage.Recorder
+	// msgs is the gm command log while it is up.
+	msgs *messages
+	// built is when the session started, which the coach's warmup counts from.
+	built time.Time
 	// pending is the selection a picker or prompt opened on, which is what it writes when confirmed
 	// whatever moved while it was up.
 	pending *SelectionState
@@ -123,7 +139,6 @@ type Model struct {
 	undo         []*SelectionState
 	redo         []*SelectionState
 	motion       keys.Motion
-	help         help.Model
 	cfg          config.Config
 	picker       destpicker.Model
 	searchModal  searchmodal.Model
@@ -148,6 +163,10 @@ type Model struct {
 	aborted bool
 	// startColumns opens the split columns once the diff loads, for --split.
 	startColumns bool
+	// band draws the coach's next steps as a band above the footer rather than in its status slot.
+	band bool
+	// loadedOnce is whether a diff has arrived, before which an empty one means nothing yet.
+	loadedOnce bool
 }
 
 type errMsg struct {
@@ -166,7 +185,9 @@ type revisionsLoadedMsg struct {
 
 // writtenMsg is a write coming home: what it did in words, or why it failed.
 type writtenMsg struct {
-	err     error
+	err error
+	// call is the jj command the write ran, which the notice names, nil where none did.
+	call    *trail.Call
 	outcome jj.Outcome
 	summary string
 }
@@ -210,6 +231,8 @@ func NewModelWithSource(
 		keymap:       km,
 		matcher:      keys.NewMatcher(km),
 		flags:        keys.NewFlagSet(keys.VerbSquash),
+		built:        time.Now(),
+		band:         cfg.CoachLayout == coach.Band,
 	}
 
 	if revision, ok := diff.RevisionOf(source); ok {
@@ -222,7 +245,7 @@ func NewModelWithSource(
 	m.diffView = diffview.New(cfg)
 	m.statusBar = statusbar.New()
 	m.picker = destpicker.New()
-	m.help = help.New()
+	m.discover()
 	m.searchModal = searchmodal.New()
 	m.searchState = search.NewState()
 
@@ -298,6 +321,11 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 
+	case palette.RunMsg, palette.RefusedMsg, coach.IdleMsg, tea.PasteMsg:
+		cmd, _ := m.discoverMsg(msg)
+
+		return m, cmd
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -335,6 +363,7 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 // its history start over, and the cursors are kept only where they still point at something.
 func (m *Model) loaded(changes []diff.FileChange) {
 	m.changes = changes
+	m.loadedOnce = true
 	m.fileList.SetFiles(m.changes)
 	m.selection = NewSelectionState()
 	m.undo, m.redo = nil, nil

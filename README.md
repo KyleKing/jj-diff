@@ -54,15 +54,18 @@ jj-diff --interactive
 
 Press `tab` to reach the diff, `]h` (or `n`) to reach the hunk, `v` for line-level
 selection, `space` to confirm the lines, then `s` and `enter` on `@-` to squash them
-there. `jj undo` takes it back. Press `?` at any point for the keymap.
+there. `jj undo` takes it back. Press `?` at any point for the keymap, or `:` to find
+a command by name.
 
 ## Keys
 
 The keymap is the one jojo and second-look use, shared through aragonite's
 `tui/keys`: `]`/`[` plus a letter jumps (`h` hunk, `f` file), `n`/`N` repeat the
 last jump or search, `z` folds, and `\` toggles how the diff is drawn. A prefix
-shows the keys that can follow it while it waits. The help overlay (`?`) and the
-footer are drawn from the same table, so they list exactly what is bound.
+shows the keys that can follow it while it waits. The legend (`?`), the command
+palette (`:`), and the footer are drawn from the same table, so they list exactly
+what is bound, and a key that can do nothing where the cursor is draws dim and says
+why when pressed ("u  nothing to undo") instead of doing nothing.
 
 | Key | Action | Where |
 | --- | --- | --- |
@@ -80,7 +83,9 @@ footer are drawn from the same table, so they list exactly what is bound.
 | `zz` `zt` `zb` | hunk to the middle / top / bottom | diff |
 | `\s` `\n` `\r` | side by side, line numbers, word-level refinement | diff |
 | `ctrl+l` | reload from jj | everywhere |
-| `?` | help for the screen you are on | everywhere |
+| `?` | the legend for the screen you are on: press a key to have it explained, `/` filters, `enter` runs, `?` or `esc` closes | everywhere |
+| `:` | command palette: type a name or a git word (`amend`, `fixup`, `unstage`, `discard`, `stage`) and `enter` runs the jj verb it maps to; `:next` and `:tips off` live here | everywhere |
+| `gm` | the jj commands this session ran: writes, `r` adds the reads, `enter` shows stderr, `Y` copies the line as shell | everywhere |
 | `q` | quit (asks write / discard / stay over a pending selection) | everywhere |
 | `esc` | back out one level: a waiting prefix, visual mode, the file list | everywhere |
 | `ctrl+c` | quit now, writing nothing | everywhere |
@@ -105,7 +110,24 @@ Every write is a single jj operation (`jj squash`, `jj split`, or `jj restore` w
 jj-diff as the diff editor), so `jj undo` reverses it whole. A split into more than
 two commits is one `jj split` per new commit, and the footer names the
 `jj op restore` that takes the whole split back. In the diff editor, leaving
-without `c` exits non-zero and jj leaves the revision as it was.
+without `c` exits non-zero and jj leaves the revision as it was. The footer names the
+command each write ran (`squashed 1 hunk into rnzx · jj squash --from @ --into rnzx · jj
+undo undoes it`), and `gm` lists every one.
+
+### What next, and tips
+
+The footer's status slot names the next step on each screen: select a hunk, then `s`,
+`S`, or `R`; in the split columns move a hunk out of column 1, then `enter`; in the
+conflict viewer pick every region, then `c`. `JJ_DIFF_COACH_LAYOUT=band` (or `:next`
+for one session) draws every step that holds as a band above the footer instead. Now
+and then, once you have paused, the footer shows a key you have not used yet; any key
+clears it, they are rate limited (none in the first minute, at most one per ten
+minutes), and `:tips off` stops them. What the tips have shown and which commands you
+ran live in `$XDG_STATE_HOME/jj-diff/coach.json` (tip ids and action names with times,
+never keystrokes), which also orders the palette's recent section.
+
+The opt-in usage log (`JJ_DIFF_USAGE_DIR`, or `~/Sync/.jj-diff/usage` when `~/Sync`
+exists) records keys, the action each ran, and presses the screen refused.
 
 ### Split columns
 

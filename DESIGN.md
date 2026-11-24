@@ -60,7 +60,7 @@ jj-diff/
 - FileList: vertical table view with stats
 - DiffView: unified or side-by-side rendering with syntax highlighting, where a generated file or a
   hunk that only reindents folds to one line that `z` expands
-- Modals: help, search, destination picker, fuzzy finder
+- Modals: search, destination picker, fuzzy finder, and the `gm` command log (`internal/model/messages.go`)
 
 **Screens beyond the diff** (`internal/model/columns*.go`, `internal/model/resolve*.go`)
 
@@ -82,6 +82,36 @@ diff wants. Syntax colors come from aragonite's `highlight`, which lexes each fi
 and draws a not-yet-lexed line plain, and calls `Document.Start` to lex in the background, redrawing once
 its channel closes (2000 rows: 190 ms blocking, against 9 ms plain and 7 ms colored after). [jojo](https://github.com/KyleKing/jj-tui) draws its
 diff pane with it.
+
+**Discoverability** (`internal/model/gate.go`, `discover.go`, `coach.go`, `empty.go`, `messages.go`)
+
+Adopted from aragonite's discoverability layer (its `docs/discoverability.md`), the same one
+second-look and jojo use:
+
+- One gate, `Model.gate(action) keys.Availability`, answers whether an action can do anything on
+  the screen the next key lands on, and why not, from the same state the handlers read
+  (`hasCurrentHunk`, the selection, the columns' owners, the picks). The footer draws a refused key
+  dim (`keymap.HintsAt`), the palette and legend list it under "off here" with the reason, and
+  pressing it says the reason in the footer instead of doing nothing (`Model.press`)
+- One `palette.Model` serves `?` (Browse: a key press explains the key, `/` filters, `enter` runs)
+  and `:` (Run), over `palette.FromKeymap` with an `About` map that names the jj command each action
+  runs, with this session's revisions in it, and the git words that find it. A run dispatches by
+  action name, never by replaying a key. It replaced `internal/components/help`. It draws as a drawer
+  with an explainer from 100 columns and a strip below, laid over every row but the footer
+- The coach (`aragonite/tui/coach`) reads a small `coachState` per frame and names the next step per
+  screen in the footer's status slot, after the mode and revisions where it fits whole, alone where
+  only that fits, and not at all otherwise; the band layout is opt-in (`JJ_DIFF_COACH_LAYOUT=band`,
+  `:next`). Detectors watch for a long `j` run (`]h`), a tab-j-tab round trip (`]f`), and palette
+  runs of a bound action. Its ledger lives at `$XDG_STATE_HOME/jj-diff/coach.json`, opened in
+  `main` and saved on quit and at each idle tip check; tests build models without one
+- `jj.Client` logs every command through an `aragonite/trail.Trail` (reads and writes, stderr
+  kept), the write notice is `trail.Echo` over the call with the editor plumbing
+  (`--tool jj-diff-selection`, `--config`) left out by `jj.Echoed`, and `gm` lists the trail with
+  the exact argv, which `Y` copies as a shell line
+- Empty screens (no changes, nothing conflicted, nothing to split, an empty column while it is
+  described) draw `empty.Card`/`empty.Block` naming the revision, why, and the keys out
+- The opt-in usage log (`keyusage.Open("jj-diff")`) records each command key, the action it ran,
+  and refused presses (`Recorder.Gated`)
 
 ### Design Principles
 

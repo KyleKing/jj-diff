@@ -165,19 +165,15 @@ func (m *Model) resolveAction(action string, pressed []string) tea.Cmd {
 // resolveGeneral runs the actions that work with no conflicts loaded, false for any other.
 func (m *Model) resolveGeneral(action string) (tea.Cmd, bool) {
 	switch action {
-	case keys.ActionHelp:
-		m.showHelp()
 	case keys.ActionQuit:
 		return m.quit(), true
 	case keys.ActionCancel:
 		return m.cancel(), true
 	case keys.ActionReload:
 		return m.loadConflicts(), true
-	default:
-		return nil, false
 	}
 
-	return nil, true
+	return nil, false
 }
 
 // pickAction records the pick an action names, false when it names none.
@@ -326,13 +322,15 @@ func (m *Model) mergeTool() tea.Cmd {
 	//nolint:gosec // G204: the literal jj binary, with the revision and the path it listed.
 	cmd := exec.CommandContext(context.Background(), "jj", "resolve", "-r", m.revision, "--", jj.Fileset(path))
 	cmd.Dir = m.client.Dir()
+	run := m.client.Trail().Start(cmd.Args, "", true)
 
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		call := run.Done(err, nil)
 		if err != nil {
 			return writtenMsg{err: fmt.Errorf("jj resolve %s: %w", path, err)}
 		}
 
-		return writtenMsg{summary: "resolved " + path + " in your merge tool"}
+		return writtenMsg{summary: "resolved " + path + " in your merge tool", call: &call}
 	})
 }
 
@@ -372,7 +370,7 @@ func (m *Model) writeResolution() tea.Cmd {
 		outcome, err := client.Resolve(revision, res)
 
 		return writtenMsg{
-			err: err, outcome: outcome,
+			err: err, outcome: outcome, call: lastWrite(client),
 			summary: fmt.Sprintf("resolved %s in %s", plural(regions, "region"), plural(len(res), "file")),
 		}
 	}

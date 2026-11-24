@@ -606,7 +606,7 @@ func (m *Model) applyColumns() tea.Cmd {
 		outcome, err := client.Split(revision, groups, parallel)
 
 		return writtenMsg{
-			err: err, outcome: outcome,
+			err: err, outcome: outcome, call: lastWrite(client),
 			summary: fmt.Sprintf("split %s into %s", revision, plural(len(groups)+1, "commit")),
 		}
 	}

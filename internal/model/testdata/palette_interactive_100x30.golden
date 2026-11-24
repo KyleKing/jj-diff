@@ -1,0 +1,30 @@
+  M  file1.txt                              ╭─ commands · 1 of 50 ────────────────────────────────╮
+                                             │ : amend▏                                            │
+▸ L1–4                                       │ ── matches ──────────────────────────────────────── │
+     1   line 1                              │ ▌ s  squash the selection into… ← amend             │
+     2 ▎ new line                            │                                                     │
+     3   line 2                              │ ── Write · s  squash the selection into… ────────── │
+  L11–13                                     │ Moves the selection, else the hunk at the cursor,   │
+    11   line 10                             │ out of the revision into the one you pick.          │
+    12 ▎ another line                        │ runs   jj squash --from @ --into <dest>             │
+                                             │ flags  -o/-A/-B place a new commit -u keep dest     │
+                                             │        message -k keep emptied                      │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │                                                     │
+                                             │ enter run  tab fill  ctrl+n/p move  esc close       │
+                                             ╰─────────────────────────────────────────────────────╯
+  Interactive  ▸ next  nothing selected yet · space select   v lines   s squash   S split   ? help  

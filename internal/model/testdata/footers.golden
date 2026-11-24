@@ -1,0 +1,36 @@
+browse_diff 80x24
+  Browse  @   j/k scroll   ]h hunk   ]f file   w ws   \s sbs   ? help           
+browse_diff 100x30
+  Browse  @   j/k scroll   ]h hunk   ]f file   w ws   \s sbs   ? help                               
+browse_files 80x24
+  Browse  @   j/k nav   enter diff   f filter   / search   ? help               
+browse_files 100x30
+  Browse  @   j/k nav   enter diff   f filter   / search   ? help                                   
+interactive_nothing_selected 80x24
+  ▸ next  nothing selected yet · space select   v lines   s squash   ? help     
+interactive_nothing_selected 100x30
+  Interactive  ▸ next  nothing selected yet · space select   v lines   s squash   S split   ? help  
+interactive_selected 80x24
+  ▸ next  1 hunk selected · s squash   space select   v lines   S split   ? help
+interactive_selected 100x30
+  Interactive  @  ▸ next  1 hunk selected · s squash   space select   v lines   S split   ? help    
+diff-editor_all_kept 80x24
+  Diff-Editor  @   space keep/drop   v lines   c confirm   ]h hunk   ? help     
+diff-editor_all_kept 100x30
+  ▸ next  everything is still kept · space drop   v lines   c confirm   u undo   ]h hunk   ? help   
+columns_all_in_one 80x24
+  moved 1 line to column 1   h/l column   </> move   d describe   ? help        
+columns_all_in_one 100x30
+  moved 1 line to column 1   h/l column   </> move   d describe   -p parallel   ? help              
+columns_ready 80x24
+  ▸ next  2 commits ready · enter apply   h/l column   space select   ? help    
+columns_ready 100x30
+  Split  @  ▸ next  2 commits ready · enter apply   h/l column   space select   </> move   ? help   
+resolve_unpicked 80x24
+  ▸ next  3 of 3 regions unpicked · 1–9 side   0 base   a all   ? help          
+resolve_unpicked 100x30
+  Resolve  @  ▸ next  3 of 3 regions unpicked · 1–9 side   0 base   a all   ]x conflict   ? help    
+resolve_all_picked 80x24
+  ▸ next  every region picked · c confirm   1–9 side   0 base   a all   ? help  
+resolve_all_picked 100x30
+  Resolve  @  ▸ next  every region picked · c confirm   1–9 side   0 base   a all   ? help          

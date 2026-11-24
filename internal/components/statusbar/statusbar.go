@@ -4,6 +4,7 @@
 package statusbar
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -31,10 +32,16 @@ const (
 // are the keys that work here, most useful first: Fit sheds from the end, and a Pin hint stays.
 // Notice is a message about the last thing done, which takes the place of the facts while it is up.
 type Context struct {
-	Destination  string
-	Mode         string
-	Source       string
-	Notice       string
+	Destination string
+	Mode        string
+	Source      string
+	Notice      string
+	// Lead is the coach's next step or tip, drawn whole after the mode where it fits, in place of the
+	// source and destination when only that makes room, and left out otherwise.
+	Lead string
+	// LeadKey is the key the lead names, whose hint gives its room to the others while the lead is
+	// drawn.
+	LeadKey      string
 	Hints        []keyhint.Hint
 	IsVisualMode bool
 	// Alarm draws Notice as a failure rather than news.
@@ -45,7 +52,8 @@ type Context struct {
 func (c *Context) key() string {
 	var b strings.Builder
 
-	b.WriteString(c.Destination + "\x00" + c.Mode + "\x00" + c.Source + "\x00" + c.Notice)
+	b.WriteString(c.Destination + "\x00" + c.Mode + "\x00" + c.Source + "\x00" + c.Notice + "\x00" + c.Lead +
+		"\x00" + c.LeadKey)
 
 	if c.IsVisualMode {
 		b.WriteString("\x00v")
@@ -60,6 +68,14 @@ func (c *Context) key() string {
 
 		if h.Pin {
 			b.WriteString("\x01p")
+		}
+
+		if h.Off {
+			b.WriteString("\x01o")
+		}
+
+		if h.Suggest {
+			b.WriteString("\x01s")
 		}
 	}
 
@@ -108,8 +124,16 @@ func (m Model) ViewWithContext(width int, ctx *Context) string {
 
 func (Model) draw(width int, ctx *Context) string {
 	lead := strings.Repeat(" ", min(margin, width))
-	facts := facts(ctx, width)
+	plain := facts(ctx, width)
+	facts := withLead(ctx, plain, width)
 	hints := ctx.Hints
+
+	if facts != plain && ctx.LeadKey != "" {
+		hints = slices.DeleteFunc(slices.Clone(hints), func(h keyhint.Hint) bool {
+			return h.Key == ctx.LeadKey && !h.Pin
+		})
+	}
+
 	room := width - margin - lipgloss.Width(facts) - len(partGap)
 
 	if room < lipgloss.Width(keyhint.Pinned(hintStyles(), hints)) {
@@ -125,8 +149,38 @@ func (Model) draw(width int, ctx *Context) string {
 }
 
 // hintStyles is the footer face second-look and jojo share: bare keys in the accent, words muted.
-func hintStyles() keyhint.Styles {
-	return keyhint.Styles{Key: theme.Skin.Accent, Text: theme.Skin.Muted, Bare: true, Gap: partGap}
+func hintStyles() keyhint.Styles { return theme.Hints() }
+
+// leadShare is the part of the footer the hints keep however long the lead is: the lead is drawn
+// whole or not at all, and never at the cost of the map a reader orients by.
+const leadShare = 3
+
+// withLead is the facts with the coach's lead after them: after the mode and the revisions where it
+// fits whole, after the mode alone where only that makes room, and left out otherwise.
+func withLead(ctx *Context, facts string, width int) string {
+	if ctx.Lead == "" || ctx.Notice != "" {
+		return facts
+	}
+
+	room := width - margin - len(partGap) - lipgloss.Width(keyhint.Pinned(hintStyles(), ctx.Hints)) - width/leadShare
+	lead := lipgloss.Width(ctx.Lead)
+
+	if lipgloss.Width(facts)+len(factGap)+lead <= room {
+		return facts + factGap + ctx.Lead
+	}
+
+	mode := theme.Skin.Subtitle.Render(ctx.Mode)
+	if lipgloss.Width(mode)+len(factGap)+lead <= room {
+		return mode + factGap + ctx.Lead
+	}
+
+	// On a narrow footer the next step is worth more than the mode's name, except in visual mode,
+	// whose marker is the only sign keys extend a range.
+	if !ctx.IsVisualMode && lead <= room {
+		return ctx.Lead
+	}
+
+	return facts
 }
 
 // facts is the mode, then the source and destination, each a step quieter than the one before, or
@@ -138,7 +192,11 @@ func facts(ctx *Context, width int) string {
 			face = theme.Skin.Error
 		}
 
-		return face.Render(ellipsize(ctx.Notice, max(width*2/3, minSourceWidth))) //nolint:mnd // two thirds
+		// A notice is what the reader is looking at, and a write's names its whole jj command, so it
+		// takes all but the pinned hints' room.
+		room := width - margin - len(partGap) - lipgloss.Width(keyhint.Pinned(hintStyles(), ctx.Hints))
+
+		return face.Render(ellipsize(ctx.Notice, max(room, minSourceWidth)))
 	}
 
 	mode := theme.Skin.Subtitle.Render(ctx.Mode)

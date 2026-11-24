@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jj-diff/internal/jj"
 )
@@ -226,14 +227,14 @@ func TestModelHelpOverlay(t *testing.T) {
 	// Open help
 	m = Update(t, m, KeyPress('?'))
 
-	if !m.help.IsVisible() {
+	if !m.helpOpen() {
 		t.Error("Expected help to be visible after pressing ?")
 	}
 
 	// Close help
 	m = Update(t, m, KeyPress('?'))
 
-	if m.help.IsVisible() {
+	if m.helpOpen() {
 		t.Error("Expected help to be hidden after pressing ? again")
 	}
 
@@ -250,7 +251,7 @@ func TestModelHelpOverlay(t *testing.T) {
 	// Close with esc
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 
-	if m.help.IsVisible() {
+	if m.helpOpen() {
 		t.Error("Expected help to close with Esc")
 	}
 }
@@ -673,9 +674,12 @@ func TestAllModalsOpenAndClose(t *testing.T) {
 
 	Assert(t, m).NoModalsVisible()
 
+	// The legend explains q rather than closing on it; ? and esc close it.
 	m = Update(t, m, KeyPress('?'))
 	Assert(t, m).HelpIsVisible()
 	m = Update(t, m, KeyPress('q'))
+	Assert(t, m).HelpIsVisible()
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	Assert(t, m).HelpIsNotVisible()
 
 	m = Update(t, m, KeyPress('/'))
@@ -787,8 +791,8 @@ func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
 	}{
 		// Search takes the footer's row, so its prompt is what the last line holds.
 		{name: "search", height: 30, footer: "type to search", open: func(m *Model) { m.searchModal.Show() }},
-		// The help overlay is nearly 30 rows, so it needs a terminal it does not fill.
-		{name: "help", height: 60, open: func(m *Model) { m.showHelp() }},
+		// The legend is a drawer down the right edge, which leaves the file list in view.
+		{name: "help", height: 60, open: func(m *Model) { m.openPalette(palette.Browse) }},
 	}
 
 	for _, tt := range tests {

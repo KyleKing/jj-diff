@@ -33,9 +33,9 @@ const (
 //
 //nolint:gochecknoglobals // a fixed table, read only.
 var unsupported = []string{
-	keys.ActionPalette, keys.ActionShell, keys.ActionInspect, keys.ActionYank, keys.ActionLabelJump,
+	keys.ActionShell, keys.ActionInspect, keys.ActionYank, keys.ActionLabelJump,
 	keys.ActionJumpBack, keys.ActionJumpForward, keys.ActionOpenFile, keys.ActionDefinition,
-	keys.ActionReferences, keys.ActionCalls, keys.ActionMessages,
+	keys.ActionReferences, keys.ActionCalls,
 	keys.ActionSideOld, keys.ActionSideNew, keys.ActionRead, keys.ActionOnlyUnread, keys.ActionRounds,
 	keys.ActionOutline, keys.ActionCosmetic, keys.ActionMoreContext, keys.ActionLessContext,
 	keys.ActionViewWrap, keys.ActionViewGrammar, keys.ActionViewImages, keys.ActionViewCycle,
@@ -244,18 +244,19 @@ func newKeymap(mode OperatingMode) *keys.Keymap {
 	return km
 }
 
-// hint is action's footer hint worded as word (its own Short when empty), nil when unbound.
+// hint is action's footer hint worded as word (its own Short when empty), nil when unbound, and
+// drawn Off with the gate's reason where the action can do nothing.
 func (m *Model) hint(action, word string) []keyhint.Hint {
-	h, ok := m.keymap.Hint(action)
-	if !ok {
+	hints := m.keymap.HintsAt(m.gate, action)
+	if len(hints) == 0 {
 		return nil
 	}
 
 	if word != "" {
-		h.What = word
+		hints[0].What = word
 	}
 
-	return []keyhint.Hint{h}
+	return hints
 }
 
 // labeled is a hint keyed by every sequence of the action, for a range of digits ("1–9").
@@ -267,6 +268,10 @@ func (m *Model) labeled(action, word string) []keyhint.Hint {
 
 	h := b.Hint()
 	h.Key = b.Labels()
+
+	if a := m.gate(action); !a.OK {
+		h.Off, h.Why = true, a.Why
+	}
 
 	if word != "" {
 		h.What = word

@@ -13,6 +13,8 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/tui/coach"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -39,6 +41,9 @@ var (
 // diffEditorArgCount is the positional argument count that means jj invoked the program as a diff
 // editor, passing the left and right directories.
 const diffEditorArgCount = 2
+
+// appName is what the coach's ledger and the usage log are filed under: $XDG_STATE_HOME/jj-diff.
+const appName = "jj-diff"
 
 type flags struct {
 	resolveWith    string
@@ -162,9 +167,27 @@ func main() {
 		log.Fatalf("Failed to initialize: %v", err)
 	}
 
+	// The coach's ledger is always on: it holds tip ids and action names with times, never keys. The
+	// usage log is opt-in, and nil when it is off.
+	ledger, err := coach.OpenLedger(appName)
+	if err != nil {
+		log.Printf("coach: starting without its notes: %v", err)
+	}
+
+	usage := keyusage.Open(appName)
+	initialModel.WithLedger(ledger).WithUsage(usage)
+
 	p := tea.NewProgram(&initialModel)
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running program: %v", err)
+	}
+
+	if err := ledger.Save(); err != nil {
+		log.Printf("coach: saving its notes: %v", err)
+	}
+
+	if err := usage.Close(); err != nil {
+		log.Printf("usage: %v", err)
 	}
 
 	// A diff editor that quits without writing exits non-zero, which is what tells jj to leave the

@@ -1,0 +1,24 @@
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+        ╭─ Nothing to split in @ ──────────────────────────────────────╮        
+        │ jj diff -r @ printed nothing: the revision changes no file.  │        
+        │ The working copy is often empty right after jj new; jj-diff  │        
+        │ -r @- reads its parent.                                      │        
+        │                                                              │        
+        │ ctrl+l reload  q quit                                        │        
+        ╰──────────────────────────────────────────────────────────────╯        
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+  Interactive  @   j/k nav   enter diff   f filter   / search   ? help          

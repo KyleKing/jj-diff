@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -238,7 +239,7 @@ func (a *Assertion) HasLineCursor(position int) {
 // HelpIsVisible checks that the help overlay is up.
 func (a *Assertion) HelpIsVisible() {
 	a.t.Helper()
-	if !a.m.help.IsVisible() {
+	if !a.m.helpOpen() {
 		a.t.Error("Expected help modal to be visible")
 	}
 }
@@ -246,7 +247,7 @@ func (a *Assertion) HelpIsVisible() {
 // HelpIsNotVisible checks that the help overlay is down.
 func (a *Assertion) HelpIsNotVisible() {
 	a.t.Helper()
-	if a.m.help.IsVisible() {
+	if a.m.helpOpen() {
 		a.t.Error("Expected help modal to NOT be visible")
 	}
 }
@@ -294,7 +295,7 @@ func (a *Assertion) FileListFilterModeDisabled() {
 // NoModalsVisible checks every overlay and the file-list filter at once, reporting each one that is up.
 func (a *Assertion) NoModalsVisible() {
 	a.t.Helper()
-	if a.m.help.IsVisible() {
+	if a.m.helpOpen() {
 		a.t.Error("Expected help modal to NOT be visible")
 	}
 	if a.m.searchModal.IsVisible() {
@@ -375,3 +376,6 @@ func TestChanges() []diff.FileChange {
 		},
 	}
 }
+
+// helpOpen reports whether the legend, the palette in browse mode, is up.
+func (m *Model) helpOpen() bool { return m.pal.IsOpen() && m.pal.Mode() == palette.Browse }
