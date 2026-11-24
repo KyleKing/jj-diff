@@ -43,11 +43,11 @@ func (c *Client) jjCommand(args ...string) *exec.Cmd {
 	return cmd
 }
 
-// CheckInstalled reports whether a jj binary is on PATH. It runs outside the repository, so it says
-// nothing about baseDir being a jj repo.
+// CheckInstalled reports whether a jj binary is on PATH. It looks the binary up rather than running
+// it, since a process start is time the first frame waits for, so it says nothing about baseDir
+// being a jj repo.
 func (*Client) CheckInstalled() error {
-	cmd := exec.CommandContext(context.Background(), "jj", "--version")
-	if err := cmd.Run(); err != nil {
+	if _, err := exec.LookPath("jj"); err != nil {
 		return fmt.Errorf("jj command not found: %w", err)
 	}
 
@@ -98,7 +98,11 @@ func (c *Client) RevisionLabel(revset string) (string, error) {
 	const template = `change_id.shortest(8) ++ " " ++ ` +
 		`if(description, description.first_line(), "(no description)")`
 
-	output, err := c.executeJJ("log", "-r", revset, "--no-graph", "--limit", "1", "-T", template)
+	// A snapshot never changes a change ID or a description, so the label skips it. That keeps it
+	// off the working-copy lock the diff loading beside it at startup takes.
+	output, err := c.executeJJ(
+		"log", "--ignore-working-copy", "-r", revset, "--no-graph", "--limit", "1", "-T", template,
+	)
 	if err != nil {
 		return "", err
 	}

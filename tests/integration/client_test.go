@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -470,5 +471,33 @@ func TestResolveLabel_NamesTheRevisionByChangeIDAndDescription(t *testing.T) {
 	changeID := repo.GetChangeID("@-")
 	if want := changeID[:8] + " feat(inbox): re-read the inbox"; source.GetSourceLabel() != want {
 		t.Errorf("GetSourceLabel() = %q, want %q", source.GetSourceLabel(), want)
+	}
+}
+
+// BenchmarkStartupJJCalls is the jj work jj-diff waits on before its first frame: the revision's
+// label and its diff, run at once the way main runs them.
+func BenchmarkStartupJJCalls(b *testing.B) {
+	if _, err := exec.LookPath("jj"); err != nil {
+		b.Skip("jj is not installed")
+	}
+
+	repo := integration.NewTestRepo(b)
+	repo.WriteFile("file1.txt", strings.Repeat("line\n", 500))
+	repo.Commit("base")
+	repo.WriteFile("file1.txt", strings.Repeat("changed\n", 500))
+
+	client := jj.NewClient(repo.Dir)
+
+	for b.Loop() {
+		revision := diff.NewRevisionSource(client, "@")
+		source := diff.Prefetch(revision)
+
+		if err := revision.ResolveLabel(); err != nil {
+			b.Fatal(err)
+		}
+
+		if _, err := source.GetDiff(); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

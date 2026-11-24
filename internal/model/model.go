@@ -978,7 +978,7 @@ func (m *Model) applyDiffEditorSelection() tea.Cmd {
 	snap := *m
 
 	return func() tea.Msg {
-		dirSource, ok := snap.diffSource.(*diff.DirectorySource)
+		dirSource, ok := diff.DirectoryOf(snap.diffSource)
 		if !ok {
 			return errMsg{errNotDirectorySource}
 		}

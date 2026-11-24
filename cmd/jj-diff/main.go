@@ -23,6 +23,9 @@ import (
 var (
 	errMissingDir     = errors.New("directory does not exist")
 	errScmRecordUnimp = errors.New("scm-record compatibility mode is not implemented")
+	errBadArgs        = errors.New(
+		"invalid arguments: use 'jj-diff' for revision mode or 'jj-diff LEFT RIGHT' for diff-editor mode",
+	)
 )
 
 var (
@@ -109,6 +112,13 @@ func main() {
 		return
 	}
 
+	// The diff starts loading before anything else, because detecting the terminal's theme and color
+	// depth waits on the terminal and on tmux, and none of that needs the diff.
+	build, err := prepare(f, flag.Args())
+	if err != nil {
+		log.Fatalf("Failed to initialize: %v", err)
+	}
+
 	theme.Init()
 
 	cfg := config.LoadConfig()
@@ -125,21 +135,7 @@ func main() {
 		cfg.TabWidth = f.tabWidth
 	}
 
-	var initialModel model.Model
-	var err error
-
-	args := flag.Args()
-	switch len(args) {
-	case 0:
-		initialModel, err = initRevisionMode(f, cfg)
-	case diffEditorArgCount:
-		initialModel, err = initDiffEditorMode(args[0], args[1], cfg)
-	default:
-		log.Fatalf(
-			"Invalid arguments. Use 'jj-diff' for revision mode or 'jj-diff LEFT RIGHT' for diff-editor mode.",
-		)
-	}
-
+	initialModel, err := build(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize: %v", err)
 	}
@@ -150,20 +146,35 @@ func main() {
 	}
 }
 
-func initRevisionMode(f flags, cfg config.Config) (model.Model, error) {
+// builder finishes a model once the theme and the config are known. The work prepare started in the
+// background (the diff, the revision's label) is waited on here.
+type builder func(cfg config.Config) (model.Model, error)
+
+func prepare(f flags, args []string) (builder, error) {
+	switch len(args) {
+	case 0:
+		return prepareRevisionMode(f)
+	case diffEditorArgCount:
+		return prepareDiffEditorMode(args[0], args[1])
+	default:
+		return nil, errBadArgs
+	}
+}
+
+func prepareRevisionMode(f flags) (builder, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return model.Model{}, fmt.Errorf("failed to get working directory: %w", err)
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
 	}
 
 	client := jj.NewClient(wd)
 
 	if err := client.CheckInstalled(); err != nil {
-		return model.Model{}, fmt.Errorf("jj is not installed or not in PATH: %w", err)
+		return nil, fmt.Errorf("jj is not installed or not in PATH: %w", err)
 	}
 
 	if f.scmInput != "" {
-		return model.Model{}, fmt.Errorf("%s: %w", f.scmInput, errScmRecordUnimp)
+		return nil, fmt.Errorf("%s: %w", f.scmInput, errScmRecordUnimp)
 	}
 
 	mode := model.ModeBrowse
@@ -171,33 +182,43 @@ func initRevisionMode(f flags, cfg config.Config) (model.Model, error) {
 		mode = model.ModeInteractive
 	}
 
-	source := diff.NewRevisionSource(client, f.revision)
-	if err := source.ResolveLabel(); err != nil {
-		return model.Model{}, fmt.Errorf("reading the revision: %w", err)
-	}
+	// The label and the diff are each a jj call the first frame waits on, so both run at once.
+	revision := diff.NewRevisionSource(client, f.revision)
+	source := diff.Prefetch(revision)
+	labeled := make(chan error, 1)
 
-	m, err := model.NewModelWithSource(source, client, f.destination, mode, cfg)
-	if err != nil {
-		return model.Model{}, fmt.Errorf("building the revision model: %w", err)
-	}
+	go func() { labeled <- revision.ResolveLabel() }()
 
-	return m, nil
+	return func(cfg config.Config) (model.Model, error) {
+		if err := <-labeled; err != nil {
+			return model.Model{}, fmt.Errorf("reading the revision: %w", err)
+		}
+
+		m, err := model.NewModelWithSource(source, client, f.destination, mode, cfg)
+		if err != nil {
+			return model.Model{}, fmt.Errorf("building the revision model: %w", err)
+		}
+
+		return m, nil
+	}, nil
 }
 
-func initDiffEditorMode(leftDir, rightDir string, cfg config.Config) (model.Model, error) {
+func prepareDiffEditorMode(leftDir, rightDir string) (builder, error) {
 	if _, err := os.Stat(leftDir); os.IsNotExist(err) {
-		return model.Model{}, fmt.Errorf("left %s: %w", leftDir, errMissingDir)
+		return nil, fmt.Errorf("left %s: %w", leftDir, errMissingDir)
 	}
 	if _, err := os.Stat(rightDir); os.IsNotExist(err) {
-		return model.Model{}, fmt.Errorf("right %s: %w", rightDir, errMissingDir)
+		return nil, fmt.Errorf("right %s: %w", rightDir, errMissingDir)
 	}
 
-	source := diff.NewDirectorySource(leftDir, rightDir)
+	source := diff.Prefetch(diff.NewDirectorySource(leftDir, rightDir))
 
-	m, err := model.NewModelWithSource(source, nil, "", model.ModeDiffEditor, cfg)
-	if err != nil {
-		return model.Model{}, fmt.Errorf("building the diff-editor model: %w", err)
-	}
+	return func(cfg config.Config) (model.Model, error) {
+		m, err := model.NewModelWithSource(source, nil, "", model.ModeDiffEditor, cfg)
+		if err != nil {
+			return model.Model{}, fmt.Errorf("building the diff-editor model: %w", err)
+		}
 
-	return m, nil
+		return m, nil
+	}, nil
 }

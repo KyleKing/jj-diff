@@ -2,6 +2,7 @@ package diff
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/kyleking/jj-diff/internal/jj"
 )
@@ -99,4 +100,65 @@ func (*DirectorySource) GetSourceLabel() string {
 // against.
 func (*DirectorySource) SupportsRevisions() bool {
 	return false
+}
+
+// Prefetch starts src's GetDiff in the background and returns a Source whose first GetDiff answers
+// with it, so the external work behind the first frame (a jj call, a directory walk) overlaps the
+// rest of startup rather than following it. Later GetDiff calls read afresh from src.
+func Prefetch(src Source) *Prefetched {
+	p := &Prefetched{Source: src, first: make(chan fetched, 1)}
+
+	go func() {
+		text, err := src.GetDiff()
+		p.first <- fetched{text: text, err: err}
+	}()
+
+	return p
+}
+
+type fetched struct {
+	err  error
+	text string
+}
+
+// Prefetched is a Source whose first diff was read in the background, from Prefetch.
+type Prefetched struct {
+	Source
+
+	first chan fetched
+	mu    sync.Mutex
+	taken bool
+}
+
+// GetDiff answers the prefetched diff the first time and asks the wrapped source after.
+func (p *Prefetched) GetDiff() (string, error) {
+	p.mu.Lock()
+	first := !p.taken
+	p.taken = true
+	p.mu.Unlock()
+
+	if !first {
+		text, err := p.Source.GetDiff()
+		if err != nil {
+			return "", fmt.Errorf("reading the diff again: %w", err)
+		}
+
+		return text, nil
+	}
+
+	got := <-p.first
+
+	return got.text, got.err
+}
+
+// DirectoryOf finds the DirectorySource behind src, through a Prefetch, for the diff editor, which
+// writes its selection back into those directories.
+func DirectoryOf(src Source) (*DirectorySource, bool) {
+	if p, ok := src.(*Prefetched); ok {
+		src = p.Source
+	}
+
+	dirs, ok := src.(*DirectorySource)
+
+	return dirs, ok
 }

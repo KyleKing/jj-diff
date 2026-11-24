@@ -20,27 +20,27 @@ const (
 
 // TestRepo represents a temporary jj repository for testing.
 type TestRepo struct {
-	t   *testing.T
+	t   testing.TB
 	Dir string
 }
 
 // NewTestRepo creates a new temporary jj repository, skipping the test when no
 // jj binary is installed. Every test in this package drives the real CLI, so
 // without one there is nothing to assert rather than something to fail.
-func NewTestRepo(t *testing.T) *TestRepo {
-	t.Helper()
+func NewTestRepo(tb testing.TB) *TestRepo {
+	tb.Helper()
 
 	if _, err := exec.LookPath("jj"); err != nil {
-		t.Skip("jj is not installed; skipping the integration suite")
+		tb.Skip("jj is not installed; skipping the integration suite")
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := tb.TempDir()
 
 	// Initialize jj repo
 	//nolint:gosec // G204: fixture helper runs the literal jj binary with test arguments.
 	cmd := exec.CommandContext(context.Background(), "jj", "git", "init", tmpDir)
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("Failed to init jj repo: %v", err)
+		tb.Fatalf("Failed to init jj repo: %v", err)
 	}
 
 	// Set test user config
@@ -50,12 +50,12 @@ name = "Test User"
 email = "test@example.com"
 `
 	if err := os.WriteFile(configPath, []byte(configContent), fixtureFileMode); err != nil {
-		t.Fatalf("Failed to write config: %v", err)
+		tb.Fatalf("Failed to write config: %v", err)
 	}
 
 	return &TestRepo{
 		Dir: tmpDir,
-		t:   t,
+		t:   tb,
 	}
 }
 
