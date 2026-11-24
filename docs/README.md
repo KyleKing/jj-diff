@@ -2,8 +2,8 @@
 
 A Bubble Tea TUI for Jujutsu diffs. Browse mode reads a revision with syntax
 highlighting, search, and fuzzy file finding. Interactive mode selects hunks or
-individual lines and moves them to another revision. Multi-split mode tags
-changes and splits one commit into several. As jj's configured diff editor it
+individual lines and squashes them into another revision, splits them out to a
+new commit, or discards them. As jj's configured diff editor it
 also backs `jj split`, `jj diffedit`, `jj amend -i`, and `jj squash -i`.
 
 ## Pages
@@ -27,8 +27,8 @@ work in [ROADMAP.md](../ROADMAP.md).
 
 - Browse mode: read a diff with syntax highlighting for over 100 languages,
   search, and fuzzy file finding
-- Interactive mode: move hunks or individual lines between revisions
-- Multi-split mode: tag changes and split one commit into several focused commits
+- Interactive mode: squash hunks or individual lines into any revision, split
+  them out to a new commit, or discard them, each as one undoable jj operation
 - Diff-editor mode: stand in for jj's builtin editor
 - Display toggles for side-by-side layout, line numbers, whitespace-only changes,
   and word-level highlighting
@@ -42,12 +42,12 @@ work in [ROADMAP.md](../ROADMAP.md).
 
 ## Safety
 
-No step destroys working-copy content. Moving changes resolves the destination,
-records the current operation ID, adds a scratch workspace under a temp
-directory, applies the patch and squashes there, then forgets the workspace. A
-failure runs `jj op restore` back to the recorded operation, so an abandoned run
-cannot lose the changes you did not select.
-
-Splitting to a new commit is the one path that touches your working copy, and it
-runs `jj new --insert-before`, which moves the parent pointer and leaves every
-byte of content alone, the same way `jj split` does.
+Every write is one jj command: `jj squash --from <rev> --into <dest> -i`,
+`jj split -r <rev> -B <rev> -i`, or `jj restore --changes-in <rev> -i`, with
+jj-diff passed as the diff editor on the command line. jj materializes the
+revision's parent as `$left` and the revision as `$right`, and the child jj-diff
+makes `$right` exactly `$left` plus the selection that was chosen on screen. jj then
+does the rewriting, so only the selected lines move, the working copy changes
+only when it is the revision being written, and `jj undo` reverses the whole
+write. A write that fails after jj integrated it runs `jj op restore` back to the
+operation recorded first.

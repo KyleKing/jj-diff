@@ -32,8 +32,8 @@ func TestModelNavigation(t *testing.T) {
 	m = Update(t, m, KeyPress('k'))
 	Assert(t, m).HasSelectedFile(1)
 
-	// Jump to first (g)
-	m = Update(t, m, KeyPress('g'))
+	// Jump to first (gg)
+	m = Press(t, m, "g", "g")
 	Assert(t, m).HasSelectedFile(0)
 	Assert(t, m).HasSelectedHunk(0)
 
@@ -49,16 +49,18 @@ func TestModelNavigation(t *testing.T) {
 	m = Update(t, m, KeyPress('n'))
 	Assert(t, m).HasSelectedHunk(1)
 
-	m = Update(t, m, KeyPress('p'))
+	m = Press(t, m, "[", "h")
 	Assert(t, m).HasSelectedHunk(0)
 
-	// Test N (previous hunk, same as p)
-	m.selectedHunk = 1
+	// n repeats the last motion, which [h made backward, so it wraps to the last hunk.
+	m = Update(t, m, KeyPress('n'))
+	Assert(t, m).HasSelectedHunk(1)
+
+	// N reverses it.
 	m = Update(t, m, KeyPress('N'))
 	Assert(t, m).HasSelectedHunk(0)
 
-	// p at first hunk should wrap to last hunk
-	m = Update(t, m, KeyPress('p'))
+	m = Press(t, m, "]", "h")
 	Assert(t, m).HasSelectedHunk(1)
 
 	// n at last hunk should wrap to first hunk
@@ -134,10 +136,12 @@ func TestModelBrowseMode(t *testing.T) {
 	m = Update(t, m, KeyPress(' '))
 	Assert(t, m).HasHunkNotSelected("file1.txt", 0)
 
-	// 'd' should not open picker in browse mode
-	initialDestination := m.destination
-	m = Update(t, m, KeyPress('d'))
-	Assert(t, m).HasDestination(initialDestination)
+	// s squashes only where there is something to squash.
+	if _, cmd := m.Update(KeyPress('s')); cmd != nil {
+		t.Error("s returned a command in browse mode")
+	}
+
+	Assert(t, m).NoModalsVisible()
 }
 
 // TestModelInteractiveWorkflow tests the full interactive selection workflow.
@@ -152,9 +156,8 @@ func TestModelInteractiveWorkflow(t *testing.T) {
 	Assert(t, m).HasChanges(3)
 	Assert(t, m).FocusedPanelIs(PanelFileList)
 
-	// Set destination via message (simulating picker selection)
-	m = Update(t, m, destinationSelectedMsg{changeID: "abc123"})
-	Assert(t, m).HasDestination("abc123")
+	m = m.WithDestination("abc123")
+	m.revision = "@"
 
 	// Navigate and select hunks
 	m = Update(t, m, SpecialKey(tea.KeyTab))
@@ -168,10 +171,10 @@ func TestModelInteractiveWorkflow(t *testing.T) {
 
 	Assert(t, m).HasHunkSelected("file1.txt", 1)
 
-	// Apply action ('a') should trigger command when destination is set
-	_, cmd := m.Update(KeyPress('a'))
+	// Confirm ('c') squashes into the -d destination.
+	_, cmd := m.Update(KeyPress('c'))
 	if cmd == nil {
-		t.Error("Expected apply command when destination is set and hunks are selected")
+		t.Error("Expected a squash command when a destination is set and hunks are selected")
 	}
 }
 
@@ -486,11 +489,11 @@ func TestModelLineCursorReset(t *testing.T) {
 	Assert(t, m).HasLineCursor(0)
 
 	m.lineCursor = 3
-	m = Update(t, m, KeyPress('p'))
+	m = Update(t, m, KeyPress('N'))
 	Assert(t, m).HasLineCursor(0)
 
 	m.lineCursor = 7
-	m = Update(t, m, KeyPress('g'))
+	m = Press(t, m, "g", "g")
 	Assert(t, m).HasLineCursor(0)
 
 	m.lineCursor = 4
@@ -516,53 +519,54 @@ func TestModelViewOptionToggles(t *testing.T) {
 	t.Parallel()
 
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+	m.focusedPanel = PanelDiffView
 
 	tests := []struct {
 		checkFn  func(m *Model) bool
 		name     string
-		key      rune
+		keys     []string
 		expected bool
 	}{
 		{
 			checkFn:  func(m *Model) bool { return m.diffView.ShowWhitespace() },
 			name:     "toggle whitespace on",
-			key:      'w',
+			keys:     []string{"w"},
 			expected: true,
 		},
 		{
 			checkFn:  func(m *Model) bool { return m.diffView.ShowWhitespace() },
 			name:     "toggle whitespace off",
-			key:      'w',
+			keys:     []string{"w"},
 			expected: false,
 		},
 		{
 			checkFn:  func(m *Model) bool { return m.diffView.WordLevelDiff() },
 			name:     "toggle word diff on",
-			key:      'W',
+			keys:     []string{`\\`, "r"},
 			expected: true,
 		},
 		{
 			checkFn:  func(m *Model) bool { return m.diffView.WordLevelDiff() },
 			name:     "toggle word diff off",
-			key:      'W',
+			keys:     []string{`\\`, "r"},
 			expected: false,
 		},
 		{
 			checkFn:  func(m *Model) bool { return m.diffView.ShowLineNumbers() },
 			name:     "toggle line numbers off",
-			key:      'l',
+			keys:     []string{`\\`, "n"},
 			expected: false,
 		},
 		{
 			checkFn:  func(m *Model) bool { return m.diffView.ShowLineNumbers() },
 			name:     "toggle line numbers on",
-			key:      'l',
+			keys:     []string{`\\`, "n"},
 			expected: true,
 		},
 	}
 
 	for _, tt := range tests {
-		m = Update(t, m, KeyPress(tt.key))
+		m = Press(t, m, tt.keys...)
 		if got := tt.checkFn(m); got != tt.expected {
 			t.Errorf("%s: expected %v, got %v", tt.name, tt.expected, got)
 		}
@@ -574,17 +578,18 @@ func TestModelSideBySideToggle(t *testing.T) {
 	t.Parallel()
 
 	m := NewTestModel(t, ModeBrowse).WithChanges(TestChanges())
+	m.focusedPanel = PanelDiffView
 
 	if m.diffView.IsSideBySide() {
 		t.Error("Expected unified mode initially")
 	}
 
-	m = Update(t, m, KeyPress('s'))
+	m = Press(t, m, `\`, "s")
 	if !m.diffView.IsSideBySide() {
 		t.Error("Expected side-by-side mode after toggle")
 	}
 
-	m = Update(t, m, KeyPress('s'))
+	m = Press(t, m, `\`, "s")
 	if m.diffView.IsSideBySide() {
 		t.Error("Expected unified mode after second toggle")
 	}
@@ -595,13 +600,14 @@ func TestModelSideBySideInInteractiveMode(t *testing.T) {
 	t.Parallel()
 
 	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
+	m.focusedPanel = PanelDiffView
 
-	m = Update(t, m, KeyPress('s'))
+	m = Press(t, m, `\`, "s")
 	if !m.diffView.IsSideBySide() {
 		t.Error("Expected side-by-side mode to be enabled")
 	}
 
-	m = Update(t, m, KeyPress('s'))
+	m = Press(t, m, `\`, "s")
 	if m.diffView.IsSideBySide() {
 		t.Error("Expected to toggle back to unified")
 	}
@@ -621,15 +627,17 @@ func TestModalMutualExclusivity(t *testing.T) {
 	Assert(t, m).SearchIsVisible()
 	Assert(t, m).HelpIsNotVisible()
 
+	// A text input takes ? as text, so it is typed into the search rather than opening help.
 	m = Update(t, m, KeyPress('?'))
-	Assert(t, m).HelpIsVisible()
-	Assert(t, m).SearchIsNotVisible()
+	Assert(t, m).HelpIsNotVisible()
+	Assert(t, m).SearchIsVisible()
 
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, KeyPress('f'))
 	Assert(t, m).FileListFilterModeEnabled()
 	Assert(t, m).HelpIsNotVisible()
 
+	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, KeyPress('?'))
 	Assert(t, m).HelpIsVisible()
 	Assert(t, m).FileListFilterModeDisabled()
@@ -710,23 +718,29 @@ func TestScrollingOnlyInDiffPanel(t *testing.T) {
 	Update(t, m, CtrlKey('d'))
 }
 
-// TestSplitAssignOpensFromLoadedRevisions pins the modal to the message path. Opening it from inside
-// the tea.Cmd instead left it permanently invisible, because the command mutated its own copy.
-func TestSplitAssignOpensFromLoadedRevisions(t *testing.T) {
+// TestSquashOpensThePickerFromLoadedRevisions pins the picker to the message path. Opening it from
+// inside the tea.Cmd instead left it permanently invisible, because the command mutated its own copy.
+func TestSquashOpensThePickerFromLoadedRevisions(t *testing.T) {
 	t.Parallel()
 
 	m := NewTestModel(t, ModeInteractive).WithChanges(TestChanges())
 	m.focusedPanel = PanelDiffView
+	m.revision = "@"
 
-	m = Update(t, m, KeyPress('S'))
-	m = Update(t, m, KeyPress('A'))
-
-	if _, cmd := m.Update(KeyPress('D')); cmd == nil {
-		t.Fatal("Expected D to return a revision-loading command")
+	if _, cmd := m.Update(KeyPress('s')); cmd == nil {
+		t.Fatal("Expected s to return a revision-loading command")
 	}
 
-	m = Update(t, m, splitRevisionsLoadedMsg{revisions: []jj.RevisionEntry{{ChangeID: "abc"}}})
-	Assert(t, m).SplitAssignIsVisible()
+	m = Update(t, m, revisionsLoadedMsg{revisions: []jj.RevisionEntry{{ChangeID: "abc", Short: "abcdefgh"}}})
+	Assert(t, m).PickerIsVisible()
+
+	m = Press(t, m, "-", "k")
+	if !m.flags.On("k") {
+		t.Error("-k did not toggle keep-emptied in the picker")
+	}
+
+	m = Press(t, m, "esc")
+	Assert(t, m).NoModalsVisible()
 }
 
 // TestApplySelectionUsesTheSelectionFromWhenTheKeyWasPressed pins the snapshot the apply command
@@ -741,17 +755,20 @@ func TestApplySelectionUsesTheSelectionFromWhenTheKeyWasPressed(t *testing.T) {
 	m = Update(t, m, KeyPress(' '))
 	Assert(t, m).HasHunkSelected("file1.txt", 0)
 
-	_, cmd := m.Update(KeyPress('a'))
+	m.revision = "@"
+
+	_, cmd := m.Update(KeyPress('c'))
 	if cmd == nil {
-		t.Fatal("Expected a to return an apply command")
+		t.Fatal("Expected c to return a squash command")
 	}
 
 	// A later diff load swaps the whole selection state, which is what the snapshot has to survive.
 	m = Update(t, m, diffLoadedMsg{changes: TestChanges()})
 	m.selection = NewSelectionState()
 
-	if err, ok := cmd().(errMsg); ok && errors.Is(err.err, errNoSelection) {
-		t.Error("Apply command read the live selection instead of the one from when a was pressed")
+	written, ok := cmd().(writtenMsg)
+	if !ok || !strings.Contains(written.summary, "1 hunk") {
+		t.Errorf("the squash command read the live selection instead of the one from when c was pressed: %+v", written)
 	}
 }
 
@@ -771,7 +788,7 @@ func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
 		// Search takes the footer's row, so its prompt is what the last line holds.
 		{name: "search", height: 30, footer: "type to search", open: func(m *Model) { m.searchModal.Show() }},
 		// The help overlay is nearly 30 rows, so it needs a terminal it does not fill.
-		{name: "help", height: 60, open: func(m *Model) { m.help.Show("Interactive") }},
+		{name: "help", height: 60, open: func(m *Model) { m.showHelp() }},
 		{name: "commit message", height: 30, open: func(m *Model) { m.commitMsg.Show() }},
 	}
 

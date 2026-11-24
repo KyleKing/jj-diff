@@ -2,10 +2,12 @@ package help_test
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/keys"
 
 	"github.com/kyleking/jj-diff/internal/components/help"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -26,8 +28,13 @@ func TestMain(m *testing.M) {
 func shown(t *testing.T) *help.Model {
 	t.Helper()
 
+	km, err := keys.Merge(slices.Concat(keys.Global(), keys.DiffView()), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	m := help.New()
-	m.Show("Interactive")
+	m.Show("Interactive", km.Legend(keys.View))
 
 	return &m
 }
@@ -40,11 +47,11 @@ func TestView_ShortTerminalScrollsInsteadOfClipping(t *testing.T) {
 	m := shown(t)
 
 	top := ansi.Strip(m.View(80, 24))
-	if !strings.Contains(top, "Keys 1–") {
+	if !strings.Contains(top, "Keys · Interactive 1–") {
 		t.Error("the title should say where the window is before scrolling")
 	}
 
-	if strings.Contains(top, "Moving changes") {
+	if strings.Contains(top, "── View ─") {
 		t.Fatal("this test assumes the interactive keys start below the fold at 24 rows")
 	}
 
@@ -55,7 +62,7 @@ func TestView_ShortTerminalScrollsInsteadOfClipping(t *testing.T) {
 	m.ScrollToEnd()
 
 	end := ansi.Strip(m.View(80, 24))
-	if !strings.Contains(end, "Moving changes") {
+	if !strings.Contains(end, "── View ─") {
 		t.Error("scrolling to the end should reach the keys that start below the fold")
 	}
 
@@ -105,11 +112,11 @@ func TestView_ClampsScrollPastEitherEnd(t *testing.T) {
 func TestView_TallTerminalShowsEverythingWithoutScrolling(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(shown(t).View(80, 60))
+	got := ansi.Strip(shown(t).View(80, 160))
 
-	for _, want := range []string{"── Keys ─", "── Navigation ─", "── Moving changes ─", "esc close"} {
+	for _, want := range []string{"── Keys · Interactive ─", "── General ─", "── View ─", "esc close"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("%q missing from a 60-row render", want)
+			t.Errorf("%q missing from a 160-row render", want)
 		}
 	}
 

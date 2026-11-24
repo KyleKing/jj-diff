@@ -6,9 +6,9 @@
 jj-diff --interactive
 ```
 
-Press `d`, select `@-`, and press `enter`. Reach the hunk with `n`, press `v`
-for visual mode, pick the lines with `j`/`k`, press `space` to confirm, then `a`
-to apply.
+Press `tab` to reach the diff and `]h` (then `n`) to reach the hunk, `v` for
+visual mode, `j`/`k` to pick the lines, `space` to confirm, then `s` and `enter`
+on `@-`. `jj undo` takes it back.
 
 ## Split a large commit into focused changes
 
@@ -16,10 +16,9 @@ to apply.
 jj-diff --interactive
 ```
 
-Press `S` for multi-split mode. Tag related changes by letter: `a` on the UI
-changes, `b` on the tests, and so on. Press `D` to open the assignment modal,
-assign each tag to an existing commit or a new one, then `P` to preview and
-apply.
+Select the first group of changes with `space` (or `v` for lines), press `S`,
+and describe the new commit. It lands beneath the revision, which keeps what you
+did not select. Repeat for the next group.
 
 ## Review changes before committing
 
@@ -27,8 +26,9 @@ apply.
 jj-diff
 ```
 
-Browse mode is read-only. Search for TODO comments with `/`, jump between files
-with `f`, and press `tab` to focus the diff and scroll it with `j`/`k`.
+Browse mode is read-only. Search for TODO comments with `/`, narrow the file list
+with `f`, and press `tab` to focus the diff, `]f`/`[f` to step files, and `]h`/`[h`
+to step hunks.
 
 ## Edit a commit interactively
 
@@ -39,5 +39,5 @@ Configure jj-diff as the diff editor first, per
 jj diffedit -r @-
 ```
 
-Choose the changes to keep with `space`, refine to lines with `v`, and press `a`
-to save and exit.
+Choose the changes to keep with `space`, refine to lines with `v`, and press `c`
+to write them and exit. `q` leaves without writing.

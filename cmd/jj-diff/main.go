@@ -1,6 +1,8 @@
 // Command jj-diff is a terminal diff viewer for Jujutsu. It runs in three modes: browse,
 // interactive (which can move selected hunks to another revision), and diff-editor (which jj
-// invokes with a left and a right directory).
+// invokes with a left and a right directory). A fourth, with --apply-patch or --unapply-patch, draws
+// nothing: it is how jj-diff's own writes have jj run it back as the diff editor, with the selection
+// already chosen.
 package main
 
 import (
@@ -39,6 +41,8 @@ var (
 const diffEditorArgCount = 2
 
 type flags struct {
+	applyPatch     string
+	unapplyPatch   string
 	revision       string
 	scmInput       string
 	destination    string
@@ -73,6 +77,10 @@ func parseFlags() flags {
 	flag.BoolVar(&f.sideBySide, "side-by-side", false, "Side-by-side diff view")
 	flag.BoolVar(&f.sideBySide, "s", false, "Side-by-side diff view (shorthand)")
 	flag.BoolVar(&f.wordDiff, "word-diff", false, "Enable word-level highlighting")
+	flag.StringVar(&f.applyPatch, jj.FlagApplyPatch, "",
+		"With LEFT RIGHT: make RIGHT the LEFT tree plus this patch, drawing nothing (jj-diff's own writes)")
+	flag.StringVar(&f.unapplyPatch, jj.FlagUnapplyPatch, "",
+		"With LEFT RIGHT: take this patch back out of the LEFT tree first (jj-diff's own writes)")
 	flag.IntVar(
 		&f.tabWidth,
 		"tab-width",
@@ -91,8 +99,8 @@ func parseFlags() flags {
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff              # Browse working copy changes\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -r @-        # Browse parent's changes\n")
-		fmt.Fprintf(os.Stderr, "  jj-diff -i           # Interactive mode (move changes)\n")
-		fmt.Fprintf(os.Stderr, "  jj-diff -i -d @-     # Move changes to parent\n")
+		fmt.Fprintf(os.Stderr, "  jj-diff -i           # Interactive mode (squash, split, or discard hunks)\n")
+		fmt.Fprintf(os.Stderr, "  jj-diff -i -d @-     # c squashes the selection into the parent\n")
 		fmt.Fprintf(
 			os.Stderr,
 			"  jj-diff LEFT RIGHT   # Diff-editor mode (for jj split, diffedit)\n",
@@ -112,9 +120,21 @@ func main() {
 		return
 	}
 
+	if f.applyPatch != "" || f.unapplyPatch != "" {
+		if flag.NArg() != diffEditorArgCount {
+			log.Fatalf("Failed to apply the selection: %v", errBadArgs)
+		}
+
+		if err := jj.ApplySelection(flag.Arg(0), flag.Arg(1), f.unapplyPatch, f.applyPatch); err != nil {
+			log.Fatalf("Failed to apply the selection: %v", err)
+		}
+
+		return
+	}
+
 	// The diff starts loading before anything else, because detecting the terminal's theme and color
 	// depth waits on the terminal and on tmux, and none of that needs the diff.
-	build, err := prepare(f, flag.Args())
+	build, err := prepare(&f, flag.Args())
 	if err != nil {
 		log.Fatalf("Failed to initialize: %v", err)
 	}
@@ -144,13 +164,20 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running program: %v", err)
 	}
+
+	// A diff editor that quits without writing exits non-zero, which is what tells jj to leave the
+	// revision as it was instead of taking the right side it started with.
+	if initialModel.Aborted() {
+		fmt.Fprintln(os.Stderr, "jj-diff: quit without writing; the revision is unchanged")
+		os.Exit(1)
+	}
 }
 
 // builder finishes a model once the theme and the config are known. The work prepare started in the
 // background (the diff, the revision's label) is waited on here.
 type builder func(cfg config.Config) (model.Model, error)
 
-func prepare(f flags, args []string) (builder, error) {
+func prepare(f *flags, args []string) (builder, error) {
 	switch len(args) {
 	case 0:
 		return prepareRevisionMode(f)
@@ -161,7 +188,7 @@ func prepare(f flags, args []string) (builder, error) {
 	}
 }
 
-func prepareRevisionMode(f flags) (builder, error) {
+func prepareRevisionMode(f *flags) (builder, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get working directory: %w", err)

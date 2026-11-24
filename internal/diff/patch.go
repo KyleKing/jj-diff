@@ -12,179 +12,126 @@ type SelectionState interface {
 	IsLineSelected(filePath string, hunkIdx, lineIdx int) bool
 }
 
-// GeneratePatch renders the selected hunks as a unified diff that git apply accepts. A fully
-// selected hunk is copied verbatim, and a partially selected one keeps the selected lines plus three
-// lines of context on each side with recalculated header counts. A file with nothing selected is
-// left out, so an empty selection returns the empty string.
+// GeneratePatch renders the selected hunks as a unified diff that git apply accepts against the
+// diff's old side. A hunk with only some lines selected keeps the whole hunk as context: an
+// unselected deletion stays as a context line, since the line is still there, and an unselected
+// addition is dropped, since it never arrives. Headers are recounted for every hunk, and each hunk's
+// new-side start follows what the selected hunks above it in the file added and removed. A file with
+// nothing selected is left out, so an empty selection returns the empty string.
 func GeneratePatch(files []FileChange, selection SelectionState) string {
 	var patch strings.Builder
 
 	for _, file := range files {
-		var fileHunks []string
+		var fileHunks strings.Builder
+
+		delta := 0
 
 		for hunkIdx, hunk := range file.Hunks {
-			if selection.IsHunkSelected(file.Path, hunkIdx) {
-				// Whole hunk selected
-				fileHunks = append(fileHunks, renderWholeHunk(hunk))
-			} else if selection.HasPartialSelection(file.Path, hunkIdx) {
-				// Partial lines selected
-				partialHunk := renderPartialHunk(hunk, hunkIdx, file.Path, selection)
-				if partialHunk != "" {
-					fileHunks = append(fileHunks, partialHunk)
-				}
+			whole := selection.IsHunkSelected(file.Path, hunkIdx)
+			if !whole && !selection.HasPartialSelection(file.Path, hunkIdx) {
+				continue
 			}
+
+			picked := func(lineIdx int) bool {
+				return whole || selection.IsLineSelected(file.Path, hunkIdx, lineIdx)
+			}
+
+			delta += renderHunk(&fileHunks, hunk, picked, delta)
 		}
 
-		if len(fileHunks) == 0 {
+		if fileHunks.Len() == 0 {
 			continue
 		}
 
-		// Write file headers
-		fmt.Fprintf(&patch, "diff --git a/%s b/%s\n", file.Path, file.Path)
-
-		switch file.ChangeType {
-		case ChangeTypeAdded:
-			patch.WriteString("new file mode 100644\n")
-			patch.WriteString("--- /dev/null\n")
-			fmt.Fprintf(&patch, "+++ b/%s\n", file.Path)
-		case ChangeTypeDeleted:
-			patch.WriteString("deleted file mode 100644\n")
-			fmt.Fprintf(&patch, "--- a/%s\n", file.Path)
-			patch.WriteString("+++ /dev/null\n")
-		default:
-			fmt.Fprintf(&patch, "--- a/%s\n", file.Path)
-			fmt.Fprintf(&patch, "+++ b/%s\n", file.Path)
-		}
-
-		// Write hunks
-		for _, hunkStr := range fileHunks {
-			patch.WriteString(hunkStr)
-		}
+		writeFileHeader(&patch, file)
+		patch.WriteString(fileHunks.String())
 	}
 
 	return patch.String()
 }
 
-func renderWholeHunk(hunk Hunk) string {
-	var buf strings.Builder
-	buf.WriteString(hunk.Header)
-	buf.WriteString("\n")
+func writeFileHeader(patch *strings.Builder, file FileChange) {
+	fmt.Fprintf(patch, "diff --git a/%s b/%s\n", file.Path, file.Path)
 
-	for _, line := range hunk.Lines {
-		buf.WriteString(line.Type.String())
-		buf.WriteString(line.Content)
-		buf.WriteString("\n")
+	switch file.ChangeType {
+	case ChangeTypeAdded:
+		patch.WriteString("new file mode 100644\n")
+		patch.WriteString("--- /dev/null\n")
+		fmt.Fprintf(patch, "+++ b/%s\n", file.Path)
+	case ChangeTypeDeleted:
+		patch.WriteString("deleted file mode 100644\n")
+		fmt.Fprintf(patch, "--- a/%s\n", file.Path)
+		patch.WriteString("+++ /dev/null\n")
+	case ChangeTypeModified, ChangeTypeRenamed:
+		fmt.Fprintf(patch, "--- a/%s\n", file.Path)
+		fmt.Fprintf(patch, "+++ b/%s\n", file.Path)
 	}
-
-	return buf.String()
 }
 
-func renderPartialHunk(hunk Hunk, hunkIdx int, filePath string, selection SelectionState) string {
-	// Build selected lines with context
-	selectedLines := make(map[int]bool)
-	for lineIdx := range hunk.Lines {
-		if selection.IsLineSelected(filePath, hunkIdx, lineIdx) {
-			selectedLines[lineIdx] = true
-		}
-	}
+// renderHunk writes hunk with only the picked changes left as changes, and answers how many lines it
+// adds net, which shifts the new-side start of every hunk below it. A hunk with no picked change
+// writes nothing.
+func renderHunk(out *strings.Builder, hunk Hunk, picked func(lineIdx int) bool, delta int) int {
+	var body strings.Builder
 
-	if len(selectedLines) == 0 {
-		return ""
-	}
+	oldCount, newCount, changes := 0, 0, 0
 
-	// Expand to include context lines (3 before, 3 after)
-	const contextLines = 3
-	expandedSelection := expandWithContext(selectedLines, len(hunk.Lines), contextLines)
-
-	// Build lines
-	var lines []Line
 	for lineIdx, line := range hunk.Lines {
-		if expandedSelection[lineIdx] {
-			lines = append(lines, line)
-		}
-	}
+		kind := line.Type
 
-	if len(lines) == 0 {
-		return ""
-	}
-
-	// Recalculate hunk header
-	newHeader := recalculateHunkHeader(lines)
-
-	var buf strings.Builder
-	buf.WriteString(newHeader)
-	buf.WriteString("\n")
-
-	for _, line := range lines {
-		buf.WriteString(line.Type.String())
-		buf.WriteString(line.Content)
-		buf.WriteString("\n")
-	}
-
-	return buf.String()
-}
-
-func expandWithContext(selected map[int]bool, totalLines, contextLines int) map[int]bool {
-	expanded := make(map[int]bool)
-
-	for idx := range selected {
-		// Add selected line
-		expanded[idx] = true
-
-		// Add context before
-		for i := idx - contextLines; i < idx; i++ {
-			if i >= 0 {
-				expanded[i] = true
-			}
+		switch {
+		case kind == LineAddition && !picked(lineIdx):
+			continue
+		case kind == LineDeletion && !picked(lineIdx):
+			kind = LineContext
+		case kind != LineContext:
+			changes++
 		}
 
-		// Add context after
-		for i := idx + 1; i <= idx+contextLines; i++ {
-			if i < totalLines {
-				expanded[i] = true
-			}
-		}
-	}
-
-	return expanded
-}
-
-func recalculateHunkHeader(selectedLines []Line) string {
-	if len(selectedLines) == 0 {
-		return "@@ -0,0 +0,0 @@"
-	}
-
-	// Calculate new line counts
-	oldCount := 0
-	newCount := 0
-	var oldStart, newStart int
-	firstLine := true
-
-	for _, line := range selectedLines {
-		if firstLine {
-			oldStart = line.OldLineNum
-			newStart = line.NewLineNum
-			firstLine = false
-		}
-
-		switch line.Type {
-		case LineContext:
+		if kind != LineAddition {
 			oldCount++
-			newCount++
-		case LineDeletion:
-			oldCount++
-		case LineAddition:
+		}
+
+		if kind != LineDeletion {
 			newCount++
 		}
+
+		body.WriteString(kind.String())
+		body.WriteString(line.Content)
+		body.WriteString("\n")
+
+		if line.NoNewline {
+			body.WriteString(noNewlineMarker + "\n")
+		}
 	}
 
-	return fmt.Sprintf("@@ -%d,%d +%d,%d @@", oldStart, oldCount, newStart, newCount)
+	if changes == 0 {
+		return 0
+	}
+
+	writeHunkHeader(out, hunk.OldStart, oldCount, newCount, delta)
+	out.WriteString(body.String())
+
+	return newCount - oldCount
 }
 
-// GeneratePatchForTag renders the patch for one split tag. The tag is already baked into the
-// selection the caller passes, so the output matches GeneratePatch over that same selection.
-func GeneratePatchForTag(files []FileChange, selection SelectionState) string {
-	return GeneratePatch(files, selection)
+// writeHunkHeader writes a recounted header, the new side's start shifted by delta. A side with no
+// lines names the line before where the hunk sits, as diff writes it.
+func writeHunkHeader(out *strings.Builder, oldStart, oldCount, newCount, delta int) {
+	if oldStart == 0 && oldCount > 0 {
+		oldStart = 1
+	}
+
+	newStart := oldStart + delta
+
+	switch {
+	case oldCount == 0 && newCount > 0:
+		newStart++
+	case newCount == 0 && oldCount > 0:
+		newStart--
+	}
+
+	fmt.Fprintf(out, "@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, max(newStart, 0), newCount)
 }
 
 // GetSelectedHunksMap is deprecated but kept for backward compatibility.

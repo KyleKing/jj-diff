@@ -2,52 +2,29 @@
 
 ## Keys
 
-Press `?` for the help overlay. It reads the live code and changes with the mode
-you are in, so trust it over this page, which lists only enough to start.
+The full table is in the [README](../README.md#keys). Press `?` for the help
+overlay, which is drawn from the same keymap as the footer and the dispatch, so it
+lists exactly what is bound on the screen you are on.
 
-| Key | Action |
-|-----|--------|
-| `j` / `k` | Move through files, or scroll the diff |
-| `tab` | Switch focus between the file list and the diff |
-| `n` / `p` | Next and previous hunk |
-| `/` | Search files and diff content |
-| `f` | Filter files by typing |
-| `?` | Help overlay |
-| `q` | Quit |
-
-The overlay also covers the display toggles (side-by-side, line numbers,
-whitespace, word-level diff), page and half-page scrolling, first and last
-file, and per-file jumps. Those change often enough that listing them here would
-go stale.
-
-Adding a keybinding touches the `handleKeyPress()` case in
-`internal/model/model.go`, the handler itself, and the help overlay in
-`internal/components/help/help.go`.
+The keymap is aragonite's shared `tui/keys` vocabulary plus jj-diff's own verbs,
+merged in `internal/model/keymap.go`. Adding a key means adding a binding there
+and a case in `internal/model/dispatch.go`; the help, the footer, and the
+which-key panel pick it up. `TestKeymap_AgreesWithShared` fails if a jj-diff key
+takes a key the shared table gives another action.
 
 ## Modes
 
 Browse mode is read-only. It is the default, and `-browse` forces it.
 
-Interactive mode selects and moves changes. `--interactive` starts it.
-
-| Key | Action |
-|-----|--------|
-| `d` | Choose the destination revision |
-| `space` | Toggle hunk selection |
-| `v` | Visual mode, for line-level selection |
-| `a` | Apply the selected changes |
-| `S` | Toggle multi-split mode |
-
-Multi-split mode tags changes and splits them across commits.
-
-| Key | Action |
-|-----|--------|
-| `a` to `z` | Tag the current hunk with that letter |
-| `D` | Assign tags to commits |
-| `P` | Preview and apply the split |
+Interactive mode (`--interactive`) squashes, splits out, or discards a selection:
+`s` opens a destination picker, `S` splits the selection out to a new commit
+beneath the revision, `R` discards it, and `c` squashes into the `-d` destination.
+Each is one jj operation that `jj undo` reverses.
 
 Diff-editor mode runs when jj invokes jj-diff for `jj split`, `jj diffedit`,
-`jj amend -i`, or `jj squash -i`. See [configuration](./configuration.md).
+`jj amend -i`, or `jj squash -i`. `c` writes the selection and returns to jj; `q`
+without writing exits non-zero so jj leaves the revision alone. See
+[configuration](./configuration.md).
 
 ## Visual indicators
 
@@ -55,7 +32,6 @@ Diff-editor mode runs when jj invokes jj-diff for `jj split`, `jj diffedit`,
 - A hunk is headed by the function or type it sits in and the lines it spans,
   `func greet(name string) string {  L5–15`, rather than its raw `@@` header
 - `✓` after that range marks a selected hunk
-- `[a]` after it marks a hunk tagged in multi-split mode
 - `┃` in the margin marks the visual selection range
 - `•` in the margin marks a selected line
 - `▎` beside the line number marks a changed line, in green or red by its side,

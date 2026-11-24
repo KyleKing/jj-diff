@@ -35,14 +35,18 @@ jj-diff/
 **JJ Client** (`internal/jj/client.go`)
 
 - Abstraction for jj command execution
-- MoveChanges: applies patches using `jj new` + `git apply` + `jj squash`
-- Automatic rollback on errors
+- MoveChanges, Split, Restore: one `jj squash -i`, `jj split -i`, or `jj restore -i` with
+  jj-diff itself as the diff editor (`--apply-patch` / `--unapply-patch`), which makes `$right`
+  the `$left` tree plus the precomputed selection without drawing anything. jj does the move,
+  so it works for any destination and is one operation
+- Automatic rollback to the operation recorded before a write that fails after integrating
 
 **Diff Subsystem** (`internal/diff/`)
 
 - Parser: converts unified diff to structured data
 - Patch Generator: creates patches from hunk and line selections
-- Supports whole hunks and partial hunks with context expansion
+- Supports whole hunks and partial hunks: an unselected deletion becomes context and an
+  unselected addition is dropped, and every header is recounted
 
 **Components** (`internal/components/`)
 

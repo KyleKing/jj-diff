@@ -1,5 +1,6 @@
 // Package statusbar renders the single-line footer: the mode, the diff's source and destination, and
-// the keybinding hints for whatever the user is doing.
+// the keybinding hints the parent's keymap says work where the user is. It holds no keys of its own,
+// so the footer cannot drift from what the keys do.
 package statusbar
 
 import (
@@ -13,11 +14,6 @@ import (
 )
 
 const (
-	panelFiles = "files"
-
-	modeDiffEditor  = "Diff-Editor"
-	modeInteractive = "Interactive"
-
 	ellipsis = "…"
 
 	// The footer keeps margin columns off the terminal's edge, in line with the panes above it.
@@ -27,31 +23,47 @@ const (
 	// Two part one fact from the next.
 	factGap = "  "
 
-	keyLines = "j/k"
-	keySpace = "space"
-
 	sourceShare    = 2
 	minSourceWidth = 12
 )
 
-// The hints most screens offer, named once so a mode's list reads as what it adds.
-var (
-	hintApply   = keyhint.Hint{Key: "a", What: "apply"}
-	hintDest    = keyhint.Hint{Key: "d", What: "dest"}
-	hintHelp    = keyhint.Hint{Key: "?", What: "help"}
-	hintNav     = keyhint.Hint{Key: keyLines, What: "nav"}
-	hintScroll  = keyhint.Hint{Key: keyLines, What: "scroll"}
-	hintTabDiff = keyhint.Hint{Key: "tab", What: "diff"}
-)
-
-// Context is what the footer describes. Destination is omitted from the render when empty, and
-// FocusedPanel is "files" or the diff pane, which selects which hints are shown.
+// Context is what the footer describes. Destination is omitted from the render when empty. Hints
+// are the keys that work here, most useful first: Fit sheds from the end, and a Pin hint stays.
+// Notice is a message about the last thing done, which takes the place of the facts while it is up.
 type Context struct {
 	Destination  string
-	FocusedPanel string
 	Mode         string
 	Source       string
+	Notice       string
+	Hints        []keyhint.Hint
 	IsVisualMode bool
+	// Alarm draws Notice as a failure rather than news.
+	Alarm bool
+}
+
+// key is everything the drawn line depends on, comparable so the last line can be reused.
+func (c *Context) key() string {
+	var b strings.Builder
+
+	b.WriteString(c.Destination + "\x00" + c.Mode + "\x00" + c.Source + "\x00" + c.Notice)
+
+	if c.IsVisualMode {
+		b.WriteString("\x00v")
+	}
+
+	if c.Alarm {
+		b.WriteString("\x00a")
+	}
+
+	for _, h := range c.Hints {
+		b.WriteString("\x00" + h.Key + "\x01" + h.What)
+
+		if h.Pin {
+			b.WriteString("\x01p")
+		}
+	}
+
+	return b.String()
 }
 
 // Model renders the footer entirely from the Context passed to each call. It keeps the last line it
@@ -62,7 +74,7 @@ type Model struct {
 
 type drawnLine struct {
 	line       string
-	ctx        Context
+	key        string
 	generation uint64
 	width      int
 }
@@ -72,24 +84,12 @@ func New() Model {
 	return Model{last: &drawnLine{}}
 }
 
-// View renders the footer with the file list treated as focused. Use ViewWithContext to say which
-// panel has focus.
-func (m Model) View(width int, modeText, source, destination string, isVisualMode bool) string {
-	return m.ViewWithContext(width, Context{
-		Mode:         modeText,
-		Source:       source,
-		Destination:  destination,
-		IsVisualMode: isVisualMode,
-		FocusedPanel: panelFiles,
-	})
-}
-
 // ViewWithContext renders the footer to exactly width cells: the mode and the revisions it moves
 // between as quiet facts, then the keys that work here in the shape every sibling tool's footer
 // takes, the key in the accent and what it does muted. Hints that do not fit are shed from the end
 // of the list, and the help hint always survives because it is the only route to the rest of the
 // keymap, as esc does in a visual selection. The facts give way before either does.
-func (m Model) ViewWithContext(width int, ctx Context) string {
+func (m Model) ViewWithContext(width int, ctx *Context) string {
 	if width <= 0 {
 		return ""
 	}
@@ -98,17 +98,18 @@ func (m Model) ViewWithContext(width int, ctx Context) string {
 		return m.draw(width, ctx)
 	}
 
-	if gen := theme.Generation(); m.last.width != width || m.last.ctx != ctx || m.last.generation != gen {
-		*m.last = drawnLine{line: m.draw(width, ctx), ctx: ctx, width: width, generation: gen}
+	gen, key := theme.Generation(), ctx.key()
+	if m.last.width != width || m.last.key != key || m.last.generation != gen {
+		*m.last = drawnLine{line: m.draw(width, ctx), key: key, width: width, generation: gen}
 	}
 
 	return m.last.line
 }
 
-func (m Model) draw(width int, ctx Context) string {
+func (Model) draw(width int, ctx *Context) string {
 	lead := strings.Repeat(" ", min(margin, width))
 	facts := facts(ctx, width)
-	hints := m.getContextHints(ctx)
+	hints := ctx.Hints
 	room := width - margin - lipgloss.Width(facts) - len(partGap)
 
 	if room < lipgloss.Width(keyhint.Pinned(hintStyles(), hints)) {
@@ -128,8 +129,18 @@ func hintStyles() keyhint.Styles {
 	return keyhint.Styles{Key: theme.Skin.Accent, Text: theme.Skin.Muted, Bare: true, Gap: partGap}
 }
 
-// facts is the mode, then the source and destination, each a step quieter than the one before.
-func facts(ctx Context, width int) string {
+// facts is the mode, then the source and destination, each a step quieter than the one before, or
+// the notice in their place while one is up.
+func facts(ctx *Context, width int) string {
+	if ctx.Notice != "" {
+		face := theme.Skin.Accent
+		if ctx.Alarm {
+			face = theme.Skin.Error
+		}
+
+		return face.Render(ellipsize(ctx.Notice, max(width*2/3, minSourceWidth))) //nolint:mnd // two thirds
+	}
+
 	mode := theme.Skin.Subtitle.Render(ctx.Mode)
 	if ctx.IsVisualMode {
 		mode += " " + theme.Skin.Cursor.Render("VISUAL")
@@ -146,46 +157,6 @@ func facts(ctx Context, width int) string {
 	}
 
 	return strings.Join(parts, factGap)
-}
-
-// getContextHints returns the keys that do something right now, most useful first, so the footer
-// sheds from the end of the list. Mode is checked before the focused panel: interactive mode starts
-// on the file list, so testing the panel first hides its whole vocabulary behind a Tab press.
-func (Model) getContextHints(ctx Context) []keyhint.Hint {
-	var hints []keyhint.Hint
-
-	switch onFiles := ctx.FocusedPanel == panelFiles; {
-	case ctx.IsVisualMode:
-		hints = []keyhint.Hint{
-			{Key: keyLines, What: "select"}, {Key: keySpace, What: "confirm"}, {Key: "esc", What: "cancel"},
-		}
-	case ctx.Mode == modeDiffEditor && onFiles:
-		hints = []keyhint.Hint{hintNav, hintTabDiff, hintApply, hintHelp}
-	case ctx.Mode == modeDiffEditor:
-		hints = []keyhint.Hint{hintScroll, {Key: keySpace, What: "keep/drop"}, hintApply, hintHelp}
-	case ctx.Mode == modeInteractive && onFiles:
-		hints = []keyhint.Hint{hintNav, hintTabDiff, hintDest, hintApply, hintHelp}
-	case ctx.Mode == modeInteractive:
-		hints = []keyhint.Hint{
-			hintScroll, {Key: keySpace, What: "select"}, {Key: "v", What: "lines"}, hintDest, hintApply, hintHelp,
-		}
-	case onFiles:
-		hints = []keyhint.Hint{hintNav, hintTabDiff, {Key: "/", What: "search"}, {Key: "f", What: "find"}, hintHelp}
-	default:
-		hints = []keyhint.Hint{
-			hintScroll, {Key: "ctrl-d/u", What: "page"}, {Key: "w", What: "ws"}, {Key: "s", What: "sbs"}, hintHelp,
-		}
-	}
-
-	// Fit sheds the lowest priority first, so the order above is the order hints survive in. The
-	// last is the way out of where the reader is (help, or esc in a visual selection) and is pinned.
-	for i := range hints {
-		hints[i].Priority = len(hints) - i
-	}
-
-	hints[len(hints)-1].Pin = true
-
-	return hints
 }
 
 // ellipsize cuts text to at most width display cells, ending in an ellipsis when it cut.

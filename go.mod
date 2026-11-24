@@ -7,7 +7,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.9
-	github.com/kyleking/aragonite v1.20.3
+	github.com/kyleking/aragonite v1.21.0
 	github.com/sergi/go-diff v1.4.0
 )
 

@@ -1,0 +1,36 @@
+╭──────────────────────────────────────────────────────────────────╮
+│ ── Keys · Diff-Editor ────────────────────────────────────────── │
+│                                                                  │
+│ ── General ───────────────────────────────────────────────────── │
+│                   ?  help                                        │
+│                   q  close, or quit at the root                  │
+│                 esc  back out one level                          │
+│              ctrl+c  cancel the running command, else quit       │
+│                   u  undo                                        │
+│              ctrl+r  redo                                        │
+│              ctrl+l  reload from the source                      │
+│                 tab  next pane                                   │
+│                                                                  │
+│ ── Move ──────────────────────────────────────────────────────── │
+│                  gg  top                                         │
+│                   G  bottom                                      │
+│              j/down  down a line                                 │
+│                k/up  up a line                                   │
+│              ctrl+d  half a page down                            │
+│              ctrl+u  half a page up                              │
+│              ctrl+f  a page down                                 │
+│              ctrl+b  a page up                                   │
+│   ctrl+e/shift+down  scroll a line down                          │
+│     ctrl+y/shift+up  scroll a line up                            │
+│               enter  show the file's diff                        │
+│                                                                  │
+│ ── Find ──────────────────────────────────────────────────────── │
+│                   /  search                                      │
+│                   f  show only files matching a pattern          │
+│                                                                  │
+│ ── Jump ──────────────────────────────────────────────────────── │
+│                   n  repeat the last motion                      │
+│                   N  repeat the last motion backward             │
+│                                                                  │
+│ esc close                                                        │
+╰──────────────────────────────────────────────────────────────────╯

@@ -162,3 +162,18 @@ func DirectoryOf(src Source) (*DirectorySource, bool) {
 
 	return dirs, ok
 }
+
+// RevisionOf is the revset behind src, through a Prefetch, which the write paths move changes out
+// of. It is false for a source that is not a revision.
+func RevisionOf(src Source) (string, bool) {
+	if p, ok := src.(*Prefetched); ok {
+		src = p.Source
+	}
+
+	rev, ok := src.(*RevisionSource)
+	if !ok {
+		return "", false
+	}
+
+	return rev.Revision, true
+}

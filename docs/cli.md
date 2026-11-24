@@ -48,4 +48,5 @@ jj squash -i      # squash interactively
 ```
 
 Select the changes to keep with `space`, refine to individual lines with `v`,
-and press `a` to save and exit back to jj.
+and press `c` to write them and return to jj. `q` without writing exits non-zero,
+so jj leaves the revision as it was.

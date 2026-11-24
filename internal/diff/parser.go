@@ -63,7 +63,13 @@ type Line struct {
 	Type       LineType
 	OldLineNum int
 	NewLineNum int
+	// NoNewline marks the last line of a side that ends without a newline, which git writes as a
+	// `\ No newline at end of file` line after it rather than as a line of its own.
+	NoNewline bool
 }
+
+// noNewlineMarker is the line git writes after a line the file does not end with a newline.
+const noNewlineMarker = `\ No newline at end of file`
 
 // LineType marks a diff line as context, an addition, or a deletion. String returns the diff
 // marker, which patch rendering writes back in front of the content.
@@ -158,23 +164,8 @@ func parseFileChange(section string) *FileChange {
 			continue
 		}
 
-		if currentHunk == nil || line == "" {
-			continue
-		}
-
-		parsed := classifyLine(line)
-		parsed.OldLineNum = oldLineNum
-		parsed.NewLineNum = newLineNum
-		currentHunk.Lines = append(currentHunk.Lines, parsed)
-
-		switch parsed.Type {
-		case LineContext:
-			oldLineNum++
-			newLineNum++
-		case LineAddition:
-			newLineNum++
-		case LineDeletion:
-			oldLineNum++
+		if currentHunk != nil && line != "" {
+			oldLineNum, newLineNum = addLine(currentHunk, line, oldLineNum, newLineNum)
 		}
 	}
 
@@ -183,6 +174,34 @@ func parseFileChange(section string) *FileChange {
 	}
 
 	return file
+}
+
+// addLine appends one body line to hunk and answers the line numbers the next line starts at. The
+// marker for a missing final newline is not a line: it flags the line before it.
+func addLine(hunk *Hunk, line string, oldLineNum, newLineNum int) (int, int) {
+	if strings.HasPrefix(line, `\`) {
+		if n := len(hunk.Lines); n > 0 {
+			hunk.Lines[n-1].NoNewline = true
+		}
+
+		return oldLineNum, newLineNum
+	}
+
+	parsed := classifyLine(line)
+	parsed.OldLineNum = oldLineNum
+	parsed.NewLineNum = newLineNum
+	hunk.Lines = append(hunk.Lines, parsed)
+
+	switch parsed.Type {
+	case LineContext:
+		return oldLineNum + 1, newLineNum + 1
+	case LineAddition:
+		return oldLineNum, newLineNum + 1
+	case LineDeletion:
+		return oldLineNum + 1, newLineNum
+	}
+
+	return oldLineNum, newLineNum
 }
 
 // classifyLine reads a non-empty diff line into its kind and its content with the marker stripped,

@@ -1,5 +1,6 @@
 // Package jj shells out to the jj binary for the diff, status, and revision data the UI needs, and
-// carries the one write path that moves selected changes into another revision.
+// carries the write paths that move, split out, or discard a selection. Every write is one jj command
+// that runs this program back as jj's diff editor, so jj itself does the rewriting.
 package jj
 
 import (
@@ -7,16 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
-
-// patchFileMode is the permission the temporary patch file is written with. It holds the user's
-// unsquashed changes, so it stays readable only by them.
-const patchFileMode = 0o600
 
 // statusFieldCount is the smallest number of whitespace-separated fields a jj status line carries: a
 // one-letter change type and a path.
@@ -26,12 +21,28 @@ const statusFieldCount = 2
 // in a tea.Cmd. No call is cancellable, so each one runs under a background context.
 type Client struct {
 	baseDir string
+	// editor is the jj-diff binary jj runs as the diff editor for a write, empty for this process.
+	editor string
+}
+
+// Option configures a Client.
+type Option func(*Client)
+
+// WithEditor names the jj-diff binary jj runs to apply a selection, which is this process's own
+// executable unless a caller (a test running inside go test) has to name a built one.
+func WithEditor(path string) Option {
+	return func(c *Client) { c.editor = path }
 }
 
 // NewClient runs jj with baseDir as the working directory, so baseDir decides which repository every
 // call acts on.
-func NewClient(baseDir string) *Client {
-	return &Client{baseDir: baseDir}
+func NewClient(baseDir string, opts ...Option) *Client {
+	c := &Client{baseDir: baseDir}
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 // jjCommand builds a jj invocation rooted at the client's repository.
@@ -57,14 +68,8 @@ func (*Client) CheckInstalled() error {
 // Diff returns the git-format diff for a revset, uncolored. The revset is resolved by jj at call
 // time, so a moving revset such as @ follows the working copy.
 func (c *Client) Diff(revision string) (string, error) {
-	cmd := c.jjCommand("diff", "-r", revision, "--git", "--color=never")
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("jj diff failed: %w: %s", err, output)
-	}
-
-	return string(output), nil
+	// stdout alone: a warning jj prints on stderr would otherwise be parsed as part of the diff.
+	return c.executeJJ("diff", "-r", revision, "--git", "--color=never")
 }
 
 // Status lists the working copy's changed files. Lines jj prints that are not file entries are
@@ -127,151 +132,6 @@ func (c *Client) Undo() error {
 	return nil
 }
 
-// MoveChanges applies a patch onto destination and squashes it there. Nothing the patch does not carry
-// is touched: the caller's working copy is never read, written, or moved by the sequence, because every
-// write happens in a throwaway workspace. The temp file holding the patch is removed even on failure,
-// and a failure to remove it is joined onto the returned error.
-func (c *Client) MoveChanges(patch, _, destination string) (err error) {
-	tmpDir, err := os.MkdirTemp("", "jj-diff-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	defer func() {
-		if rmErr := os.RemoveAll(tmpDir); rmErr != nil {
-			err = errors.Join(err, fmt.Errorf("failed to remove temp dir %s: %w", tmpDir, rmErr))
-		}
-	}()
-
-	patchFile := filepath.Join(tmpDir, "changes.patch")
-	if err := os.WriteFile(patchFile, []byte(patch), patchFileMode); err != nil {
-		return fmt.Errorf("failed to write patch: %w", err)
-	}
-
-	return c.moveChangesWithPatch(patchFile, destination)
-}
-
-// moveChangesWithPatch pins the destination before any command runs, then builds the patch into a
-// commit from a scratch workspace. A failure anywhere rolls the repository back to the operation
-// recorded up front, and a rollback that itself failed is reported alongside the cause.
-func (c *Client) moveChangesWithPatch(patchFile, destination string) error {
-	destID, err := c.resolveChangeID(destination)
-	if err != nil {
-		return fmt.Errorf("failed to resolve destination %q: %w", destination, err)
-	}
-
-	opID, err := c.getCurrentOperationID()
-	if err != nil {
-		return fmt.Errorf("failed to get operation ID for rollback: %w", err)
-	}
-
-	if err := c.applyPatchInScratchWorkspace(patchFile, destID); err != nil {
-		return c.restoreOperationAfter(opID, err)
-	}
-
-	return nil
-}
-
-// Sentinel errors the move path returns on its own rather than wrapping one from jj or git.
-var (
-	errRevsetNoMatch       = errors.New("revset matched no revision")
-	errNoSplitPlans        = errors.New("no split plans provided")
-	errPatchChangedNothing = errors.New("the patch applied cleanly but changed nothing, so there is nothing to move")
-)
-
-// scratchWorkspacePrefix names both the temp directory and the jj workspace, so a leaked workspace is
-// identifiable in jj workspace list.
-const scratchWorkspacePrefix = "jj-diff-scratch"
-
-// applyPatchInScratchWorkspace builds the patch into a commit on destID from a workspace of its own.
-// No command here names @, so the caller's working copy is untouched whether the run succeeds or
-// fails. The workspace is forgotten and its directory removed on every return path, including a panic,
-// though a panic discards the cleanup's own error along with the return value.
-func (c *Client) applyPatchInScratchWorkspace(patchFile, destID string) (err error) {
-	root, err := os.MkdirTemp("", scratchWorkspacePrefix+"-*")
-	if err != nil {
-		return fmt.Errorf("failed to create scratch workspace directory: %w", err)
-	}
-
-	// jj creates the workspace directory itself and refuses an existing one, so it goes under root
-	// rather than being root.
-	name := filepath.Base(root)
-	dir := filepath.Join(root, "workspace")
-
-	if _, addErr := c.executeJJ("workspace", "add", "--name", name, dir); addErr != nil {
-		addErr = fmt.Errorf("failed to create scratch workspace: %w", addErr)
-		if rmErr := os.RemoveAll(root); rmErr != nil {
-			addErr = errors.Join(addErr, fmt.Errorf("failed to remove %s: %w", root, rmErr))
-		}
-
-		return addErr
-	}
-
-	defer func() {
-		err = errors.Join(err, c.removeScratchWorkspace(name, root))
-	}()
-
-	scratch := &Client{baseDir: dir}
-
-	if _, err := scratch.executeJJ("new", destID); err != nil {
-		return fmt.Errorf("failed to create scratch commit on %s: %w", destID, err)
-	}
-
-	if err := applyPatchFile(dir, root, patchFile); err != nil {
-		return err
-	}
-
-	changed, err := scratch.Diff("@")
-	if err != nil {
-		return fmt.Errorf("failed to read the scratch commit: %w", err)
-	}
-
-	if strings.TrimSpace(changed) == "" {
-		return errPatchChangedNothing
-	}
-
-	if _, err := scratch.executeJJ("squash", "--into", destID); err != nil {
-		return fmt.Errorf("failed to squash changes into %s: %w", destID, err)
-	}
-
-	return nil
-}
-
-// removeScratchWorkspace drops the workspace from the repository and deletes its directory, reporting
-// both failures rather than the first, because either one left behind is a leak the caller should see.
-func (c *Client) removeScratchWorkspace(name, root string) error {
-	var errs error
-
-	if _, err := c.executeJJ("workspace", "forget", name); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("failed to forget scratch workspace %s: %w", name, err))
-	}
-
-	if err := os.RemoveAll(root); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("failed to remove %s: %w", root, err))
-	}
-
-	return errs
-}
-
-// applyPatchFile applies patchFile inside dir. Git resolves a patch's paths against the nearest
-// enclosing repository rather than against the working directory, so an unrelated repository above
-// ceiling would turn the apply into a silent no-op. The ceiling stops that search.
-func applyPatchFile(dir, ceiling, patchFile string) error {
-	if resolved, err := filepath.EvalSymlinks(ceiling); err == nil {
-		ceiling = resolved
-	}
-
-	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.
-	cmd := exec.CommandContext(context.Background(), "git", "apply", patchFile)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GIT_CEILING_DIRECTORIES="+ceiling)
-
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to apply patch: %w: %s", err, output)
-	}
-
-	return nil
-}
-
 // resolveChangeID pins a revset to the change ID it names right now. A revset such as @- moves as the
 // repository changes underneath it, so anything that outlives a single command has to hold the change
 // ID instead of the revset that produced it.
@@ -289,9 +149,14 @@ func (c *Client) resolveChangeID(revset string) (string, error) {
 	return changeID, nil
 }
 
-// restoreOperationAfter reports cause, and additionally reports when restoring
-// opID failed and the repository is therefore left modified.
+// restoreOperationAfter reports cause, restoring opID first when an operation landed after it, and
+// additionally reports when that restore failed and the repository is therefore left modified. A
+// command jj refused writes no operation, and restoring then would only add one.
 func (c *Client) restoreOperationAfter(opID string, cause error) error {
+	if now, err := c.getCurrentOperationID(); err == nil && now == opID {
+		return cause
+	}
+
 	if restoreErr := c.restoreOperation(opID); restoreErr != nil {
 		return errors.Join(
 			cause,
@@ -302,31 +167,38 @@ func (c *Client) restoreOperationAfter(opID string, cause error) error {
 	return cause
 }
 
-// GetRevisions lists recent revisions newest first for the destination picker, defaulting to 20 when
-// limit is not positive.
-func (c *Client) GetRevisions(limit int) ([]RevisionEntry, error) {
+// defaultRevisionLimit is how many rows GetRevisions lists when the caller names no limit.
+const defaultRevisionLimit = 500
+
+// Destinations is the revset a destination picker lists for source: every visible revision but the
+// source itself and the root, which no selection can move into.
+func Destinations(source string) string {
+	return "~(" + source + ") ~ root()"
+}
+
+// GetRevisions lists revset's revisions in graph order, newest first, for a destination picker. A
+// limit that is not positive lists defaultRevisionLimit rows.
+func (c *Client) GetRevisions(revset string, limit int) ([]RevisionEntry, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = defaultRevisionLimit
 	}
 
 	// jj emits one record per revision with no separator between them, so the
 	// template has to terminate each record itself for the parser to find the
 	// three-line boundaries.
 	template := `separate("\n",` +
-		`change_id.shortest() ++ "\t" ++ change_id.short(8) ++ "\t" ++ if(current_working_copy, "@"),` +
+		`change_id.shortest() ++ "\t" ++ change_id.short(8) ++ "\t" ++ if(current_working_copy, "@") ++ ` +
+		`"\t" ++ if(immutable, "!"),` +
 		`if(description, description.first_line(), "(no description)")) ++ "\n---\n"`
 
-	cmd := c.jjCommand("log",
-		"--no-graph",
-		"--limit", strconv.Itoa(limit),
-		"--template", template)
-
-	output, err := cmd.CombinedOutput()
+	output, err := c.executeJJ(
+		"log", "-r", revset, "--no-graph", "--limit", strconv.Itoa(limit), "--template", template,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("jj log failed: %w: %s", err, output)
+		return nil, err
 	}
 
-	return parseRevisionEntries(string(output)), nil
+	return parseRevisionEntries(output), nil
 }
 
 // RevisionEntry is one row of the destination picker. ChangeID is jj's shortest unique prefix, so it
@@ -338,32 +210,8 @@ type RevisionEntry struct {
 	Description string
 	// WorkingCopy marks the revision @ points at.
 	WorkingCopy bool
-}
-
-// SplitDestinationType separates a split target that already exists from one that will be created.
-type SplitDestinationType int
-
-// Targets a split plan can send its patch to. SplitDestExistingRevision is the zero value, so a
-// SplitDestination that was never filled in reads as targeting an existing revision.
-const (
-	SplitDestExistingRevision SplitDestinationType = iota
-	SplitDestNewCommit
-)
-
-// SplitDestination is where one split plan's patch lands. ChangeID is empty for SplitDestNewCommit,
-// where Description becomes the message of the commit that gets created.
-type SplitDestination struct {
-	ChangeID    string
-	Description string
-	Type        SplitDestinationType
-}
-
-// SplitPlan is one tag's patch and the destination it goes to. Tag is carried through for error
-// messages and has no meaning to jj.
-type SplitPlan struct {
-	Patch       string
-	Destination SplitDestination
-	Tag         rune
+	// Immutable marks a revision jj refuses to rewrite, which no squash can go into.
+	Immutable bool
 }
 
 // FileStatus is one entry from jj status.
@@ -498,8 +346,9 @@ func parseRevisionEntries(output string) []RevisionEntry {
 			entry.Short = ids[1]
 		}
 
-		const markField = 2
+		const markField, immutableField = 2, 3
 		entry.WorkingCopy = len(ids) > markField && ids[markField] == "@"
+		entry.Immutable = len(ids) > immutableField && ids[immutableField] == "!"
 		entries = append(entries, entry)
 	}
 
@@ -515,29 +364,6 @@ func (c *Client) getCurrentOperationID() (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-// createNewCommit inserts an empty described commit directly beneath source, rebasing source onto it,
-// and returns the new commit's change ID.
-//
-// Inserting beneath source rather than above it is what makes a split work at all. MoveChanges only
-// ever adds a patch to its destination, so the source stops reporting those hunks only when the
-// destination is one of its ancestors. A commit created as a child of source already contains every
-// change source has, and the patch cannot apply on top of itself.
-//
-// The rebase moves source's parent pointer and leaves its content alone, so no unselected change can
-// be lost here. ApplySplit's caller restores the recorded operation if any later step fails.
-func (c *Client) createNewCommit(description, source string) (string, error) {
-	if _, err := c.executeJJ("new", "--insert-before", source, "--no-edit", "-m", description); err != nil {
-		return "", fmt.Errorf("failed to create new commit: %w", err)
-	}
-
-	changeID, err := c.resolveChangeID(source + "-")
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve the commit inserted beneath %s: %w", source, err)
-	}
-
-	return changeID, nil
-}
-
 func (c *Client) restoreOperation(opID string) error {
 	if _, err := c.executeJJ("op", "restore", opID); err != nil {
 		return fmt.Errorf("failed to restore operation: %w", err)
@@ -546,48 +372,19 @@ func (c *Client) restoreOperation(opID string) error {
 	return nil
 }
 
-// ApplySplit runs the plans in order, creating a commit first for each plan that needs one. A failure
-// part way through restores the operation recorded before the first plan, so the repository goes back
-// to where it started rather than keeping the plans that already succeeded.
-//
-// This is the one path that rebases source, because a plan targeting a new commit inserts that commit
-// beneath source. Only the parent pointer moves; source keeps every byte it had, so an unselected
-// change cannot be lost here.
-func (c *Client) ApplySplit(plans []SplitPlan, source string) error {
-	if len(plans) == 0 {
-		return errNoSplitPlans
+// executeJJStderr runs jj and answers what it printed on stderr, which is where it reports what a
+// write did.
+func (c *Client) executeJJStderr(args ...string) (string, error) {
+	cmd := c.jjCommand(args...)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("jj %s failed: %w: %s", args[0], err, strings.TrimSpace(stderr.String()))
 	}
 
-	opID, err := c.getCurrentOperationID()
-	if err != nil {
-		return fmt.Errorf("failed to get operation ID for rollback: %w", err)
-	}
-
-	for i, plan := range plans {
-		var destChangeID string
-
-		if plan.Destination.Type == SplitDestNewCommit {
-			changeID, err := c.createNewCommit(plan.Destination.Description, source)
-			if err != nil {
-				return c.restoreOperationAfter(
-					opID,
-					fmt.Errorf("failed to create new commit for tag %c: %w", plan.Tag, err),
-				)
-			}
-			destChangeID = changeID
-		} else {
-			destChangeID = plan.Destination.ChangeID
-		}
-
-		if err := c.MoveChanges(plan.Patch, source, destChangeID); err != nil {
-			return c.restoreOperationAfter(
-				opID,
-				fmt.Errorf("failed to apply patch for tag %c (plan %d): %w", plan.Tag, i+1, err),
-			)
-		}
-	}
-
-	return nil
+	return stderr.String(), nil
 }
 
 func (c *Client) executeJJ(args ...string) (string, error) {
@@ -603,4 +400,9 @@ func (c *Client) executeJJ(args ...string) (string, error) {
 	}
 
 	return stdout.String(), nil
+}
+
+// ChangeID is the full change ID a revset names now, the first when it names several.
+func (c *Client) ChangeID(revset string) (string, error) {
+	return c.resolveChangeID(revset)
 }

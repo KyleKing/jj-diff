@@ -303,6 +303,96 @@ func (m *Model) ToggleFold(hunkIdx int) {
 	}
 }
 
+// SetFolds folds every mechanical hunk, or opens every one, and collapses or opens a generated file
+// with them: zM and zR.
+func (m *Model) SetFolds(folded bool) {
+	if m.fileChange == nil {
+		return
+	}
+
+	m.generatedOpen = !folded
+	m.relayout(func() {
+		for hunkIdx := range m.shown {
+			if m.foldReason(hunkIdx) != "" {
+				m.expanded[hunkIdx] = !folded
+			}
+		}
+	})
+}
+
+// InvertFolds opens every folded hunk and folds every open one that can fold: zi.
+func (m *Model) InvertFolds() {
+	if m.fileChange == nil {
+		return
+	}
+
+	m.relayout(func() {
+		for hunkIdx := range m.shown {
+			if m.foldReason(hunkIdx) != "" {
+				m.expanded[hunkIdx] = !m.expanded[hunkIdx]
+			}
+		}
+	})
+}
+
+// FramePosition is where Frame puts a row on screen.
+type FramePosition int
+
+// The three places zz, zt, and zb put the cursor's row.
+const (
+	FrameMiddle FramePosition = iota
+	FrameTop
+	FrameBottom
+)
+
+// Frame scrolls so the row of line lineIdx in hunkIdx (the header for a negative lineIdx) sits at
+// pos in a pane viewHeight rows tall.
+func (m *Model) Frame(hunkIdx, lineIdx int, pos FramePosition, viewHeight int) {
+	row, ok := m.rowOf(hunkIdx, lineIdx)
+	if !ok {
+		return
+	}
+
+	switch pos {
+	case FrameTop:
+	case FrameMiddle:
+		row -= viewHeight / halfDivisor
+	case FrameBottom:
+		row -= viewHeight - 1
+	}
+
+	m.offset = max(min(row, m.lineIndex.TotalLines-1), 0)
+}
+
+// Show scrolls the least it takes to bring hunkIdx's header into a pane viewHeight rows tall, which
+// is what a jump to a hunk does before the reader looks for it.
+func (m *Model) Show(hunkIdx, viewHeight int) {
+	row, ok := m.rowOf(hunkIdx, -1)
+	if !ok {
+		return
+	}
+
+	switch {
+	case row < m.offset:
+		m.offset = row
+	case row >= m.offset+viewHeight:
+		m.offset = max(row-viewHeight/halfDivisor, 0)
+	}
+}
+
+func (m *Model) rowOf(hunkIdx, lineIdx int) (int, bool) {
+	if m.lineIndex == nil || hunkIdx < 0 || hunkIdx >= len(m.lineIndex.HunkOffsets) {
+		return 0, false
+	}
+
+	row := m.lineIndex.HunkOffsets[hunkIdx]
+	if lineIdx >= 0 && !m.isFolded(hunkIdx) {
+		row += 1 + min(lineIdx, m.lineIndex.HunkLineCounts[hunkIdx]-2) //nolint:mnd // the header and the last row
+	}
+
+	return row, true
+}
+
 // Reveal unfolds whatever hides hunkIdx, for a caller about to put a cursor inside it.
 func (m *Model) Reveal(hunkIdx int) {
 	if m.fileChange == nil || (!m.collapsed() && !m.isFolded(hunkIdx)) {

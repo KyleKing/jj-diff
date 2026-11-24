@@ -58,7 +58,9 @@ func TestGeneratePatch_SingleHunk(t *testing.T) {
 			ChangeType: diff.ChangeTypeModified,
 			Hunks: []diff.Hunk{
 				{
-					Header: "@@ -1,3 +1,4 @@",
+					Header:   "@@ -1,2 +1,3 @@",
+					OldStart: 1,
+					NewStart: 1,
 					Lines: []diff.Line{
 						{Type: diff.LineContext, Content: "line 1"},
 						{Type: diff.LineAddition, Content: "new line"},
@@ -85,7 +87,7 @@ func TestGeneratePatch_SingleHunk(t *testing.T) {
 	if !strings.Contains(patch, "+++ b/file.txt") {
 		t.Error("Patch missing +++ line")
 	}
-	if !strings.Contains(patch, "@@ -1,3 +1,4 @@") {
+	if !strings.Contains(patch, "@@ -1,2 +1,3 @@") {
 		t.Error("Patch missing hunk header")
 	}
 	if !strings.Contains(patch, " line 1") {
@@ -106,14 +108,18 @@ func TestGeneratePatch_MultipleHunks(t *testing.T) {
 			ChangeType: diff.ChangeTypeModified,
 			Hunks: []diff.Hunk{
 				{
-					Header: "@@ -1,2 +1,3 @@",
+					Header:   "@@ -1,1 +1,2 @@",
+					OldStart: 1,
 					Lines: []diff.Line{
+						{Type: diff.LineContext, Content: "a"},
 						{Type: diff.LineAddition, Content: "first hunk"},
 					},
 				},
 				{
-					Header: "@@ -10,2 +11,3 @@",
+					Header:   "@@ -10,1 +11,2 @@",
+					OldStart: 10,
 					Lines: []diff.Line{
+						{Type: diff.LineContext, Content: "j"},
 						{Type: diff.LineAddition, Content: "second hunk"},
 					},
 				},
@@ -127,10 +133,10 @@ func TestGeneratePatch_MultipleHunks(t *testing.T) {
 
 	patch := diff.GeneratePatch(files, newMockSelection(selection))
 
-	if !strings.Contains(patch, "@@ -1,2 +1,3 @@") {
+	if !strings.Contains(patch, "@@ -1,1 +1,2 @@") {
 		t.Error("Patch missing first hunk")
 	}
-	if !strings.Contains(patch, "@@ -10,2 +11,3 @@") {
+	if !strings.Contains(patch, "@@ -10,1 +11,2 @@") {
 		t.Error("Patch missing second hunk")
 	}
 }
@@ -435,117 +441,59 @@ func TestGeneratePatch_PartialHunk(t *testing.T) {
 	}
 }
 
-// TestExpandWithContext tests context expansion algorithm.
-func TestExpandWithContext(t *testing.T) {
+// TestGeneratePatch_PartialHunkKeepsUnselectedDeletionsAsContext pins the line-level rules: an
+// unselected deletion stays in the file, so it is context, and an unselected addition never arrives,
+// so it is dropped. Copying them through as changes moved lines nobody selected.
+func TestGeneratePatch_PartialHunkKeepsUnselectedDeletionsAsContext(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		selected     map[int]bool
-		expected     map[int]bool
-		name         string
-		totalLines   int
-		contextLines int
-	}{
-		{
-			name:         "single line with context",
-			selected:     map[int]bool{5: true},
-			totalLines:   10,
-			contextLines: 2,
-			expected:     map[int]bool{3: true, 4: true, 5: true, 6: true, 7: true},
-		},
-		{
-			name:         "line at start",
-			selected:     map[int]bool{0: true},
-			totalLines:   10,
-			contextLines: 3,
-			expected:     map[int]bool{0: true, 1: true, 2: true, 3: true},
-		},
-		{
-			name:         "line at end",
-			selected:     map[int]bool{9: true},
-			totalLines:   10,
-			contextLines: 3,
-			expected:     map[int]bool{6: true, 7: true, 8: true, 9: true},
-		},
-		{
-			name:         "adjacent selections merge",
-			selected:     map[int]bool{3: true, 5: true},
-			totalLines:   10,
-			contextLines: 1,
-			expected:     map[int]bool{2: true, 3: true, 4: true, 5: true, 6: true},
-		},
+	files := diff.Parse("diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,4 +1,4 @@\n a\n-b\n+B\n-c\n+C\n d\n")
+
+	mock := &mockSelectionState{
+		selections:     map[string]map[int]bool{},
+		partialHunks:   map[string]map[int]bool{"f": {0: true}},
+		lineSelections: map[string]map[int]map[int]bool{"f": {0: {3: true, 4: true}}},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := diff.ExpandWithContext(tt.selected, tt.totalLines, tt.contextLines)
-
-			if len(result) != len(tt.expected) {
-				t.Errorf("Expected %d lines, got %d", len(tt.expected), len(result))
-			}
-
-			for line := range tt.expected {
-				if !result[line] {
-					t.Errorf("Expected line %d to be included", line)
-				}
-			}
-		})
+	want := "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,4 +1,4 @@\n a\n b\n-c\n+C\n d\n"
+	if got := diff.GeneratePatch(files, mock); got != want {
+		t.Errorf("GeneratePatch() =\n%s\nwant\n%s", got, want)
 	}
 }
 
-// TestRecalculateHunkHeader tests hunk header recalculation.
-func TestRecalculateHunkHeader(t *testing.T) {
+func TestGeneratePatch_ShiftsLaterHunksByWhatEarlierOnesAdd(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		expected string
-		lines    []diff.Line
-	}{
-		{
-			name: "only additions",
-			lines: []diff.Line{
-				{Type: diff.LineAddition, Content: "line 1", OldLineNum: 0, NewLineNum: 1},
-				{Type: diff.LineAddition, Content: "line 2", OldLineNum: 0, NewLineNum: 2},
-			},
-			expected: "@@ -0,0 +1,2 @@",
-		},
-		{
-			name: "only deletions",
-			lines: []diff.Line{
-				{Type: diff.LineDeletion, Content: "line 1", OldLineNum: 1, NewLineNum: 0},
-				{Type: diff.LineDeletion, Content: "line 2", OldLineNum: 2, NewLineNum: 0},
-			},
-			expected: "@@ -1,2 +0,0 @@",
-		},
-		{
-			name: "mixed with context",
-			lines: []diff.Line{
-				{Type: diff.LineContext, Content: "line 1", OldLineNum: 1, NewLineNum: 1},
-				{Type: diff.LineAddition, Content: "added", OldLineNum: 0, NewLineNum: 2},
-				{Type: diff.LineContext, Content: "line 2", OldLineNum: 2, NewLineNum: 3},
-				{Type: diff.LineDeletion, Content: "deleted", OldLineNum: 3, NewLineNum: 0},
-				{Type: diff.LineContext, Content: "line 3", OldLineNum: 4, NewLineNum: 4},
-			},
-			expected: "@@ -1,4 +1,4 @@",
-		},
-		{
-			name:     "empty",
-			lines:    []diff.Line{},
-			expected: "@@ -0,0 +0,0 @@",
-		},
+	files := diff.Parse("diff --git a/f b/f\n--- a/f\n+++ b/f\n" +
+		"@@ -1,2 +1,3 @@\n a\n+x\n b\n" +
+		"@@ -10,2 +11,2 @@\n j\n-k\n+K\n")
+
+	want := "diff --git a/f b/f\n--- a/f\n+++ b/f\n" +
+		"@@ -1,2 +1,3 @@\n a\n+x\n b\n" +
+		"@@ -10,2 +11,2 @@\n j\n-k\n+K\n"
+	both := newMockSelection(map[string]map[int]bool{"f": {0: true, 1: true}})
+	if got := diff.GeneratePatch(files, both); got != want {
+		t.Errorf("both hunks =\n%s\nwant\n%s", got, want)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	want = "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -10,2 +10,2 @@\n j\n-k\n+K\n"
+	if got := diff.GeneratePatch(files, newMockSelection(map[string]map[int]bool{"f": {1: true}})); got != want {
+		t.Errorf("second hunk alone =\n%s\nwant\n%s", got, want)
+	}
+}
 
-			result := diff.RecalculateHunkHeader(tt.lines)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
+func TestGeneratePatch_KeepsTheNoNewlineMarker(t *testing.T) {
+	t.Parallel()
+
+	files := diff.Parse("diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,1 +1,1 @@\n-a\n\\ No newline at end of file\n+b\n")
+
+	if n := len(files[0].Hunks[0].Lines); n != 2 {
+		t.Fatalf("the marker parsed as a line: %d lines", n)
+	}
+
+	want := "@@ -1,1 +1,1 @@\n-a\n\\ No newline at end of file\n+b\n"
+	only := newMockSelection(map[string]map[int]bool{"f": {0: true}})
+	if got := diff.GeneratePatch(files, only); !strings.HasSuffix(got, want) {
+		t.Errorf("GeneratePatch() =\n%s\nwant it to end\n%s", got, want)
 	}
 }

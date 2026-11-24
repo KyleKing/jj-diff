@@ -1,5 +1,6 @@
-// Package help renders the keybinding overlay. The bindings are written out here by hand, so adding a
-// key to the model means adding its row here too.
+// Package help renders the keybinding overlay from the legend the parent's keymap draws, so a key
+// added to the keymap is listed here without this package hearing about it, and a rebound one is
+// listed under its new key.
 package help
 
 import (
@@ -21,15 +22,10 @@ const (
 // keyEsc is the way out of the overlay and out of a line selection alike.
 const keyEsc = "esc"
 
-const (
-	modeDiffEditor  = "Diff-Editor"
-	modeInteractive = "Interactive"
-)
-
-// Model is the overlay's state. The mode selects which mode-specific bindings are listed and must
-// match the mode strings the parent passes to Show.
+// Model is the overlay's state: the legend it was shown with and how far it has scrolled.
 type Model struct {
-	mode    string
+	title   string
+	legend  []keyhint.Hint
 	scroll  int
 	visible bool
 }
@@ -41,11 +37,12 @@ func New() Model {
 	}
 }
 
-// Show opens the overlay for a mode, where "Diff-Editor" and "Interactive" each add their own
-// bindings and any other value lists only the shared ones.
-func (m *Model) Show(mode string) {
+// Show opens the overlay on legend, a keymap's legend for the screen the user is on: a Head hint
+// opens each group and the hints under it are the keys. A hint with no key is a line of prose.
+func (m *Model) Show(title string, legend []keyhint.Hint) {
 	m.visible = true
-	m.mode = mode
+	m.title = title
+	m.legend = legend
 	m.scroll = 0
 }
 
@@ -84,13 +81,13 @@ func (m *Model) View(width, height int) string {
 	}
 
 	inner := modal.Width(width, preferredWidth)
-	body := legend(sections(m.mode), inner)
+	body := draw(m.legend, inner)
 	visible := modal.BodyRows(height)
 
 	if len(body) <= visible {
 		m.scroll = 0
 
-		return modal.Box("Keys", "", body, []keyhint.Hint{{Key: keyEsc, What: "close"}}, inner)
+		return modal.Box(m.heading(), "", body, []keyhint.Hint{{Key: keyEsc, What: "close"}}, inner)
 	}
 
 	maxScroll := len(body) - visible
@@ -98,91 +95,24 @@ func (m *Model) View(width, height int) string {
 	window := body[m.scroll : m.scroll+visible]
 	where := fmt.Sprintf("%d–%d of %d", m.scroll+1, m.scroll+visible, len(body))
 
-	return modal.Box("Keys", where, window, []keyhint.Hint{
+	return modal.Box(m.heading(), where, window, []keyhint.Hint{
 		{Key: "j/k", What: "scroll"}, {Key: "g/G", What: "ends"}, {Key: keyEsc, What: "close"},
 	}, inner)
 }
 
-// section is one group of the legend under a labeled rule. Lead is a sentence drawn before the
-// keys, for the group whose keys only make sense in order.
-type section struct {
-	name string
-	lead string
-	keys []keyhint.Hint
+func (m *Model) heading() string {
+	if m.title == "" {
+		return "Keys"
+	}
+
+	return "Keys · " + m.title
 }
 
-func sections(mode string) []section {
-	out := []section{
-		{name: "Navigation", keys: []keyhint.Hint{
-			{Key: "j/k", What: "move down / up"},
-			{Key: "ctrl-d/u", What: "half a page down / up"},
-			{Key: "ctrl-f/b", What: "a page down / up"},
-			{Key: "g/G", What: "first / last file or hunk"},
-			{Key: "n", What: "next hunk"},
-			{Key: "N/p", What: "previous hunk"},
-			{Key: "[/]", What: "previous / next file"},
-			{Key: "tab", What: "switch between the files and the diff"},
-		}},
-		{name: "Find", keys: []keyhint.Hint{
-			{Key: "/", What: "search the files and the diff"},
-			{Key: "f", What: "filter the file list"},
-			{Key: "F", What: "find a file"},
-			{Key: "r", What: "refresh from jj"},
-		}},
-		{name: "View", keys: []keyhint.Hint{
-			{Key: "w", What: "hide whitespace-only changes"},
-			{Key: "W", What: "word-level highlighting"},
-			{Key: "s", What: "side by side"},
-			{Key: "l", What: "line numbers"},
-			{Key: "z", What: "fold the hunk or generated file"},
-		}},
-	}
-
-	switch mode {
-	case modeInteractive:
-		out = append(out, section{
-			name: "Moving changes",
-			lead: "choose where they go, select them, then apply",
-			keys: []keyhint.Hint{
-				{Key: "d", What: "choose the destination"},
-				{Key: "space", What: "select the hunk"},
-				{Key: "v", What: "select lines: j/k to extend, space to confirm"},
-				{Key: keyEsc, What: "leave the line selection"},
-				{Key: "a", What: "apply to the destination"},
-			},
-		})
-	case modeDiffEditor:
-		out = append(out, section{
-			name: "Editing the diff",
-			keys: []keyhint.Hint{
-				{Key: "space", What: "keep or drop the hunk"},
-				{Key: "a", What: "apply and return to jj"},
-			},
-		})
-	}
-
-	return append(out, section{name: "General", keys: []keyhint.Hint{
-		{Key: "?", What: "this help"},
-		{Key: "q", What: "quit"},
-	}})
-}
-
-// legend draws every section in one key column, so the keys line up from the first group to the
-// last, with each group under a labeled rule and a blank row before it.
-func legend(groups []section, width int) []string {
-	var all []keyhint.Hint
-
-	for _, g := range groups {
-		all = append(all, keyhint.Hint{Head: true, What: g.name})
-		if g.lead != "" {
-			all = append(all, keyhint.Hint{What: g.lead})
-		}
-
-		all = append(all, g.keys...)
-	}
-
+// draw lays out every group in one key column, so the keys line up from the first group to the last,
+// with each group under a labeled rule and a blank row before it.
+func draw(all []keyhint.Hint, width int) []string {
 	drawn := keyhint.Help(theme.Legend(), all, width)
-	out := make([]string, 0, len(drawn)+len(groups))
+	out := make([]string, 0, len(drawn)+len(all))
 
 	for i, h := range all {
 		if !h.Head {

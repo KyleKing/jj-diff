@@ -1,7 +1,9 @@
 package model
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -56,6 +58,44 @@ func SpecialKey(code rune) tea.KeyPressMsg {
 // CtrlKey builds the message Bubble Tea sends for key held with control, such as ctrl+d.
 func CtrlKey(key rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: key, Mod: tea.ModCtrl}
+}
+
+// Press sends each key in turn, so a chord reads as it is typed: Press(t, m, "]", "h"). Printable
+// keys are themselves; space, esc, enter, tab, and backspace are named.
+func Press(t *testing.T, m *Model, keys ...string) *Model {
+	t.Helper()
+
+	for _, k := range keys {
+		m = Update(t, m, Key(k))
+	}
+
+	return m
+}
+
+// Key builds the message Bubble Tea sends for one named key.
+func Key(name string) tea.KeyPressMsg {
+	switch name {
+	case "space":
+		return KeyPress(' ')
+	case "esc":
+		return SpecialKey(tea.KeyEsc)
+	case keyEnter:
+		return SpecialKey(tea.KeyEnter)
+	case "tab":
+		return SpecialKey(tea.KeyTab)
+	case "backspace":
+		return SpecialKey(tea.KeyBackspace)
+	}
+
+	if ctrl, ok := strings.CutPrefix(name, "ctrl+"); ok {
+		r, _ := utf8.DecodeRuneInString(ctrl)
+
+		return CtrlKey(r)
+	}
+
+	r, _ := utf8.DecodeRuneInString(name)
+
+	return KeyPress(r)
 }
 
 // Update runs one Update round and asserts the result is still a Model, discarding the command.
@@ -227,11 +267,11 @@ func (a *Assertion) SearchIsNotVisible() {
 	}
 }
 
-// SplitAssignIsVisible checks that the multi-way split's destination assignment modal is up.
-func (a *Assertion) SplitAssignIsVisible() {
+// PickerIsVisible checks that the destination picker is up.
+func (a *Assertion) PickerIsVisible() {
 	a.t.Helper()
-	if !a.m.splitAssign.IsVisible() {
-		a.t.Error("Expected split assign modal to be visible")
+	if !a.m.picker.IsVisible() {
+		a.t.Error("Expected the destination picker to be visible")
 	}
 }
 
@@ -260,11 +300,11 @@ func (a *Assertion) NoModalsVisible() {
 	if a.m.searchModal.IsVisible() {
 		a.t.Error("Expected search modal to NOT be visible")
 	}
-	if a.m.fileFinder.IsVisible() {
-		a.t.Error("Expected file finder modal to NOT be visible")
+	if a.m.commitMsg.IsVisible() {
+		a.t.Error("Expected the split prompt to NOT be visible")
 	}
-	if a.m.destPicker.IsVisible() {
-		a.t.Error("Expected dest picker modal to NOT be visible")
+	if a.m.picker.IsVisible() {
+		a.t.Error("Expected the destination picker to NOT be visible")
 	}
 	if a.m.fileList.IsFilterMode() {
 		a.t.Error("Expected file list filter mode to NOT be enabled")

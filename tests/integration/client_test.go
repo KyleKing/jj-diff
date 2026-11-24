@@ -1,8 +1,8 @@
 package integration_test
 
 import (
+	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,406 +11,407 @@ import (
 	"github.com/kyleking/jj-diff/tests/integration"
 )
 
-// TestMoveChanges_CoreWorkflow tests the basic MoveChanges workflow
-// This is the primary integration test for the core functionality.
-func TestMoveChanges_CoreWorkflow(t *testing.T) {
+func TestMain(m *testing.M) {
+	code := m.Run()
+
+	integration.Cleanup()
+	os.Exit(code)
+}
+
+// writer is a client that has jj run the freshly built jj-diff as its diff editor.
+func writer(t *testing.T, repo *integration.TestRepo) *jj.Client {
+	t.Helper()
+
+	return jj.NewClient(repo.Dir, jj.WithEditor(integration.Editor(t)))
+}
+
+// twoHunks is a file whose change from base to edited is two hunks far enough apart that git keeps
+// them separate: line 2 and line 19.
+const (
+	base   = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20\n"
+	edited = "l1\nTWO\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nNINETEEN\nl20\n"
+	first  = "l1\nTWO\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20\n"
+	second = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nNINETEEN\nl20\n"
+)
+
+// firstHunk picks hunk 0 of f.txt.
+var firstHunk = integration.Pick{Hunks: map[string][]int{"f.txt": {0}}} //nolint:gochecknoglobals // a fixture
+
+// move runs MoveChanges and asserts it was exactly one operation.
+func move(t *testing.T, repo *integration.TestRepo, pick integration.Pick, source, dest string) jj.Outcome {
+	t.Helper()
+
+	patch := repo.Patch(source, pick)
+	before := repo.OpID()
+
+	outcome, err := writer(t, repo).MoveChanges(patch, source, dest, jj.MoveOptions{})
+	if err != nil {
+		t.Fatalf("MoveChanges(%s -> %s) failed: %v", source, dest, err)
+	}
+
+	if n := repo.OpsSince(before); n != 1 {
+		t.Errorf("the move took %d operations, want 1:\n%s", n, repo.MustRun("op", "log", "-n", "4"))
+	}
+
+	return outcome
+}
+
+func TestMoveChanges_ToAnAncestor(t *testing.T) {
 	t.Parallel()
 
 	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
 
-	// Setup: Create initial commit
-	repo.WriteFile("file1.txt", "line 1\nline 2\nline 3\n")
-	repo.Commit("Initial commit")
+	move(t, repo, firstHunk, "@", "@-")
 
-	// Create changes in working copy
-	repo.WriteFile("file1.txt", "line 1\nline 2\nNEW LINE\nline 3\n")
-
-	// Get patch for working copy changes
-	patch := repo.GetDiff("@")
-	if patch == "" {
-		t.Fatal("Expected non-empty diff for working copy")
+	if got := repo.Show("@-", "f.txt"); got != first {
+		t.Errorf("@- holds\n%s\nwant only the first hunk moved in", got)
 	}
 
-	// Verify patch contains our change
-	if !strings.Contains(patch, "+NEW LINE") {
-		t.Error("Patch missing expected addition")
+	repo.AssertDiffNotContains("@", "+TWO")
+	repo.AssertDiffContains("@", "+NINETEEN")
+	repo.AssertFileContent("f.txt", edited)
+}
+
+func TestMoveChanges_ToADescendant(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+	repo.Commit("source")
+
+	move(t, repo, firstHunk, "@-", "@")
+
+	repo.AssertDiffNotContains("@-", "+TWO")
+	repo.AssertDiffContains("@-", "+NINETEEN")
+	repo.AssertDiffContains("@", "+TWO")
+	repo.AssertFileContent("f.txt", edited)
+}
+
+// A sibling is where the scratch-workspace move copied instead of moving: the hunk landed in the
+// sibling and stayed in the source.
+func TestMoveChanges_ToASiblingMovesRatherThanCopies(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+	repo.MustRun("describe", "-m", "source")
+	source := repo.GetChangeID("@")
+	repo.MustRun("new", "@-", "-m", "sibling")
+	sibling := repo.GetChangeID("@")
+	repo.MustRun("new", "root()", "-m", "elsewhere")
+
+	repo.WriteFile("other.txt", "untouched\n")
+	repo.OpID() // snapshot, so the commit read next is the one the move must leave alone
+
+	wc := repo.CommitID("@")
+
+	move(t, repo, firstHunk, source, sibling)
+
+	repo.AssertDiffNotContains(source, "+TWO")
+	repo.AssertDiffContains(source, "+NINETEEN")
+
+	if got := repo.Show(sibling, "f.txt"); got != first {
+		t.Errorf("the sibling holds\n%s\nwant the first hunk", got)
 	}
 
-	client := jj.NewClient(repo.Dir)
-
-	// Execute: Move changes from @ to @-
-	err := client.MoveChanges(patch, "@", "@-")
-	if err != nil {
-		t.Fatalf("MoveChanges failed: %v", err)
-	}
-
-	// Verify: Changes now appear in @-
-	repo.AssertDiffContains("@-", "+NEW LINE")
-
-	// Verify: Working copy @ should be empty or nearly empty
-	currentDiff := repo.GetDiff("@")
-	// The diff might not be completely empty due to jj internals, but shouldn't have our change
-	if strings.Contains(currentDiff, "+NEW LINE") {
-		t.Error("Working copy still contains moved change")
+	if repo.CommitID("@") != wc || repo.ReadFile("other.txt") != "untouched\n" {
+		t.Error("the working copy changed although the move did not involve it")
 	}
 }
 
-// TestMoveChanges_RollbackOnError tests automatic rollback when patch fails
-// This verifies error handling and state restoration.
-func TestMoveChanges_RollbackOnError(t *testing.T) {
+// A destination without the file takes jj's conflict, where the scratch-workspace move died on a
+// fatal screen.
+func TestMoveChanges_IntoADestinationLackingTheFile(t *testing.T) {
 	t.Parallel()
 
 	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+	repo.WriteFile("new.txt", "fresh\n")
+	repo.MustRun("describe", "-m", "source")
+	source := repo.GetChangeID("@")
+	repo.MustRun("new", "root()", "-m", "bare")
+	bare := repo.GetChangeID("@")
 
-	// Setup: Create initial commit
-	repo.WriteFile("file1.txt", "line 1\nline 2\n")
-	repo.Commit("Initial commit")
+	added := move(t, repo, integration.Pick{Hunks: map[string][]int{"new.txt": {0}}}, source, bare)
+	if added.Conflicts != "" {
+		t.Errorf("moving a whole new file reported conflicts: %s", added.Conflicts)
+	}
 
-	// Get original working copy state
-	originalWC := repo.GetChangeID("@")
-	originalDiff := repo.GetDiff("@-")
+	if got := repo.Show(bare, "new.txt"); got != "fresh\n" {
+		t.Errorf("new.txt in the destination = %q", got)
+	}
 
-	client := jj.NewClient(repo.Dir)
+	repo.AssertDiffNotContains(source, "new.txt")
 
-	// Execute: Try to apply invalid patch
-	invalidPatch := `diff --git a/file1.txt b/file1.txt
---- a/file1.txt
-+++ b/file1.txt
-@@ -99,1 +99,2 @@
- this line doesn't exist
-+invalid change
-`
+	edit := move(t, repo, firstHunk, source, bare)
+	if !strings.Contains(edit.Conflicts, "conflict") {
+		t.Errorf("an edit to a file the destination lacks reported no conflict: %+v", edit)
+	}
 
-	err := client.MoveChanges(invalidPatch, "@", "@-")
+	repo.AssertDiffNotContains(source, "+TWO")
+}
 
-	// Verify: Operation should fail
+func TestMoveChanges_PartialLines(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", "a\nb\nc\nd\n")
+	repo.Commit("base")
+	repo.WriteFile("f.txt", "a\nB\nC\nd\n")
+
+	// One hunk: a, -b, -c, +B, +C, d. Lines 2 and 4 are -c and +C.
+	hunk := diff.Parse(repo.GetDiff("@"))[0].Hunks[0]
+	if hunk.Lines[2].Content != "c" || hunk.Lines[4].Content != "C" {
+		t.Fatalf("unexpected hunk shape: %+v", hunk.Lines)
+	}
+
+	move(t, repo, integration.Pick{Lines: map[string]map[int][]int{"f.txt": {0: {2, 4}}}}, "@", "@-")
+
+	if got := repo.Show("@-", "f.txt"); got != "a\nb\nC\nd\n" {
+		t.Errorf("@- holds %q, want only c->C moved", got)
+	}
+
+	if got := repo.Show("@", "f.txt"); got != "a\nB\nC\nd\n" {
+		t.Errorf("@ holds %q, want the file as edited", got)
+	}
+
+	repo.AssertDiffContains("@", "+B")
+	repo.AssertDiffNotContains("@", "+C")
+}
+
+func TestMoveChanges_OneUndoRestoresEverything(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+	repo.MustRun("describe", "-m", "source")
+	repo.MustRun("new", "@-", "-m", "sibling")
+	sibling := repo.GetChangeID("@")
+	repo.MustRun("edit", "@-+ & description(substring:source)")
+
+	graph := func() string {
+		return repo.MustRun("log", "--ignore-working-copy", "-r", "all()", "--no-graph", "-T", `commit_id ++ "\n"`)
+	}
+
+	before := graph()
+
+	move(t, repo, firstHunk, "@", sibling)
+	repo.MustRun("undo")
+
+	if after := graph(); after != before {
+		t.Errorf("one undo left the graph at\n%s\nwant\n%s", after, before)
+	}
+
+	if ws := repo.MustRun("workspace", "list"); strings.Count(strings.TrimSpace(ws), "\n") != 0 {
+		t.Errorf("undo brought back a workspace:\n%s", ws)
+	}
+
+	repo.AssertFileContent("f.txt", edited)
+}
+
+func TestMoveChanges_FailureWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+
+	before := repo.OpID()
+	wc := repo.CommitID("@")
+
+	invalid := "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1,1 +1,1 @@\n-nothing like this\n+x\n"
+	if _, err := writer(t, repo).MoveChanges(invalid, "@", "@-", jj.MoveOptions{}); err == nil {
+		t.Fatal("a patch that does not apply moved")
+	}
+
+	if n := repo.OpsSince(before); n != 0 {
+		t.Errorf("a failed move left %d operations", n)
+	}
+
+	if repo.CommitID("@") != wc {
+		t.Error("a failed move rewrote the working copy")
+	}
+
+	repo.AssertFileContent("f.txt", edited)
+}
+
+// Moving everything out of a described source into a described destination makes jj want an editor
+// to combine the two messages. That has to fail cleanly rather than wait on a terminal, and -u is the
+// way through.
+func TestMoveChanges_EmptyingADescribedSourceNeedsAMessageChoice(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", second)
+	repo.Commit("source")
+
+	all := integration.Pick{Hunks: map[string][]int{"f.txt": {0}}}
+	patch := repo.Patch("@-", all)
+	before := repo.OpID()
+	client := writer(t, repo)
+
+	if _, err := client.MoveChanges(patch, "@-", "@--", jj.MoveOptions{}); err == nil {
+		t.Fatal("combining two descriptions did not fail without an editor")
+	}
+
+	if n := repo.OpsSince(before); n != 0 {
+		t.Errorf("the refused move left %d operations", n)
+	}
+
+	if _, err := client.MoveChanges(patch, "@-", "@--", jj.MoveOptions{UseDestinationMessage: true}); err != nil {
+		t.Fatalf("with -u: %v", err)
+	}
+
+	if got := repo.Show("@-", "f.txt"); got != second {
+		t.Errorf("the destination holds %q", got)
+	}
+
+	if desc := repo.MustRun("log", "-r", "@-", "--no-graph", "-T", "description"); strings.TrimSpace(desc) != "base" {
+		t.Errorf("the destination's description is %q, want base", desc)
+	}
+}
+
+func TestRestore_DiscardsOnlyTheSelection(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+
+	patch := repo.Patch("@", firstHunk)
+	before := repo.OpID()
+
+	if _, err := writer(t, repo).Restore(patch, "@"); err != nil {
+		t.Fatalf("Restore failed: %v", err)
+	}
+
+	if n := repo.OpsSince(before); n != 1 {
+		t.Errorf("the restore took %d operations, want 1", n)
+	}
+
+	repo.AssertFileContent("f.txt", second)
+}
+
+// Two groups whose hunks sit within a few lines of each other: the second split sees the first's
+// commit as its left side, which a patch written against the original parent would not apply to
+// without the cumulative Through.
+func TestSplit_ChainOfAdjacentGroups(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", "a\nb\nc\nd\ne\n")
+	repo.Commit("base")
+	repo.WriteFile("f.txt", "a\nB\nc\nD\ne\nF\n")
+	repo.MustRun("describe", "-m", "source")
+	source := repo.GetChangeID("@")
+
+	// One hunk spanning every change: a -b +B c -d +D e +F. Lines: 0 a, 1 -b, 2 +B, 3 c, 4 -d,
+	// 5 +D, 6 e, 7 +F.
+	one := integration.Pick{Lines: map[string]map[int][]int{"f.txt": {0: {1, 2}}}}
+	two := integration.Pick{Lines: map[string]map[int][]int{"f.txt": {0: {1, 2, 4, 5}}}}
+
+	before := repo.OpID()
+
+	_, err := writer(t, repo).Split(source, []jj.SplitGroup{
+		{Through: repo.Patch(source, one), Description: "one"},
+		{Through: repo.Patch(source, two), Description: "two"},
+	}, false)
+	if err != nil {
+		t.Fatalf("Split failed: %v", err)
+	}
+
+	if n := repo.OpsSince(before); n != 2 {
+		t.Errorf("the split took %d operations, want one per group", n)
+	}
+
+	chain := repo.MustRun("log", "-r", "::@ ~ root()", "--no-graph", "-T", `description.first_line() ++ "\n"`)
+	if got := strings.Fields(chain); strings.Join(got, " ") != "source two one base" {
+		t.Errorf("chain = %q, want source two one base", got)
+	}
+
+	for rev, want := range map[string]string{
+		"description(substring:one)": "a\nB\nc\nd\ne\n",
+		"description(substring:two)": "a\nB\nc\nD\ne\n",
+		source:                       "a\nB\nc\nD\ne\nF\n",
+	} {
+		if got := repo.Show(rev, "f.txt"); got != want {
+			t.Errorf("%s holds %q, want %q", rev, got, want)
+		}
+	}
+
+	if repo.GetChangeID("@") != source {
+		t.Error("the working copy left the source")
+	}
+}
+
+func TestSplit_ParallelGroupsAreSiblings(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+	repo.MustRun("describe", "-m", "source")
+
+	if _, err := writer(t, repo).Split("@", []jj.SplitGroup{
+		{Through: repo.Patch("@", firstHunk), Description: "side"},
+	}, true); err != nil {
+		t.Fatalf("Split failed: %v", err)
+	}
+
+	if got := repo.Show("description(substring:side)", "f.txt"); got != first {
+		t.Errorf("the sibling holds %q", got)
+	}
+
+	parent := repo.MustRun("log", "-r", "description(substring:side)-", "--no-graph", "-T", "description")
+	parents := strings.TrimSpace(parent)
+	if parents != "base" {
+		t.Errorf("the sibling sits on %q, want base", parents)
+	}
+
+	repo.AssertDiffContains("@", "+NINETEEN")
+	repo.AssertDiffNotContains("@", "+TWO")
+}
+
+func TestSplit_FailedGroupRestoresTheWholeSplit(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("f.txt", base)
+	repo.Commit("base")
+	repo.WriteFile("f.txt", edited)
+
+	invalid := "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1,1 +1,1 @@\n-nothing like this\n+x\n"
+
+	_, err := writer(t, repo).Split("@", []jj.SplitGroup{
+		{Through: repo.Patch("@", firstHunk), Description: "fine"},
+		{Through: invalid, Description: "broken"},
+	}, false)
 	if err == nil {
-		t.Fatal("Expected MoveChanges to fail with invalid patch")
+		t.Fatal("a split with a broken group succeeded")
 	}
 
-	// Verify: Working copy is unchanged
-	currentWC := repo.GetChangeID("@")
-	if currentWC != originalWC {
-		t.Errorf(
-			"Working copy changed after failed operation:\nExpected: %s\nActual: %s",
-			originalWC,
-			currentWC,
-		)
+	if log := repo.MustRun("log", "-r", "all()"); strings.Contains(log, "fine") {
+		t.Errorf("the first group survived the failed split:\n%s", log)
 	}
 
-	// Verify: Destination is unchanged
-	currentDiff := repo.GetDiff("@-")
-	if currentDiff != originalDiff {
-		t.Error("Destination changed after failed operation (rollback incomplete)")
-	}
-
-	// Verify: No orphaned temporary commits
-	logOutput := repo.MustRun("log", "--limit", "5", "--no-graph")
-	if strings.Count(logOutput, "Initial commit") != 1 {
-		t.Error("Found unexpected commits after rollback")
-	}
-}
-
-// TestMoveChanges_WorkingCopyPreservation tests that operations complete successfully
-// This verifies the workflow completes and repository state is consistent.
-func TestMoveChanges_WorkingCopyPreservation(t *testing.T) {
-	t.Parallel()
-
-	repo := integration.NewTestRepo(t)
-
-	// Setup: Create simple commit
-	repo.WriteFile("file1.txt", "original content\n")
-	repo.Commit("Initial commit")
-
-	// Create change in working copy
-	repo.WriteFile("file1.txt", "original content\nworking copy addition\n")
-
-	// Create patch
-	patch := repo.GetDiff("@")
-
-	client := jj.NewClient(repo.Dir)
-
-	// Execute: Move changes to @-
-	err := client.MoveChanges(patch, "@", "@-")
-	if err != nil {
-		t.Fatalf("MoveChanges failed: %v", err)
-	}
-
-	// Verify: Changes were moved to destination
-	destDiff := repo.GetDiff("@-")
-	if !strings.Contains(destDiff, "+working copy addition") {
-		t.Error("Expected changes not found in destination")
-	}
-
-	// Verify: Working copy exists and is valid
-	wcChangeID := repo.GetChangeID("@")
-	if wcChangeID == "" {
-		t.Error("Working copy has no change ID after operation")
-	}
-
-	// Verify: Repository has expected structure
-	historyOutput := repo.MustRun("log", "--limit", "3", "--no-graph", "-T", "description")
-	if !strings.Contains(historyOutput, "Initial commit") {
-		t.Error("Repository history missing expected commit")
-	}
-
-	// Verify: No orphaned commits or corruption
-	statusOutput := repo.MustRun("status")
-	if strings.Contains(statusOutput, "error") || strings.Contains(statusOutput, "corrupted") {
-		t.Errorf("Repository appears corrupted: %s", statusOutput)
-	}
-}
-
-// TestMoveChanges_LeavesUnselectedChangesAlone is the regression test for the data-loss bug: the
-// sequence used to reset the working copy to the destination, which deleted every change the patch
-// did not carry. Everything the patch leaves out has to survive on disk, in the working copy, and
-// under the same change ID.
-func TestMoveChanges_LeavesUnselectedChangesAlone(t *testing.T) {
-	t.Parallel()
-
-	repo := integration.NewTestRepo(t)
-
-	repo.WriteFile("main.go", "line1\nline2\nline3\nline4\nline5\n")
-	repo.WriteFile("other.txt", "a\nb\nc\n")
-	repo.Commit("Initial commit")
-
-	repo.WriteFile("main.go", "line1\nCHANGED2\nline3\nline4\nline5\n")
-	repo.WriteFile("other.txt", "a\nBBB\nc\n")
-	repo.WriteFile("extra.txt", "extra content\n")
-
-	originalWC := repo.GetChangeID("@")
-	commitCount := strings.Count(repo.MustRun("log", "--no-graph", "-T", "\"x\\n\"", "-r", "all()"), "x")
-
-	// Only the main.go hunk, which is what selecting one hunk in the UI produces.
-	patch := `diff --git a/main.go b/main.go
---- a/main.go
-+++ b/main.go
-@@ -1,5 +1,5 @@
- line1
--line2
-+CHANGED2
- line3
- line4
- line5
-`
-
-	client := jj.NewClient(repo.Dir)
-	if err := client.MoveChanges(patch, "@", "@-"); err != nil {
-		t.Fatalf("MoveChanges failed: %v", err)
-	}
-
-	repo.AssertFileContent("main.go", "line1\nCHANGED2\nline3\nline4\nline5\n")
-	repo.AssertFileContent("other.txt", "a\nBBB\nc\n")
-	repo.AssertFileContent("extra.txt", "extra content\n")
-
-	repo.AssertDiffContains("@", "+BBB")
-	repo.AssertDiffContains("@", "extra.txt")
-	repo.AssertDiffNotContains("@", "+CHANGED2")
-	repo.AssertDiffContains("@-", "+CHANGED2")
-
-	if currentWC := repo.GetChangeID("@"); currentWC != originalWC {
-		t.Errorf("working copy moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
-	}
-
-	after := strings.Count(repo.MustRun("log", "--no-graph", "-T", "\"x\\n\"", "-r", "all()"), "x")
-	if after != commitCount {
-		t.Errorf("expected %d revisions after the move, got %d (a scratch commit was left behind)", commitCount, after)
-	}
-}
-
-// TestMoveChanges_ResolvesDestinationBeforeMoving guards the second bug in the same path. The
-// destination used to be handed to jj as a revset and re-resolved by each command, so a relative
-// revset such as @- could name a different commit part way through, and once the work moved into a
-// scratch workspace it would have resolved against that workspace's own @ instead.
-func TestMoveChanges_ResolvesDestinationBeforeMoving(t *testing.T) {
-	t.Parallel()
-
-	repo := integration.NewTestRepo(t)
-
-	repo.WriteFile("file1.txt", "line 1\n")
-	repo.Commit("first")
-	repo.WriteFile("file2.txt", "line 2\n")
-	repo.Commit("second")
-
-	intendedDest := repo.GetChangeID("@-")
-
-	repo.WriteFile("file1.txt", "line 1\nADDED\n")
-	patch := repo.GetDiff("@")
-
-	client := jj.NewClient(repo.Dir)
-	if err := client.MoveChanges(patch, "@", "@-"); err != nil {
-		t.Fatalf("MoveChanges failed: %v", err)
-	}
-
-	repo.AssertDiffContains(intendedDest, "+ADDED")
-
-	if landed := repo.GetChangeID("@-"); landed != intendedDest {
-		t.Errorf("destination drifted:\nExpected: %s\nActual:   %s", intendedDest, landed)
-	}
-}
-
-// TestMoveChanges_CleansUpScratchWorkspaceOnFailure covers the failure path. A leaked workspace stays
-// in jj workspace list forever and its directory persists, so the cleanup has to run even when the
-// operation it was created for did not finish.
-func TestMoveChanges_CleansUpScratchWorkspaceOnFailure(t *testing.T) {
-	// The scratch directories are created under the process temp directory, so this test needs one
-	// of its own to look in and cannot run alongside another test that creates them.
-	scratchRoot := t.TempDir()
-	t.Setenv("TMPDIR", scratchRoot)
-
-	repo := integration.NewTestRepo(t)
-
-	repo.WriteFile("file1.txt", "line 1\nline 2\n")
-	repo.Commit("Initial commit")
-	repo.WriteFile("file1.txt", "line 1\nline 2\nline 3\n")
-
-	invalidPatch := `diff --git a/file1.txt b/file1.txt
---- a/file1.txt
-+++ b/file1.txt
-@@ -99,1 +99,2 @@
- this line doesn't exist
-+invalid change
-`
-
-	client := jj.NewClient(repo.Dir)
-	if err := client.MoveChanges(invalidPatch, "@", "@-"); err == nil {
-		t.Fatal("expected MoveChanges to fail with an invalid patch")
-	}
-
-	workspaces := repo.MustRun("workspace", "list")
-	if strings.Contains(workspaces, "jj-diff-scratch") {
-		t.Errorf("scratch workspace leaked into jj workspace list:\n%s", workspaces)
-	}
-
-	leaked, err := filepath.Glob(filepath.Join(scratchRoot, "jj-diff-scratch-*"))
-	if err != nil {
-		t.Fatalf("failed to look for leaked scratch directories: %v", err)
-	}
-
-	if len(leaked) > 0 {
-		t.Errorf("scratch directories left on disk: %v", leaked)
-	}
-
-	repo.AssertFileContent("file1.txt", "line 1\nline 2\nline 3\n")
-}
-
-// A new-commit split has to land beneath the source, because MoveChanges only ever adds a patch to
-// its destination. This pins both halves: the selected hunk reaches the new commit, and the hunk that
-// was not selected stays in the working copy.
-func TestApplySplit_NewCommitTakesOnlyTheSelectedHunk(t *testing.T) {
-	t.Parallel()
-
-	repo := integration.NewTestRepo(t)
-
-	repo.WriteFile("a.txt", "a1\n")
-	repo.WriteFile("b.txt", "b1\n")
-	repo.Commit("Initial commit")
-
-	repo.WriteFile("a.txt", "a1\nA-ADDED\n")
-	repo.WriteFile("b.txt", "b1\nB-ADDED\n")
-
-	originalWC := repo.GetChangeID("@")
-
-	patchA := `diff --git a/a.txt b/a.txt
---- a/a.txt
-+++ b/a.txt
-@@ -1 +1,2 @@
- a1
-+A-ADDED
-`
-
-	client := jj.NewClient(repo.Dir)
-	plans := []jj.SplitPlan{{
-		Tag:   'a',
-		Patch: patchA,
-		Destination: jj.SplitDestination{
-			Type:        jj.SplitDestNewCommit,
-			Description: "split: a only",
-		},
-	}}
-
-	if err := client.ApplySplit(plans, "@"); err != nil {
-		t.Fatalf("ApplySplit failed: %v", err)
-	}
-
-	// The rebase moves the working copy's parent and leaves its content alone.
-	repo.AssertFileContent("a.txt", "a1\nA-ADDED\n")
-	repo.AssertFileContent("b.txt", "b1\nB-ADDED\n")
-
-	if currentWC := repo.GetChangeID("@"); currentWC != originalWC {
-		t.Errorf("working copy change ID moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
-	}
-
-	repo.AssertDiffContains("@-", "A-ADDED")
-	repo.AssertDiffNotContains("@-", "B-ADDED")
-
-	repo.AssertDiffNotContains("@", "A-ADDED")
-	repo.AssertDiffContains("@", "B-ADDED")
-
-	desc := repo.MustRun("log", "-r", "@-", "--no-graph", "-T", "description")
-	if !strings.Contains(desc, "split: a only") {
-		t.Errorf("the new commit did not take its description: %q", desc)
-	}
-
-	workspaces := repo.MustRun("workspace", "list")
-	if strings.Contains(workspaces, "jj-diff-scratch") {
-		t.Errorf("scratch workspace leaked into jj workspace list:\n%s", workspaces)
-	}
-}
-
-// A plan whose patch cannot apply must roll the whole split back, leaving no half-built commit and no
-// change to the working copy.
-func TestApplySplit_FailedPlanLeavesTheWorkingCopyIntact(t *testing.T) {
-	t.Parallel()
-
-	repo := integration.NewTestRepo(t)
-
-	repo.WriteFile("a.txt", "a1\n")
-	repo.Commit("Initial commit")
-
-	repo.WriteFile("a.txt", "a1\nA-ADDED\n")
-
-	originalWC := repo.GetChangeID("@")
-	originalParent := repo.GetChangeID("@-")
-
-	// Context that does not exist in a.txt, so git apply rejects it.
-	badPatch := `diff --git a/a.txt b/a.txt
---- a/a.txt
-+++ b/a.txt
-@@ -1 +1,2 @@
- NOT-THE-REAL-CONTENT
-+A-ADDED
-`
-
-	client := jj.NewClient(repo.Dir)
-	plans := []jj.SplitPlan{{
-		Tag:   'a',
-		Patch: badPatch,
-		Destination: jj.SplitDestination{
-			Type:        jj.SplitDestNewCommit,
-			Description: "split: should not survive",
-		},
-	}}
-
-	if err := client.ApplySplit(plans, "@"); err == nil {
-		t.Fatal("expected ApplySplit to report the failed plan")
-	}
-
-	repo.AssertFileContent("a.txt", "a1\nA-ADDED\n")
-
-	if currentWC := repo.GetChangeID("@"); currentWC != originalWC {
-		t.Errorf("working copy moved:\nExpected: %s\nActual:   %s", originalWC, currentWC)
-	}
-
-	if currentParent := repo.GetChangeID("@-"); currentParent != originalParent {
-		t.Errorf("the rolled-back commit is still in the history:\nExpected parent: %s\nActual:   %s",
-			originalParent, currentParent)
-	}
-
-	workspaces := repo.MustRun("workspace", "list")
-	if strings.Contains(workspaces, "jj-diff-scratch") {
-		t.Errorf("scratch workspace leaked into jj workspace list:\n%s", workspaces)
-	}
+	repo.AssertFileContent("f.txt", edited)
+	repo.AssertDiffContains("@", "+TWO")
 }
 
 func TestGetRevisions_ParsesRealLogOutput(t *testing.T) {
@@ -425,7 +426,7 @@ func TestGetRevisions_ParsesRealLogOutput(t *testing.T) {
 
 	client := jj.NewClient(repo.Dir)
 
-	revisions, err := client.GetRevisions(20)
+	revisions, err := client.GetRevisions(jj.Destinations("@"), 0)
 	if err != nil {
 		t.Fatalf("GetRevisions failed: %v", err)
 	}

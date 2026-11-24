@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/jj-diff/internal/components/statusbar"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -22,59 +23,55 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// The hints name keys that only work in that mode and panel, so a mode whose keys never appear is
-// a mode the user cannot discover without opening the help overlay.
-func TestViewWithContext_AdvertisesTheKeysThatWorkHere(t *testing.T) {
-	t.Parallel()
+// hints builds a footer's hints the way the model does: most useful first, the last pinned.
+func hints(pairs ...string) []keyhint.Hint {
+	out := make([]keyhint.Hint, 0, len(pairs)/2)
 
-	tests := []struct {
-		name  string
-		ctx   statusbar.Context
-		wants []string
-		omits []string
-	}{
-		{
-			name:  "interactive on the file list offers the destination and apply",
-			ctx:   statusbar.Context{Mode: "Interactive", Source: "@", FocusedPanel: "files"},
-			wants: []string{"d dest", "a apply", "? help"},
-			omits: []string{"/ search"},
-		},
-		{
-			name:  "interactive on the diff offers line selection",
-			ctx:   statusbar.Context{Mode: "Interactive", Source: "@", FocusedPanel: "diff"},
-			wants: []string{"space select", "v lines", "a apply"},
-		},
-		{
-			name:  "browse on the file list offers search rather than apply",
-			ctx:   statusbar.Context{Mode: "Browse", Source: "@", FocusedPanel: "files"},
-			wants: []string{"/ search", "f find"},
-			omits: []string{"a apply"},
-		},
-		{
-			name:  "visual mode offers only the selection keys",
-			ctx:   statusbar.Context{Mode: "Interactive", Source: "@", IsVisualMode: true},
-			wants: []string{"VISUAL", "space confirm", "esc cancel"},
-			omits: []string{"a apply"},
-		},
+	for i := 0; i+1 < len(pairs); i += 2 {
+		out = append(out, keyhint.Hint{Key: pairs[i], What: pairs[i+1]})
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	for i := range out {
+		out[i].Priority = len(out) - i
+	}
 
-			got := ansiless(statusbar.New().ViewWithContext(200, tt.ctx))
-			for _, want := range tt.wants {
-				if !strings.Contains(got, want) {
-					t.Errorf("hint %q missing from %q", want, got)
-				}
-			}
+	out[len(out)-1].Pin = true
 
-			for _, omit := range tt.omits {
-				if strings.Contains(got, omit) {
-					t.Errorf("hint %q should not appear in %q", omit, got)
-				}
-			}
-		})
+	return out
+}
+
+//nolint:gochecknoglobals // a fixture: the interactive diff pane's footer.
+var interactive = hints("space", "select", "v", "lines", "s", "squash", "S", "split", "?", "help")
+
+// The footer draws what the model's keymap passed it, keys bare in front of their words.
+func TestViewWithContext_DrawsTheHintsItIsGiven(t *testing.T) {
+	t.Parallel()
+
+	got := ansiless(statusbar.New().ViewWithContext(200, &statusbar.Context{
+		Mode: "Interactive", Source: "@", Hints: interactive,
+	}))
+
+	for _, want := range []string{"Interactive", "space select", "v lines", "s squash", "? help"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("hint %q missing from %q", want, got)
+		}
+	}
+}
+
+// A notice takes the facts' place, and the keys stay.
+func TestViewWithContext_ShowsANoticeInPlaceOfTheFacts(t *testing.T) {
+	t.Parallel()
+
+	got := ansiless(statusbar.New().ViewWithContext(120, &statusbar.Context{
+		Mode: "Interactive", Source: "umnpntqw", Notice: "squashed 1 hunk into abc", Hints: interactive,
+	}))
+
+	if !strings.Contains(got, "squashed 1 hunk into abc") || strings.Contains(got, "umnpntqw") {
+		t.Errorf("footer %q, want the notice in place of the source", got)
+	}
+
+	if !strings.Contains(got, "? help") {
+		t.Errorf("the notice pushed help out: %q", got)
 	}
 }
 
@@ -84,22 +81,22 @@ func TestViewWithContext_AdvertisesTheKeysThatWorkHere(t *testing.T) {
 func TestViewWithContext_KeepsHelpAndShedsFromTheEnd(t *testing.T) {
 	t.Parallel()
 
-	ctx := statusbar.Context{Mode: "Interactive", Source: "@", FocusedPanel: "diff"}
+	ctx := statusbar.Context{Mode: "Interactive", Source: "@", Hints: interactive}
 
 	tests := []struct {
-		width     int
-		wantApply bool
-		wantDest  bool
-		wantMode  bool
+		width      int
+		wantSplit  bool
+		wantSelect bool
+		wantMode   bool
 	}{
 		{width: 18, wantMode: false},
-		{width: 40, wantMode: true},
-		{width: 80, wantMode: true, wantDest: true},
-		{width: 120, wantMode: true, wantDest: true, wantApply: true},
+		{width: 30, wantMode: true},
+		{width: 40, wantMode: true, wantSelect: true},
+		{width: 80, wantMode: true, wantSelect: true, wantSplit: true},
 	}
 
 	for _, tt := range tests {
-		got := ansiless(statusbar.New().ViewWithContext(tt.width, ctx))
+		got := ansiless(statusbar.New().ViewWithContext(tt.width, &ctx))
 
 		if !strings.Contains(got, "? help") {
 			t.Errorf("width %d dropped the help hint: %q", tt.width, got)
@@ -109,15 +106,11 @@ func TestViewWithContext_KeepsHelpAndShedsFromTheEnd(t *testing.T) {
 			t.Errorf("width %d rendered %d cells: %q", tt.width, lipgloss.Width(got), got)
 		}
 
-		wants := map[string]bool{"a apply": tt.wantApply, "d dest": tt.wantDest, "Interactive": tt.wantMode}
+		wants := map[string]bool{"S split": tt.wantSplit, "space select": tt.wantSelect, "Interactive": tt.wantMode}
 		for hint, want := range wants {
 			if strings.Contains(got, hint) != want {
 				t.Errorf("width %d %q: want %v, got %q", tt.width, hint, want, got)
 			}
-		}
-
-		if strings.Contains(got, "|") || strings.Contains(got, ":") {
-			t.Errorf("width %d: want space-separated hints, got %q", tt.width, got)
 		}
 	}
 }
@@ -126,10 +119,13 @@ func TestViewWithContext_KeepsHelpAndShedsFromTheEnd(t *testing.T) {
 func TestViewWithContext_KeepsEscInAVisualSelection(t *testing.T) {
 	t.Parallel()
 
-	ctx := statusbar.Context{Mode: "Interactive", Source: "umnpntqw (no description)", IsVisualMode: true}
+	ctx := statusbar.Context{
+		Mode: "Interactive", Source: "umnpntqw (no description)", IsVisualMode: true,
+		Hints: hints("j/k", "extend", "space", "confirm", "esc", "cancel"),
+	}
 
 	for _, width := range []int{40, 80} {
-		got := ansiless(statusbar.New().ViewWithContext(width, ctx))
+		got := ansiless(statusbar.New().ViewWithContext(width, &ctx))
 		if !strings.Contains(got, "esc cancel") {
 			t.Errorf("width %d dropped esc: %q", width, got)
 		}
@@ -140,7 +136,9 @@ func TestViewWithContext_KeepsEscInAVisualSelection(t *testing.T) {
 func TestViewWithContext_DrawsKeysInTheAccent(t *testing.T) {
 	t.Parallel()
 
-	got := statusbar.New().ViewWithContext(120, statusbar.Context{Mode: "Browse", Source: "@", FocusedPanel: "files"})
+	got := statusbar.New().ViewWithContext(120, &statusbar.Context{
+		Mode: "Browse", Source: "@", Hints: hints("j/k", "nav", "?", "help"),
+	})
 	if want := theme.Skin.Accent.Render("?"); !strings.Contains(got, want) {
 		t.Errorf("footer %q, want the help key drawn as %q", got, want)
 	}
@@ -155,10 +153,10 @@ func TestViewWithContext_MeasuresWideGlyphsInCells(t *testing.T) {
 	t.Parallel()
 
 	//nolint:gosmopolitan // a CJK revision description is the realistic source of wide glyphs
-	ctx := statusbar.Context{Mode: "Browse", Source: "更新した変更", FocusedPanel: "files"}
+	ctx := statusbar.Context{Mode: "Browse", Source: "更新した変更", Hints: hints("?", "help")}
 
 	for _, width := range []int{20, 37, 80} {
-		got := ansiless(statusbar.New().ViewWithContext(width, ctx))
+		got := ansiless(statusbar.New().ViewWithContext(width, &ctx))
 		if lipgloss.Width(got) != width {
 			t.Errorf("width %d rendered %d cells: %q", width, lipgloss.Width(got), got)
 		}
