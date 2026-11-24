@@ -1,3 +1,15 @@
+## v0.10.1 (2026-11-24)
+
+### Fix
+
+- **tui**: reset the scroll margins on a resize so a grown screen repaints in place
+- **resolve**: show a side's whole description and size panes by content
+- **split**: collapse an empty column to a strip and give its width away
+
+### Perf
+
+- **render**: draw a Document plain first and color it once the lexer lands
+
 ## v0.10.0 (2026-11-24)
 
 ### Feat
