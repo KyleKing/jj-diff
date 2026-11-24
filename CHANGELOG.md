@@ -1,3 +1,13 @@
+## v0.14.0 (2026-11-24)
+
+### Feat
+
+- **reads**: file marks under the full change id, add U, and draw read as ▰
+
+### Fix
+
+- **test**: run every test in a home of its own and fail a run that reaches the real one
+
 ## v0.13.0 (2026-11-24)
 
 ### Feat
