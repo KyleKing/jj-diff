@@ -41,6 +41,7 @@ var (
 const diffEditorArgCount = 2
 
 type flags struct {
+	resolveWith    string
 	applyPatch     string
 	unapplyPatch   string
 	revision       string
@@ -48,6 +49,7 @@ type flags struct {
 	destination    string
 	tabWidth       int
 	version        bool
+	resolve        bool
 	split          bool
 	browse         bool
 	interactive    bool
@@ -82,7 +84,11 @@ func parseFlags() flags {
 		"With LEFT RIGHT: make RIGHT the LEFT tree plus this patch, drawing nothing (jj-diff's own writes)")
 	flag.StringVar(&f.unapplyPatch, jj.FlagUnapplyPatch, "",
 		"With LEFT RIGHT: take this patch back out of the LEFT tree first (jj-diff's own writes)")
+	flag.BoolVar(&f.resolve, "resolve", false, "Open the conflict viewer on the revision's conflicted files")
+	flag.BoolVar(&f.resolve, "conflicts", false, "Same as --resolve")
 	flag.BoolVar(&f.split, "split", false, "Open the revision in split columns (implies -i)")
+	flag.StringVar(&f.resolveWith, jj.FlagResolveWith, "",
+		"With FILE: write the planned resolution over FILE, drawing nothing (jj-diff's own resolve)")
 	flag.IntVar(
 		&f.tabWidth,
 		"tab-width",
@@ -104,6 +110,7 @@ func parseFlags() flags {
 		fmt.Fprintf(os.Stderr, "  jj-diff -i           # Interactive mode (squash, split, or discard hunks)\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff -i -d @-     # c squashes the selection into the parent\n")
 		fmt.Fprintf(os.Stderr, "  jj-diff --split -r X # Split X into commits, one column each\n")
+		fmt.Fprintf(os.Stderr, "  jj-diff --resolve -r X  # Pick sides for X's conflicts\n")
 		fmt.Fprintf(
 			os.Stderr,
 			"  jj-diff LEFT RIGHT   # Diff-editor mode (for jj split, diffedit)\n",
@@ -172,6 +179,14 @@ func main() {
 // reports whether there was one.
 func runEditorHalf(f *flags) bool {
 	switch {
+	case f.resolveWith != "":
+		if flag.NArg() != 1 {
+			log.Fatalf("Failed to resolve: %v", errBadArgs)
+		}
+
+		if err := jj.ApplyResolution(f.resolveWith, flag.Arg(0)); err != nil {
+			log.Fatalf("Failed to resolve: %v", err)
+		}
 	case f.applyPatch != "" || f.unapplyPatch != "":
 		if flag.NArg() != diffEditorArgCount {
 			log.Fatalf("Failed to apply the selection: %v", errBadArgs)
@@ -223,9 +238,17 @@ func prepareRevisionMode(f *flags) (builder, error) {
 		mode = model.ModeInteractive
 	}
 
+	if f.resolve {
+		mode = model.ModeResolve
+	}
+
 	// The label and the diff are each a jj call the first frame waits on, so both run at once.
 	revision := diff.NewRevisionSource(client, f.revision)
-	source := diff.Prefetch(revision)
+	// The conflict viewer reads the conflicts rather than the diff, so it starts no diff.
+	var source diff.Source = revision
+	if !f.resolve {
+		source = diff.Prefetch(revision)
+	}
 
 	labeled := make(chan error, 1)
 

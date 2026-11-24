@@ -46,6 +46,10 @@ func (m *Model) dispatch(action string, pressed ...string) tea.Cmd {
 		return m.pickerAction(action)
 	}
 
+	if m.mode == ModeResolve {
+		return m.resolveAction(action, pressed)
+	}
+
 	if m.cols != nil && action != keys.ActionHelp && action != keys.ActionCancel {
 		if cmd, ok := m.columnsAction(action, pressed); ok {
 			return cmd
@@ -268,6 +272,8 @@ func modeName(mode OperatingMode) string {
 		return "Interactive"
 	case ModeDiffEditor:
 		return "Diff-Editor"
+	case ModeResolve:
+		return "Resolve"
 	case ModeBrowse:
 	}
 
@@ -303,6 +309,12 @@ func (m *Model) quit() tea.Cmd {
 		}
 
 		m.aborted = true
+	case ModeResolve:
+		if m.res != nil && len(m.res.undo) > 0 {
+			m.quitPrompt = true
+
+			return nil
+		}
 	case ModeBrowse:
 	}
 

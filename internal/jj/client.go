@@ -45,6 +45,9 @@ func NewClient(baseDir string, opts ...Option) *Client {
 	return c
 }
 
+// Dir is the directory jj runs in, which decides the repository.
+func (c *Client) Dir() string { return c.baseDir }
+
 // jjCommand builds a jj invocation rooted at the client's repository.
 func (c *Client) jjCommand(args ...string) *exec.Cmd {
 	//nolint:gosec // G204: the binary is a literal; only the arguments vary and no shell is involved.

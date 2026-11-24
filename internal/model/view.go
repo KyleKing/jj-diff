@@ -36,6 +36,12 @@ func (m *Model) render() string {
 		return ""
 	}
 
+	if m.mode == ModeResolve {
+		frame := *m
+
+		return frame.whichKey(composite(frame.renderResolve(), frame.overlayView(), frame.width, frame.height))
+	}
+
 	if m.cols != nil && len(m.changes) > 0 {
 		frame := *m
 
@@ -255,7 +261,12 @@ func (m *Model) renderStatusBar() string {
 	}
 
 	if m.quitPrompt {
-		ctx.Notice, ctx.Alarm, ctx.Hints = "quit with a selection pending?", true, m.quitPromptHints()
+		question := "quit with a selection pending?"
+		if m.mode == ModeResolve {
+			question = "quit with picks unwritten?"
+		}
+
+		ctx.Notice, ctx.Alarm, ctx.Hints = question, true, m.quitPromptHints()
 	}
 
 	return m.statusBar.ViewWithContext(m.width, &ctx)

@@ -32,6 +32,9 @@ const (
 	ModeBrowse OperatingMode = iota
 	ModeInteractive
 	ModeDiffEditor
+	// ModeResolve is the conflict viewer, which reads the revision's conflicted files rather than
+	// its diff and writes picks with jj resolve.
+	ModeResolve
 )
 
 // FocusedPanel is which of the two panes takes navigation keys.
@@ -97,6 +100,8 @@ type Model struct {
 	pending *SelectionState
 	// cols is the split columns while they are up, nil otherwise.
 	cols *splitColumns
+	// res is the conflict viewer's state in ModeResolve.
+	res *resolveState
 	// again repeats the last write on the current selection, for the repeat action.
 	again func(m *Model, sel *SelectionState) tea.Cmd
 	// dim is the faint the diff pane is drawn in while the file list has focus.
@@ -232,6 +237,10 @@ func (m *Model) Aborted() bool { return m.aborted }
 
 // Init starts the first diff load. Nothing is rendered until it returns and a window size arrives.
 func (m *Model) Init() tea.Cmd {
+	if m.mode == ModeResolve {
+		return m.loadConflicts()
+	}
+
 	return m.loadDiff()
 }
 
@@ -296,6 +305,9 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case editedMsg:
 		m.edited(msg)
+
+	case conflictsLoadedMsg:
+		m.conflictsLoaded(msg)
 	}
 
 	return m, nil

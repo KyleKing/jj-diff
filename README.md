@@ -128,6 +128,34 @@ at its cursor:
 | `enter` / `c` | apply: `jj split` per non-empty column; empty columns are dropped |
 | `esc` / `q` | back out: visual, then the selection, then the columns, writing nothing |
 
+### Conflict viewer
+
+`jj-diff --resolve -r REV` (also `--conflicts`) lists REV's conflicted files and
+shows each conflict region with a pane per side, labeled with the revision it came
+from (change ID and description), the base as pane `0`, and what the region becomes.
+Picks are kept in memory until you write them.
+
+| Key | Action |
+| --- | --- |
+| `]x` / `[x`, `n` / `N` | next / previous conflict region, crossing into the next file |
+| `]f` / `[f` | next / previous conflicted file |
+| `1`–`9` | take side N for the region |
+| `0` | take the base |
+| `a` | take every side, in order |
+| `e` | edit the region (its current pick, or its markers) in `$EDITOR` |
+| `R` | put the region back to conflicted |
+| `M` | hand the file to your configured merge tool (`jj resolve`) and read it again |
+| `\s` | sides side by side, or stacked |
+| `u` / `ctrl+r` | undo / redo a pick |
+| `c` / `enter` | write every pick as one `jj resolve` operation |
+| `q` | quit, asking first when picks are unwritten |
+
+The write is `jj resolve -r REV --tool :editor` with jj-diff as the editor, which
+replaces each file with your picks applied. Regions you did not pick keep their
+markers, and jj reads them back as the conflict that remains, so a file can be
+resolved a region at a time. `jj undo` reverses the write. jojo, or any tool, can
+open it on a conflicted revision with `jj-diff --resolve -r <change-id>`.
+
 Moving from 0.8: `[`/`]` became `[f`/`]f`, `p` became `N`/`[h`, `g` became `gg`,
 `s`/`l`/`W` (side by side, line numbers, word diff) became `\s`/`\n`/`\r`, `z`
 became `za`, `F` merged into `f`, `r` became `ctrl+l`, `d` then `a` became `s` then
@@ -141,11 +169,12 @@ became `za`, `F` merged into `f`, `r` became `ctrl+l`, `d` then `a` became `s` t
   the working copy changes only when it is the revision you are writing to or from.
   A failed write restores the operation it started from
 - Commit, rebase, or edit existing commit descriptions. It squashes, splits, or
-  discards existing changes and nothing else
+  discards existing changes, and resolves conflicts, and nothing else
 - Browse the repository. There is no change graph, operation log, or bookmark
   management here. That is [jj-tui](https://github.com/KyleKing/jj-tui)'s job, and
   jjui's, and both hand hunk-level work to a diff editor, which is where jj-diff fits
-- Resolve merge conflicts
+- Resolve conflicts that are not text: a deleted side, a binary file, or a file
+  that became a directory are listed, and `M` hands them to your merge tool
 - Edit file contents. You choose which existing changes move, and you do not type
   new ones
 

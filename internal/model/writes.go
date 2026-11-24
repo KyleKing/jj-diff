@@ -276,6 +276,8 @@ func (m *Model) confirm() tea.Cmd {
 	switch m.mode {
 	case ModeDiffEditor:
 		return m.applyDiffEditorSelection()
+	case ModeResolve:
+		return m.writeResolution()
 	case ModeBrowse, ModeInteractive:
 	}
 
@@ -325,7 +327,8 @@ func (m *Model) written(msg writtenMsg) tea.Cmd {
 
 	text := msg.summary + " · " + undo + " reverses it"
 
-	conflicts := msg.outcome.Conflicts != ""
+	// A partial resolve leaves the conflicts it did not touch, which jj reports as new ones.
+	conflicts := msg.outcome.Conflicts != "" && m.mode != ModeResolve
 	if conflicts {
 		text = msg.summary + " · " + msg.outcome.Conflicts
 	}
@@ -334,6 +337,10 @@ func (m *Model) written(msg writtenMsg) tea.Cmd {
 
 	if m.quitAfterWrite {
 		return tea.Quit
+	}
+
+	if m.mode == ModeResolve {
+		return m.loadConflicts()
 	}
 
 	return m.loadDiff()

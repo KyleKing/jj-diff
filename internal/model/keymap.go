@@ -43,10 +43,14 @@ var unsupported = []string{
 	keys.ActionVisual,
 }
 
-// supportedObjects are the ] and [ objects a single revision's diff has.
-//
-//nolint:gochecknoglobals // a fixed table, read only.
-var supportedObjects = []string{keys.ObjHunk, keys.ObjFile}
+// supportedObjects are the ] and [ objects a single revision's diff has, and the conflict viewer's.
+func supportedObjects(mode OperatingMode) []string {
+	if mode == ModeResolve {
+		return []string{keys.ObjConflict, keys.ObjFile}
+	}
+
+	return []string{keys.ObjHunk, keys.ObjFile}
+}
 
 // columnsUnsupported is the shared vocabulary the split columns do not act on: they have one pane,
 // no search, and draw hunks without folds or view options. Each is taken off the Split screen so its
@@ -79,6 +83,17 @@ func offColumns(bindings []keys.Binding) []keys.Binding {
 	return bindings
 }
 
+// resolveUnsupported is what the conflict viewer leaves out beyond unsupported: it has no selection,
+// no folds, and no second pane.
+//
+//nolint:gochecknoglobals // a fixed table, read only.
+var resolveUnsupported = []string{
+	keys.ActionRepeat, keys.ActionSwitchPane, keys.ActionFilter, keys.ActionWhitespace,
+	keys.ActionFoldToggle, keys.ActionFoldInvert, keys.ActionFoldOpenAll, keys.ActionFoldAll,
+	keys.ActionFrameMiddle, keys.ActionFrameTop, keys.ActionFrameBottom, keys.ActionViewNumbers,
+	keys.ActionViewRefine, keys.ActionSearch,
+}
+
 // pickerFlags are the squash flags the destination picker offers. -m and -i are left out: the
 // selection is the interactive part, and a message prompt is not built yet.
 //
@@ -90,7 +105,7 @@ func sharedBindings(mode OperatingMode) []keys.Binding {
 	drop := slices.Clone(unsupported)
 
 	for _, o := range keys.Objects() {
-		if !slices.Contains(supportedObjects, o.Noun) {
+		if !slices.Contains(supportedObjects(mode), o.Noun) {
 			drop = append(drop, keys.NextAction(o.Noun), keys.PrevAction(o.Noun))
 		}
 	}
@@ -101,6 +116,13 @@ func sharedBindings(mode OperatingMode) []keys.Binding {
 
 	if mode == ModeDiffEditor {
 		drop = append(drop, keys.ActionRepeat)
+	}
+
+	if mode == ModeResolve {
+		drop = append(drop, resolveUnsupported...)
+
+		return slices.Concat(keys.Without(slices.Concat(keys.Global(), keys.DiffView()), drop...),
+			keys.ConflictPicks())
 	}
 
 	shared := keys.Without(slices.Concat(keys.Global(), keys.DiffView()), drop...)
@@ -145,6 +167,19 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 
 	if mode == ModeBrowse {
 		return out
+	}
+
+	if mode == ModeResolve {
+		return []keys.Binding{
+			{
+				Action: actionConfirm, Keys: []string{"c"}, What: "confirm: write the picks (one jj operation)",
+				Short: actionConfirm, Group: groupWrite, Contexts: keys.Conflict,
+			},
+			{
+				Action: actionApply, Keys: []string{keyEnter}, What: "write the picks", Short: "write",
+				Group: groupWrite, Contexts: keys.Conflict,
+			},
+		}
 	}
 
 	out = append(out,
@@ -261,6 +296,13 @@ func (m *Model) columnsHints() []keyhint.Hint {
 		m.hint(keys.FlagAction(keys.VerbSplit, "p"), "parallel"), m.hint(keys.ActionHelp, ""))
 }
 
+// conflictHints is the conflict viewer's footer.
+func (m *Model) conflictHints() []keyhint.Hint {
+	return slices.Concat(m.labeled(keys.ActionTakeSide, ""), m.hint(keys.ActionTakeBase, ""),
+		m.hint(keys.ActionTakeAll, ""), m.hint(actionConfirm, ""), m.hint(keys.NextAction(keys.ObjConflict), ""),
+		m.hint(keys.ActionUndo, ""), m.hint(keys.ActionHelp, ""))
+}
+
 // footerHints is what the footer offers on a screen, most useful first: Fit sheds from the end,
 // and the last one (help, or the way out of a mode) is pinned.
 func (m *Model) footerHints() []keyhint.Hint {
@@ -270,6 +312,8 @@ func (m *Model) footerHints() []keyhint.Hint {
 	var hints []keyhint.Hint
 
 	switch ctx := m.context(); {
+	case ctx == keys.Conflict:
+		hints = m.conflictHints()
 	case ctx == keys.Split:
 		hints = m.columnsHints()
 	case m.isVisualMode:
@@ -308,6 +352,8 @@ func (m *Model) footerHints() []keyhint.Hint {
 // context is the screen the next key lands on, which decides what it means.
 func (m *Model) context() keys.Context {
 	switch {
+	case m.mode == ModeResolve:
+		return keys.Conflict
 	case m.cols != nil:
 		return keys.Split
 	case m.picker.IsVisible():

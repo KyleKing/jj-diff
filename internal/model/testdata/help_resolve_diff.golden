@@ -1,0 +1,49 @@
+╭──────────────────────────────────────────────────────────────────╮
+│ ── Keys · Resolve ────────────────────────────────────────────── │
+│                                                                  │
+│ ── General ───────────────────────────────────────────────────── │
+│                   ?  help                                        │
+│                   q  close, or quit at the root                  │
+│                 esc  back out one level                          │
+│              ctrl+c  cancel the running command, else quit       │
+│                   u  undo                                        │
+│              ctrl+r  redo                                        │
+│              ctrl+l  reload from the source                      │
+│                                                                  │
+│ ── Move ──────────────────────────────────────────────────────── │
+│                  gg  top                                         │
+│                   G  bottom                                      │
+│              j/down  down a line                                 │
+│                k/up  up a line                                   │
+│              ctrl+d  half a page down                            │
+│              ctrl+u  half a page up                              │
+│              ctrl+f  a page down                                 │
+│              ctrl+b  a page up                                   │
+│   ctrl+e/shift+down  scroll a line down                          │
+│     ctrl+y/shift+up  scroll a line up                            │
+│                                                                  │
+│ ── Jump ──────────────────────────────────────────────────────── │
+│                   n  repeat the last motion                      │
+│                   N  repeat the last motion backward             │
+│                  ]f  next file                                   │
+│                  [f  previous file                               │
+│                  ]x  next conflict                               │
+│                  [x  previous conflict                           │
+│                                                                  │
+│ ── View ──────────────────────────────────────────────────────── │
+│                  \s  side by side                                │
+│                                                                  │
+│ ── Resolve ───────────────────────────────────────────────────── │
+│                 1–9  take side N                                 │
+│                   0  take the base                               │
+│                   a  take every side in order                    │
+│                   e  edit the region in $EDITOR                  │
+│                   R  put the region back to conflicted           │
+│                   M  hand the file to the configured merge tool  │
+│                                                                  │
+│ ── Write ─────────────────────────────────────────────────────── │
+│                   c  confirm: write the picks (one jj operation) │
+│               enter  write the picks                             │
+│                                                                  │
+│ esc close                                                        │
+╰──────────────────────────────────────────────────────────────────╯

@@ -15,7 +15,7 @@ import (
 )
 
 //nolint:gochecknoglobals // a fixture
-var modes = []OperatingMode{ModeBrowse, ModeInteractive, ModeDiffEditor}
+var modes = []OperatingMode{ModeBrowse, ModeInteractive, ModeDiffEditor, ModeResolve}
 
 // TestKeymap_AgreesWithShared is what keeps one key meaning one thing across jojo, jj-diff, and
 // second-look: no key jj-diff binds may be a key the shared table gives another action on a screen
@@ -24,7 +24,7 @@ func TestKeymap_AgreesWithShared(t *testing.T) {
 	t.Parallel()
 
 	shared := slices.Concat(keys.Global(), keys.DiffView(), keys.FlagBindings(keys.VerbSquash),
-		keys.FlagBindings(keys.VerbSplit), keys.SplitColumns())
+		keys.FlagBindings(keys.VerbSplit), keys.SplitColumns(), keys.ConflictPicks())
 
 	for _, mode := range modes {
 		if got := keys.Disagreements(shared, toolBindings(mode)); len(got) != 0 {
@@ -46,7 +46,7 @@ func TestHelp_ListsEveryBoundAction(t *testing.T) {
 		km := newKeymap(mode)
 		listed := map[string]bool{}
 
-		for _, ctx := range []keys.Context{keys.List, keys.View, keys.Select, keys.Picker, keys.Split} {
+		for _, ctx := range []keys.Context{keys.List, keys.View, keys.Select, keys.Picker, keys.Split, keys.Conflict} {
 			for _, h := range km.Legend(ctx) {
 				listed[h.Key+" "+h.What] = true
 			}
@@ -283,6 +283,11 @@ func TestHelp_Golden(t *testing.T) {
 	for _, mode := range modes {
 		for _, screen := range screens {
 			if (screen.picker || screen.columns) && mode != ModeInteractive {
+				continue
+			}
+
+			// The conflict viewer is one screen.
+			if mode == ModeResolve && screen.name != "diff" {
 				continue
 			}
 

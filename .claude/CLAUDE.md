@@ -62,6 +62,7 @@ Every write is one jj command with this program passed as the diff editor on the
 - `MoveChanges`: `jj squash --from S --into D` (or `-o`/`-A`/`-B` per `Placement`)
 - `Split`: `jj split -r S -B S`, one call per group; `parallel` makes siblings. A chain's group patch includes every group before it, because jj shows each split the previous split's commit as its left side
 - `Restore`: `jj restore --changes-in R`
+- `Resolve` (`internal/jj/resolve.go`): `jj resolve -r R --tool :editor` with `ui.editor` set to jj-diff `--resolve-with PLAN`; jj runs it once per file in one operation, and it swaps in the picked text for the file whose content hashes as planned. Conflicts are read and written in `ui.conflict-marker-style=snapshot`, which is what makes the hash match
 
 jj re-runs jj-diff with `--apply-patch`/`--unapply-patch`, and it rewrites `$right` to `$left` plus the selection without drawing. On jj 0.47.1 `$left` is the source's parent and `$right` the source, both holding only the changed files; jj's instructions file is turned off so it is not read as an added file. The editor is otherwise switched off, so a squash that would need one to combine descriptions fails cleanly (`-u`/`-k` get past it) instead of hanging. A failure restores the operation recorded before the command, so one `jj undo` undoes any write and no workspace is ever left behind.
 

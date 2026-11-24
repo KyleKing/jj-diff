@@ -16,6 +16,7 @@ jj-diff/
 │   ├── model/            # Core application state (TEA)
 │   ├── jj/               # jj CLI integration
 │   ├── diff/             # Diff parsing and patch generation
+│   ├── conflict/         # Snapshot-style conflict markers: parse, pick, write back
 │   ├── search/           # Search functionality
 │   ├── fuzzy/            # Fuzzy matching
 │   ├── components/       # UI components (filelist, diffview, modals)
@@ -41,6 +42,10 @@ jj-diff/
   so it works for any destination and is one operation
 - A split chain's later steps see only the files that still differ, so a file an earlier group took
   whole is dropped from both of a step's patches when they agree on it
+- Resolve: one `jj resolve --tool :editor` with jj-diff as `ui.editor` (`--resolve-with PLAN`),
+  which swaps each conflicted file, recognized by the hash of the text it was read as, for the
+  picks applied. The `:editor` tool takes any number of sides and keeps leftover markers as the
+  conflict that remains, which a three-way merge tool does neither of
 - Automatic rollback to the operation recorded before a write that fails after integrating
 
 **Diff Subsystem** (`internal/diff/`)
@@ -57,10 +62,12 @@ jj-diff/
   hunk that only reindents folds to one line that `z` expands
 - Modals: help, search, destination picker, fuzzy finder
 
-**Screens beyond the diff** (`internal/model/columns*.go`)
+**Screens beyond the diff** (`internal/model/columns*.go`, `internal/model/resolve*.go`)
 
 - Split columns: every changed line has one owner column (absent means column 1, the source).
   Applying turns columns 2..N into `Split` groups, a chain's patches cumulative
+- Conflict viewer (`ModeResolve`): a pane per side and the base, picks held per file and region
+  until one `Resolve` writes them
 
 **Render** (`render/`)
 
