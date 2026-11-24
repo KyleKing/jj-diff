@@ -1,3 +1,9 @@
+## v0.12.2 (2026-11-24)
+
+### Fix
+
+- **deps**: take bubbletea v2.1.2 so the screen repaints after a hand-off
+
 ## v0.12.1 (2026-11-24)
 
 ### Fix
