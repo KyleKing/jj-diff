@@ -18,6 +18,10 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 	key := msg.String()
 	m.notice, m.alarm = "", false
 
+	if !m.welcomeKey(key) {
+		return nil
+	}
+
 	// Any key clears a tip on screen and restarts the coach's idle clock.
 	m.coach.Press(time.Now())
 

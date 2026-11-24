@@ -1,0 +1,24 @@
+  ── Files 1/3 ──────────────────────────────────────────────────────────────── 
+  M file1.txt                                                             +2    
+  A file2.txt                                                             +2    
+  D file3.txt                                                                -2 
+  ───────────────────────────────────────────────────────────────────────────── 
+▸ L1–4                                                                          
+     1  ╭─ Welcome to jj-diff ─────────────────────────────────────────╮        
+     2 ▎│ Read a revision hunk by hunk. -i opens it to select, squash, │        
+     3  │ and split.                                                   │        
+  L11–13│                                                              │        
+    11  │ ]h    next hunk                                              │        
+    12 ▎│ ]f    next file                                              │        
+        │ tab   next pane                                              │        
+        │                                                              │        
+        │ ?     every key, and why one is off here                     │        
+        │ :     find and run any command by name                       │        
+        ╰─ any key to start · esc closes ──────────────────────────────╯        
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+  Browse  @   j/k nav   enter diff   f filter   / search   ? help               

@@ -57,6 +57,12 @@ selection, `space` to confirm the lines, then `s` and `enter` on `@-` to squash 
 there. `jj undo` takes it back. Press `?` at any point for the keymap, or `:` to find
 a command by name.
 
+The first launch opens on a welcome card of the four or five keys the mode starts with
+(`space` select, `s` squash, `S` split, `]h` next hunk under `-i`; the jumps in browse; select
+and confirm in the diff editor) and where the rest are. Any key closes it and still does what
+it does, `esc` only closes it, it is recorded in `$XDG_STATE_HOME/jj-diff/coach.json` so it never
+shows again on its own, and `:welcome` brings it back. Below 60x16 it is a line in the footer.
+
 ## Keys
 
 The keymap is the one jojo and second-look use, shared through aragonite's
@@ -122,8 +128,10 @@ A revision viewed with `-r` (browse or `-i`) shows which hunks you have marked r
 in [jojo](https://github.com/KyleKing/jj-tui): a muted `▰` (the cell jojo's read strip
 fills) leads each read hunk's header, a file read whole carries one in the file list,
 the heading counts the file's unread hunks, and the Files rule the revision's. `]u` /
-`[u` step to the next or previous unread hunk, and `U` hides what is read until pressed
-again. The marks are jojo's and jj-diff only shows them: `space` keeps meaning select,
+`[u` step to the next or previous unread hunk, and `U` shrinks what is read to its
+one-line header until pressed again. That is intended: the header keeps the hunk's place
+and range in view, so the read hunks stay countable and `]h` can still land on one, where
+hiding them outright would make the diff's numbering jump. The marks are jojo's and jj-diff only shows them: `space` keeps meaning select,
 and marking a hunk read happens in jojo.
 
 Read is never a check, because in `-i` a selected hunk ends its header in a green `✓`.

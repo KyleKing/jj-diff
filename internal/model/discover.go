@@ -42,6 +42,8 @@ func (m *Model) WithUsage(r *keyusage.Recorder) *Model {
 // discover builds the palette and the coach, which the ledger feeds.
 func (m *Model) discover() {
 	m.pal = palette.New(theme.Skin)
+	m.welcome = welcomeFor(m.mode, m.keymap)
+	m.welcome.OpenIfDue(m.ledger)
 	m.coach = coach.New(coach.Config[coachState]{
 		Ledger: m.ledger, Keymap: m.keymap, Rules: coachRules(), Tips: coachTips(), Start: m.built,
 		Detectors: coachDetectors(m.keymap),
@@ -151,6 +153,7 @@ func (m *Model) entries(mode palette.Mode) []palette.Entry {
 				Action: cmdTipsOn, What: "show tips about keys not yet used", Group: screenWord,
 				Keys: typed(cmdTipsOn),
 			},
+			welcomeEntry(),
 		)
 	}
 
@@ -187,6 +190,10 @@ func (m *Model) runPalette(run palette.RunMsg) tea.Cmd {
 	case cmdTipsOff, cmdTipsOn:
 		m.coach.Ledger().SetTipsOff(run.Action == cmdTipsOff)
 		m.say("tips "+strings.TrimPrefix(run.Action, ":tips "), false)
+
+		return nil
+	case coach.WelcomeAction:
+		m.welcome.Open()
 
 		return nil
 	case keys.ActionTakeSide, keys.ActionSendTo:

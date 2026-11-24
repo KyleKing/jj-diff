@@ -102,7 +102,7 @@ func (m *Model) render() string {
 // the box back.
 func (m *Model) finish(screen string) string {
 	if !m.pal.IsOpen() {
-		return m.whichKey(composite(m.withBand(screen), m.overlayView(), m.width, m.height))
+		return m.withWelcome(m.whichKey(composite(m.withBand(screen), m.overlayView(), m.width, m.height)))
 	}
 
 	frame := m.whichKey(m.withBand(screen))

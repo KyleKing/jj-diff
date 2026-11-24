@@ -140,7 +140,9 @@ mode. The two must name one directory and one id per hunk, so nothing is jj-diff
 - The diff editor and the conflict viewer have no change to scope marks by and show none; their
   keymaps bind no `]u`. Where marks show, `]u` / `[u` are also bound on the file list, the screen
   a session opens on
-- `U` keeps indices whole: a read hunk is drawn as its header alone (`diffview.SetHidden`, zero
+- `U` keeps read hunks as one-line headers by design, not as a step short of hiding them: the
+  header is where the read mark and the range live, so the reader still sees what was read and
+  where, and nothing renumbers. `U` keeps indices whole: a read hunk is drawn as its header alone (`diffview.SetHidden`, zero
   body rows in the line index) rather than taken out of the file, so the cursor, the selection,
   and every patch still name the hunk jj's diff numbers. The cursor's own hunk stays whole, so
   `]h` onto a read hunk still shows it. Files read whole leave the drawn list, and the list's

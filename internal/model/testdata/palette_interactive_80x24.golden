@@ -17,7 +17,7 @@
                                                                                 
                                                                                 
                                                                                 
-── commands 1 of 50 ────────────────────────────────────────────────────────────
+── commands 1 of 51 ────────────────────────────────────────────────────────────
 ── matches ─────────────────────────────────────────────────────────────────────
 ▌ s  squash the selection into… ← …  jj squash --from @ --into <dest>           
 : amend▏                                     enter run  ctrl+n/p move  esc close

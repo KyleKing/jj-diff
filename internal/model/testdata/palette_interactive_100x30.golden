@@ -1,4 +1,4 @@
-  M file1.txt                                ╭─ commands · 1 of 50 ────────────────────────────────╮
+  M file1.txt                                ╭─ commands · 1 of 51 ────────────────────────────────╮
                                              │ : amend▏                                            │
 ▸ L1–4                                       │ ── matches ──────────────────────────────────────── │
      1   line 1                              │ ▌ s  squash the selection into… ← amend             │

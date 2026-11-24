@@ -107,6 +107,9 @@ type Model struct {
 	coach *coach.Coach[coachState]
 	// ledger is where the coach remembers tips and runs across sessions, nil for none.
 	ledger *coach.Ledger
+	// welcome is the first-run card, up on the ledger's first session until any key, and again on
+	// :welcome.
+	welcome *coach.Welcome
 	// usage is the opt-in usage log, nil when it is off.
 	usage *keyusage.Recorder
 	// msgs is the gm command log while it is up.
