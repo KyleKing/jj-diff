@@ -51,25 +51,23 @@ type SelectionState interface {
 }
 ```
 
-Adding a keybinding touches four places: the `handleKeyPress()` case in `internal/model/model.go`, the handler itself, the help overlay in `internal/components/help/help.go`, and the README keybindings table.
+Keys are data. Dispatch, the help overlay, the footer, and the which-key panel all come from the one table in `internal/model/keymap.go`, merged with aragonite `tui/keys` (`Global()`, `DiffView()`). Adding a key means a row there, its handler, and the README Keys section. `TestKeymap_AgreesWithShared` fails when jj-diff binds a shared key to a different action, and the help screens are pinned by `internal/model/testdata/help_*.golden`.
 
 Patch generation in `internal/diff/patch.go` copies whole hunks as-is. For partial hunks it extracts the selected lines plus three lines of context on each side and recalculates the hunk header line counts.
 
 ## jj integration
 
-`MoveChanges` in `internal/jj/client.go` runs this sequence:
+Every write is one jj command with this program passed as the diff editor on the command line (merge-tools entry `jj-diff-selection`, defined per call so a user's own config cannot change what runs), all in `internal/jj/write.go`:
 
-1. Resolve the destination revset to a change ID and record the current operation ID
-2. `jj workspace add` a scratch workspace under a temp directory
-3. In the scratch workspace: `jj new <destination>`, `git apply patch.diff`, `jj squash --into <destination>`
-4. Always: `jj workspace forget` and delete the directory
-5. On error, `jj op restore` back to the operation from step 1
+- `MoveChanges`: `jj squash --from S --into D` (or `-o`/`-A`/`-B` per `Placement`)
+- `Split`: `jj split -r S -B S`, one call per group; `parallel` makes siblings. A chain's group patch includes every group before it, because jj shows each split the previous split's commit as its left side
+- `Restore`: `jj restore --changes-in R`
+
+jj re-runs jj-diff with `--apply-patch`/`--unapply-patch`, and it rewrites `$right` to `$left` plus the selection without drawing. On jj 0.47.1 `$left` is the source's parent and `$right` the source, both holding only the changed files; jj's instructions file is turned off so it is not read as an added file. The editor is otherwise switched off, so a squash that would need one to combine descriptions fails cleanly (`-u`/`-k` get past it) instead of hanging. A failure restores the operation recorded before the command, so one `jj undo` undoes any write and no workspace is ever left behind.
 
 This is the one place the application itself writes to a repository. It targets the user's repo at runtime, not this one.
 
-The invariant that makes it safe: no step destroys working-copy content. `MoveChanges` never names `@` at all, so a failed or abandoned run cannot cost unselected changes. `ApplySplit` is the one exception and it is a narrow one: a plan targeting a new commit runs `jj new --insert-before <source>`, which moves the source's parent pointer and leaves every byte of its content alone. A failure restores the operation recorded before the first plan.
-
-What reintroduces the data-loss bug that shipped once already is a step that rewrites working-copy *content*: `jj restore` against the user's working copy, or anything that resolves a revset relative to `@` and then discards what it finds there. Moving a parent pointer is safe; overwriting a tree is not. `TestApplySplit_NewCommitTakesOnlyTheSelectedHunk` pins the difference by asserting the unselected hunk is still in `@` afterwards.
+The invariant that makes it safe: the selection is the only content that changes. What reintroduces the data-loss bug that shipped once already is a step that rewrites working-copy *content* beyond it: `jj restore` against the whole working copy, or anything that resolves a revset relative to `@` and then discards what it finds there. `tests/integration` pins it on real repos: a move leaves an uninvolved `@` at the same commit ID, a sibling move removes the hunk from the source rather than copying it, and an invalid patch makes zero operations.
 
 ## Theme system
 
