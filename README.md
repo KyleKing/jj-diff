@@ -57,6 +57,8 @@ selection, `space` to confirm the lines, then `s` and `enter` on `@-` to squash 
 there. `jj undo` takes it back. Press `?` at any point for the keymap, or `:` to find
 a command by name.
 
+![Moving a hunk into the commit it belongs to with s](docs/images/squash.gif)
+
 The first launch opens on a welcome card of the four or five keys the mode starts with
 (`space` select, `s` squash, `S` split, `]h` next hunk under `-i`; the jumps in browse; select
 and confirm in the diff editor) and where the rest are. Any key closes it and still does what
@@ -72,6 +74,8 @@ shows the keys that can follow it while it waits. The legend (`?`), the command
 palette (`:`), and the footer are drawn from the same table, so they list exactly
 what is bound, and a key that can do nothing where the cursor is draws dim and says
 why when pressed ("u  nothing to undo") instead of doing nothing.
+
+![The command palette finding squash from a git word, and the legend explaining keys](docs/images/palette.gif)
 
 | Key | Action | Where |
 | --- | --- | --- |
@@ -173,6 +177,8 @@ every other column is a new commit, parent-most first, so the chain reads
 `2 → 3 → … → 1`. A move acts on the selection in the focused column, or on the hunk
 at its cursor:
 
+![Splitting a commit into columns, describing the new ones, and applying](docs/images/split.gif)
+
 | Key | Action |
 | --- | --- |
 | `h` / `l` | focus the column to the left / right |
@@ -192,6 +198,8 @@ at its cursor:
 shows each conflict region with a pane per side, labeled with the revision it came
 from (change ID and description), the base as pane `0`, and what the region becomes.
 Picks are kept in memory until you write them.
+
+![Picking a side for each conflict region, then confirming](docs/images/conflicts.gif)
 
 | Key | Action |
 | --- | --- |

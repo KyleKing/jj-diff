@@ -58,3 +58,6 @@ tmp/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# demo/scene.sh rebuilds a throwaway repository and home here on every run
+/demo/.work/

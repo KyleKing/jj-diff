@@ -23,3 +23,22 @@ run = "go install ./cmd/jj-diff"
 description = "Build and run jj-diff"
 depends = ["build"]
 run = "./jj-diff"
+
+# Overrides the template's task, which runs every tape in the tree. The README's
+# recordings are demo/*.tape, each opening a scene of demo/scene.sh, and each gif
+# is shrunk after recording: 64 colors keeps the truecolor syntax palette and the
+# add and remove bands, which fewer flattens to grey.
+[tasks.demo]
+description = "Generate the README's VHS recordings into docs/images"
+depends = ["build"]
+shell = "bash -c"
+run = '''
+set -euo pipefail
+mkdir -p docs/images
+for tape in demo/*.tape; do vhs "$tape"; done
+for tape in demo/*.tape; do
+  gif=docs/images/$(basename "$tape" .tape).gif
+  ffmpeg -v error -y -i "$gif" -vf "fps=6,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" "$gif.tmp.gif"
+  mv "$gif.tmp.gif" "$gif"
+done
+'''
