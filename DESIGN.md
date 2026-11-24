@@ -59,7 +59,7 @@ palette passed in rather than read from this program's theme. It renders unified
 does not select, since hunk and line selection belong to the editor. The two-column pairing lives in
 `internal/diff` so both renderers use the same one. `render.Lines` draws a whole diff, while `render.New`
 parses once and draws any window of rows on demand, which is what a caller with a small pane over a large
-diff wants. Syntax colors come from aragonite's `highlight`, which lexes each file once. [jojo](https://github.com/KyleKing/jj-tui) draws its
+diff wants. Syntax colors come from aragonite's `highlight`, which lexes each file once, in the background for the editor. [jojo](https://github.com/KyleKing/jj-tui) draws its
 diff pane with it.
 
 ### Design Principles
@@ -171,16 +171,47 @@ Prerequisites beyond the template's: jj 0.9.0+ on PATH, and git, which `git appl
 
 ## Performance
 
-Benchmarks on an Apple M2 Pro:
+Measured in a Linux container on 4 vCPUs of an Intel Xeon at 2.10 GHz with Go 1.26.0
+(`go test -bench=. -benchmem`), so absolute numbers run slower than a laptop. "Before" is v0.8.0,
+the release before this table was rewritten; both columns come from the same container.
 
-| Component | Typical | Large | Scaling |
-|-----------|---------|-------|---------|
-| File list | 7μs | 7μs (5000 files) | Constant, from the height cutoff |
-| Diff view | 33μs | 52μs (20K lines) | Offset-based windowing |
-| Search | 1.9ms | 17ms (100K lines) | Linear |
-| Patch generation | 352μs | 5.5ms (2000 hunks) | Linear |
+| What | Before | After |
+|------|--------|-------|
+| Diff pane frame, 40 rows (`DiffViewRender_*`) | 2.7 ms, 7,400 allocs | 16–33 µs, 7–13 allocs |
+| Diff pane scrolled one row, 2000-row file (`DiffViewScroll_2000Rows`) | 2.2 ms | 11 µs |
+| Diff pane frame where only the line cursor moved (`DiffViewCursorMove_2000Rows`) | — | 10 µs |
+| Open a 2000-row file to its first frame (`DiffViewFirstFrame_2000Rows`) | 263 ms | 5.9 ms |
+| Whole screen, diff focused (`ModelRender_DiffFocused`) | 1.85 ms | 27 µs |
+| Whole screen while searching a common term (`ModelRender_Searching`) | 2.2 ms | 43 µs |
+| `j` and the frame it draws (`ModelKeyJ`) | 1.87 ms | 43 µs |
+| Expanded file list, 1000 files, cursor moving (`FileListRender_Expanded`) | 514 µs | 40 µs |
+| Diff loaded to first frame, 200 files (`ModelStartup`) | 288 ms | 8.3 ms |
+| Launch to the diff on screen, 51-file change under tmux | ~440 ms | ~150 ms |
+| Search, 10,000 lines (`Search_MediumDiff`) | 5.7 ms | 4.3 ms |
 
-Search is fast enough without debouncing. Performance stays acceptable up to roughly 5,000 files, 20,000 diff lines, 100,000 lines searched, and 2,000 hunks per patch.
+What moved the numbers, so a change can tell whether it undoes one:
+
+- **Syntax colors land after the first frame.** Lexing is chroma's regexp engine and costs about 75 ms
+  per side of a 2000-line file. `SetFileChange` starts it in the background (aragonite's
+  `highlight.Cache.Start`), rows draw plain until it lands, and `HighlightCmd` redraws once it has.
+  The colored frame (`DiffViewColoredFrame_2000Rows`, about 170 ms) is the lexer's cost, off the
+  critical path. Scrolling never re-lexes: the spans are cached per file.
+- **Rows draw through pens, not `Style.Render`.** A lipgloss render costs about 3.4 µs, and a row is a
+  dozen styled runs. aragonite's `tui/pen` learns a style's escape sequence once and writes runs
+  byte for byte as `Render` would. The pens are rebuilt only when `theme.Generation` changes.
+- **Drawn rows are kept.** The diff pane keeps rows keyed by line, width, and cursor state, the
+  hunk headers and the overview track likewise, the file list keeps its last frame and its rows,
+  and the footer its last line. A frame where the cursor moved redraws the rows it moved between.
+  Rows with search hits are drawn fresh, and a row drawn before its colors landed is not kept.
+- **Search hits are indexed once per search,** by line and by file, rather than scanned per row.
+- **Startup overlaps its jj calls.** `diff.Prefetch` starts `jj diff` before theme detection, which
+  waits on the terminal and on `tmux info`; the label resolves beside it with
+  `--ignore-working-copy`, off the working-copy lock; and `CheckInstalled` looks jj up on `PATH`
+  rather than running it.
+
+The tmux figure is from `startup.sh`-style polling of `tmux capture-pane` until a line of the first
+file's diff appears, on a synthetic repository of 300 files and 31 commits whose working copy
+changes 51 files (one with 2,000 changed lines). `jj diff` alone takes 45–75 ms of it there.
 
 To profile:
 
