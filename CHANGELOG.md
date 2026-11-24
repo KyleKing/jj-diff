@@ -1,3 +1,14 @@
+## v0.11.0 (2026-11-24)
+
+### Feat
+
+- **tui**: gate keys with reasons, one palette for ? and :, a coach, gm, and empty cards
+- **jj**: log every jj command in a trail and echo writes without the editor plumbing
+
+### Fix
+
+- **tui**: leave jj-diff on q or esc at the top of a --split or --resolve session
+
 ## v0.10.1 (2026-11-24)
 
 ### Fix
