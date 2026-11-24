@@ -1,3 +1,9 @@
+## v0.13.0 (2026-11-24)
+
+### Feat
+
+- **reads**: show jojo's read marks on a revision
+
 ## v0.12.3 (2026-11-24)
 
 ### Fix
