@@ -1,3 +1,9 @@
+## v0.15.0 (2026-11-24)
+
+### Feat
+
+- **model**: a first-run welcome card of the mode's starter keys
+
 ## v0.14.0 (2026-11-24)
 
 ### Feat
