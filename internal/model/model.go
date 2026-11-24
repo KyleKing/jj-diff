@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/pen"
 
@@ -275,6 +276,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return model, cmd
 }
 
+// fullMargins gives a resized terminal back its whole height to scroll in, then repaints. The
+// renderer confines a scroll with DECSTBM and restores the margins by number, as the height it last
+// drew at. A frame flushed just before the resize reaches the terminal after it, so a window that
+// grew keeps the old height as its bottom margin, and every newline the repaint writes at that row
+// scrolls the page up instead of moving down: the page sits rows too high, its footer stranded at
+// the old bottom, until something redraws it. The margins are reset without numbers, which means the
+// whole screen at any size, around a saved cursor since DECSTBM homes it, and the repaint follows
+// because the one the resize asked for may already have drawn inside the stale margins.
+func fullMargins() tea.Cmd {
+	return tea.Sequence(
+		tea.Raw(ansi.SaveCursor+ansi.SetTopBottomMargins(0, 0)+ansi.RestoreCursor),
+		tea.ClearScreen,
+	)
+}
+
 func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
@@ -285,6 +301,8 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		return m, fullMargins()
 
 	case diffLoadedMsg:
 		m.loaded(msg.changes)
