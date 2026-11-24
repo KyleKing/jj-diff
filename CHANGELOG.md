@@ -1,3 +1,9 @@
+## v0.12.1 (2026-11-24)
+
+### Fix
+
+- **render**: lex each file section on its own, not each path
+
 ## v0.12.0 (2026-11-24)
 
 ### Feat
