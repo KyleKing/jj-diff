@@ -4,6 +4,7 @@ package search
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 )
@@ -124,10 +125,21 @@ func (s *State) appendFileMatches(query string, fileIdx int, file diff.FileChang
 // appendLineMatches records every hit in content, resuming one byte past each one so overlapping
 // occurrences are all reported.
 func (s *State) appendLineMatches(query string, at MatchLocation, content string) {
-	searchContent := s.normalize(content)
+	index := strings.Index
+	searchContent := content
+
+	// Lowering a line to search it allocated a copy of every line on every keystroke. ASCII on both
+	// sides lowers byte for byte, so it is matched in place instead and answers the same offsets.
+	switch {
+	case s.IsCaseSensitive:
+	case isASCII(query) && isASCII(content):
+		index = indexFoldASCII
+	default:
+		searchContent = s.normalize(content)
+	}
 
 	for idx := 0; ; {
-		pos := strings.Index(searchContent[idx:], query)
+		pos := index(searchContent[idx:], query)
 		if pos == -1 {
 			return
 		}
@@ -220,4 +232,56 @@ func (s *State) GetMatchesForLine(fileIdx, hunkIdx, lineIdx int) []MatchLocation
 	}
 
 	return matches
+}
+
+func isASCII(text string) bool {
+	for i := range len(text) {
+		if text[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+
+	return true
+}
+
+// indexFoldASCII is strings.Index of lowered against text lowered byte by byte, without building
+// the lowered copy. Both must be ASCII and lowered must already be lower case.
+func indexFoldASCII(text, lowered string) int {
+	n := len(lowered)
+	if n == 0 {
+		return 0
+	}
+
+	first := lowered[0]
+	upper := first
+	if 'a' <= first && first <= 'z' {
+		upper = first - 'a' + 'A'
+	}
+
+	for i := 0; i+n <= len(text); i++ {
+		if c := text[i]; c != first && c != upper {
+			continue
+		}
+
+		if equalFoldASCII(text[i:i+n], lowered) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func equalFoldASCII(text, lowered string) bool {
+	for i := range len(lowered) {
+		c := text[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+
+		if c != lowered[i] {
+			return false
+		}
+	}
+
+	return true
 }

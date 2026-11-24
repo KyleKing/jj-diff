@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/pen"
 
 	"github.com/kyleking/jj-diff/internal/components/commitmsg"
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
@@ -280,6 +281,11 @@ func (s *SelectionState) HasPartialSelection(filePath string, hunkIdx int) bool 
 // return only a command. A tea.Cmd runs off the Update loop, so a command factory must snapshot the
 // state it needs rather than read the model when the command runs.
 type Model struct {
+	// searchIndex holds the current search's hits by line, shared by every copy of the model so a
+	// frame drawn from a copy builds it once.
+	searchIndex *matchIndex
+	// dim is the faint the diff pane is drawn in while the file list has focus.
+	dim             pen.Pen
 	statusBar       statusbar.Model
 	diffSource      diff.Source
 	err             error
@@ -370,6 +376,8 @@ func NewModelWithSource(
 		multiSplitState: NewMultiSplitState(),
 	}
 
+	m.dim = pen.Of(lipgloss.NewStyle().Faint(true))
+	m.searchIndex = &matchIndex{}
 	m.fileList = filelist.New()
 	m.diffView = diffview.New(cfg)
 	m.statusBar = statusbar.New()
@@ -1513,18 +1521,61 @@ func (m *Model) getLineContentMatches(filePath string, hunkIdx, lineIdx int) []d
 		return nil
 	}
 
-	var ranges []diffview.MatchRange
-	for _, match := range m.searchState.Matches {
-		// Only include matches that are in line content
-		if match.FilePath == filePath && match.HunkIdx == hunkIdx && match.LineIdx == lineIdx {
-			ranges = append(ranges, diffview.MatchRange{
-				Start: match.StartCol,
-				End:   match.EndCol,
-			})
-		}
+	return m.matchIndex().lines[lineKey{path: filePath, hunk: hunkIdx, line: lineIdx}]
+}
+
+// matchIndex is the current search's hits by line and by file, built once per search. The diff pane
+// asks for a line's hits on every row of every frame, which scanning the whole match list for made
+// a frame cost a pass over every hit per row.
+type matchIndex struct {
+	lines map[lineKey][]diffview.MatchRange
+	hits  map[string][]diffview.SearchHit
+	// from is the match slice the index was built from, told apart by its first element, which the
+	// index keeps alive, so a later search's slice can never share its address.
+	from  *search.MatchLocation
+	count int
+}
+
+type lineKey struct {
+	path string
+	hunk int
+	line int
+}
+
+func (m *Model) matchIndex() *matchIndex {
+	matches := m.searchState.Matches
+
+	var from *search.MatchLocation
+	if len(matches) > 0 {
+		from = &matches[0]
 	}
 
-	return ranges
+	if idx := m.searchIndex; idx != nil && idx.lines != nil && idx.from == from && idx.count == len(matches) {
+		return idx
+	}
+
+	idx := &matchIndex{
+		lines: map[lineKey][]diffview.MatchRange{}, hits: map[string][]diffview.SearchHit{},
+		from: from, count: len(matches),
+	}
+
+	for _, match := range matches {
+		if match.HunkIdx < 0 {
+			continue
+		}
+
+		key := lineKey{path: match.FilePath, hunk: match.HunkIdx, line: match.LineIdx}
+		idx.lines[key] = append(idx.lines[key], diffview.MatchRange{Start: match.StartCol, End: match.EndCol})
+		idx.hits[match.FilePath] = append(idx.hits[match.FilePath], diffview.SearchHit{
+			Hunk: match.HunkIdx, Line: match.LineIdx,
+		})
+	}
+
+	if m.searchIndex != nil {
+		*m.searchIndex = *idx
+	}
+
+	return idx
 }
 
 //nolint:unparam // tea.Cmd stays in the signature to match the sibling handlers routeToOverlay dispatches through.
@@ -1756,15 +1807,7 @@ func (m *Model) pushSearchState() {
 		return m.getLineContentMatches(currentFile.Path, hunkIdx, lineIdx)
 	})
 
-	var hits []diffview.SearchHit
-
-	for _, match := range m.searchState.Matches {
-		if match.FilePath == currentFile.Path && match.HunkIdx >= 0 {
-			hits = append(hits, diffview.SearchHit{Hunk: match.HunkIdx, Line: match.LineIdx})
-		}
-	}
-
-	m.diffView.SetSearchHits(hits)
+	m.diffView.SetSearchHits(m.matchIndex().hits[currentFile.Path])
 }
 
 func (m *Model) pushTagState() {
@@ -1784,6 +1827,9 @@ func (m *Model) pushTagState() {
 	})
 }
 
+// faintSGR is the opening and closing a faint run adds to a dimmed row, which sizes the frame.
+const faintSGR = "\x1b[2m\x1b[m"
+
 // renderDiffView dims the whole pane while the file list has focus, so the two panels read as one
 // focused and one inactive.
 func (m *Model) renderDiffView(height int) string {
@@ -1794,14 +1840,19 @@ func (m *Model) renderDiffView(height int) string {
 		return view
 	}
 
-	dimStyle := lipgloss.NewStyle().Faint(true)
-	lines := strings.Split(view, "\n")
+	var out strings.Builder
 
-	for i, line := range lines {
-		lines[i] = dimStyle.Render(line)
+	out.Grow(len(view) + (strings.Count(view, "\n")+1)*len(faintSGR))
+
+	for i, line := range strings.Split(view, "\n") {
+		if i > 0 {
+			out.WriteByte('\n')
+		}
+
+		m.dim.Write(&out, line)
 	}
 
-	return strings.Join(lines, "\n")
+	return out.String()
 }
 
 func (m *Model) renderStatusBar() string {

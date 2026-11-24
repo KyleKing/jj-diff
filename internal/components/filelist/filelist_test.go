@@ -161,3 +161,60 @@ func TestRowsCarryTheFileTypeIcon(t *testing.T) {
 		t.Errorf("row %q, want the Go icon before the name", row)
 	}
 }
+
+// The list keeps the last frame it drew, so after every change of what it shows it must draw what a
+// list that never drew before draws in the same state.
+func TestKeptFrameMatchesAFreshDraw(t *testing.T) {
+	t.Parallel()
+
+	files := []diff.FileChange{changedFile("a/one.go", 3, 1), changedFile("b/two.go", 0, 4), changedFile("c.go", 2, 2)}
+	other := []diff.FileChange{changedFile("z/other.go", 1, 0)}
+
+	type state struct {
+		query            string
+		files            []diff.FileChange
+		selected, width  int
+		height           int
+		expanded, filter bool
+		newFiles         bool
+	}
+
+	steps := []state{
+		{files: files, width: 60, height: 8, newFiles: true},
+		{files: files, selected: 1, width: 60, height: 8},
+		{files: files, selected: 1, width: 40, height: 8},
+		{files: files, selected: 1, width: 40, height: 8, expanded: true},
+		{files: files, selected: 2, width: 40, height: 6, expanded: true},
+		{files: files, selected: 2, width: 40, height: 6, expanded: true, filter: true, query: "two"},
+		{files: other, width: 40, height: 6, expanded: true, newFiles: true},
+		{files: other, width: 40, height: 6},
+	}
+
+	apply := func(m *filelist.Model, s state) {
+		m.SetFiles(s.files)
+		m.SetSelected(s.selected)
+		m.SetExpanded(s.expanded)
+		m.SetFilterMode(s.filter)
+		m.SetFilterQuery(s.query)
+	}
+
+	kept := filelist.New()
+
+	for i, s := range steps {
+		if s.newFiles {
+			kept.SetFiles(s.files)
+		}
+
+		kept.SetSelected(s.selected)
+		kept.SetExpanded(s.expanded)
+		kept.SetFilterMode(s.filter)
+		kept.SetFilterQuery(s.query)
+
+		fresh := filelist.New()
+		apply(&fresh, s)
+
+		if got, want := kept.View(s.width, s.height, true), fresh.View(s.width, s.height, true); got != want {
+			t.Errorf("step %d: the kept frame is\n%s\nwant\n%s", i, ansi.Strip(got), ansi.Strip(want))
+		}
+	}
+}

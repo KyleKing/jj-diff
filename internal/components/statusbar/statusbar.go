@@ -54,12 +54,22 @@ type Context struct {
 	IsVisualMode bool
 }
 
-// Model is stateless: the footer is rendered entirely from the Context passed to each call.
-type Model struct{}
+// Model renders the footer entirely from the Context passed to each call. It keeps the last line it
+// drew, since the footer is redrawn on every key and its context rarely changes between two.
+type Model struct {
+	last *drawnLine
+}
+
+type drawnLine struct {
+	line       string
+	ctx        Context
+	generation uint64
+	width      int
+}
 
 // New returns the footer renderer.
 func New() Model {
-	return Model{}
+	return Model{last: &drawnLine{}}
 }
 
 // View renders the footer with the file list treated as focused. Use ViewWithContext to say which
@@ -84,6 +94,18 @@ func (m Model) ViewWithContext(width int, ctx Context) string {
 		return ""
 	}
 
+	if m.last == nil {
+		return m.draw(width, ctx)
+	}
+
+	if gen := theme.Generation(); m.last.width != width || m.last.ctx != ctx || m.last.generation != gen {
+		*m.last = drawnLine{line: m.draw(width, ctx), ctx: ctx, width: width, generation: gen}
+	}
+
+	return m.last.line
+}
+
+func (m Model) draw(width int, ctx Context) string {
 	lead := strings.Repeat(" ", min(margin, width))
 	facts := facts(ctx, width)
 	hints := m.getContextHints(ctx)

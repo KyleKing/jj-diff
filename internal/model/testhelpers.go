@@ -11,15 +11,15 @@ import (
 )
 
 // NewTestModel builds a Model backed by a jj client rooted at a fresh temp dir.
-func NewTestModel(t *testing.T, mode OperatingMode) *Model {
-	t.Helper()
+func NewTestModel(tb testing.TB, mode OperatingMode) *Model {
+	tb.Helper()
 
-	client := jj.NewClient(t.TempDir())
+	client := jj.NewClient(tb.TempDir())
 	cfg := config.DefaultConfig()
 
 	m, err := NewModel(client, "@", "", mode, cfg)
 	if err != nil {
-		t.Fatalf("Failed to create model: %v", err)
+		tb.Fatalf("Failed to create model: %v", err)
 	}
 
 	return &m

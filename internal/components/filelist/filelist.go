@@ -30,7 +30,10 @@ type MatchRange struct {
 
 // Model is the file list's state. Every method takes a pointer receiver.
 type Model struct {
-	getMatches   func(fileIdx int) []MatchRange
+	getMatches func(fileIdx int) []MatchRange
+	// drawn is the last frame View drew and what it drew it from. It is a pointer so a parent
+	// drawing from a copy of the list still fills the one cache.
+	drawn        *drawn
 	filterQuery  string
 	files        []diff.FileChange
 	counts       []changeCounts
@@ -44,6 +47,7 @@ type Model struct {
 // New returns a collapsed, unfiltered list with no files.
 func New() Model {
 	return Model{
+		drawn:        &drawn{},
 		files:        []diff.FileChange{},
 		selected:     0,
 		expanded:     false,
@@ -92,6 +96,11 @@ func (m *Model) FilterQuery() string {
 // list must clamp the selection itself.
 func (m *Model) SetFiles(files []diff.FileChange) {
 	m.files = files
+
+	if m.drawn != nil {
+		*m.drawn = drawn{}
+	}
+
 	m.counts = make([]changeCounts, len(files))
 
 	for i := range files {
@@ -124,6 +133,59 @@ func (m *Model) SetSearchState(isSearching bool, getMatches func(fileIdx int) []
 // View renders the list at the given size, using only one row when collapsed regardless of height.
 // The list is only expanded while it has focus, so focus changes nothing a row draws.
 func (m *Model) View(width, height int, _ bool) string {
+	if m.drawn == nil {
+		return m.draw(width, height)
+	}
+
+	key := m.drawKey(width, height)
+	if m.drawn.ok && m.drawn.key == key {
+		return m.drawn.view
+	}
+
+	view := m.draw(width, height)
+	m.drawn.key, m.drawn.view, m.drawn.ok = key, view, true
+
+	return view
+}
+
+// drawn holds the last frame and everything it was drawn from, since the list redraws on every key
+// the diff pane takes and almost none of them change it.
+type drawn struct {
+	rows           map[rowKey]string
+	view           string
+	key            drawKey
+	rowsGeneration uint64
+	ok             bool
+}
+
+type drawKey struct {
+	files       *diff.FileChange
+	filterQuery string
+	generation  uint64
+	count       int
+	selected    int
+	scroll      int
+	width       int
+	height      int
+	expanded    bool
+	filterMode  bool
+}
+
+func (m *Model) drawKey(width, height int) drawKey {
+	key := drawKey{
+		filterQuery: m.filterQuery, generation: theme.Generation(), count: len(m.files),
+		selected: m.selected, scroll: m.scrollOffset, width: width, height: height,
+		expanded: m.expanded, filterMode: m.filterMode,
+	}
+
+	if len(m.files) > 0 {
+		key.files = &m.files[0]
+	}
+
+	return key
+}
+
+func (m *Model) draw(width, height int) string {
 	if len(m.files) == 0 {
 		empty := strings.Repeat(" ", margin) + theme.Skin.Muted.Render("No files")
 		if m.expanded {
@@ -271,20 +333,68 @@ type columnLayout struct {
 func (m *Model) columns(width int) columnLayout {
 	layout := columnLayout{width: width}
 
-	for i := range m.files {
+	for i := range m.counts {
 		if n := m.counts[i].additions; n > 0 {
-			layout.addWidth = max(layout.addWidth, len("+"+strconv.Itoa(n)))
+			layout.addWidth = max(layout.addWidth, 1+digits(n))
 		}
 
 		if n := m.counts[i].deletions; n > 0 {
-			layout.delWidth = max(layout.delWidth, len("-"+strconv.Itoa(n)))
+			layout.delWidth = max(layout.delWidth, 1+digits(n))
 		}
 	}
 
 	return layout
 }
 
+// digits is how many characters strconv.Itoa writes for a positive n.
+func digits(n int) int {
+	count := 1
+
+	for ; n >= base10; n /= base10 {
+		count++
+	}
+
+	return count
+}
+
+const base10 = 10
+
+// rowKey names one drawn row of the expanded list.
+type rowKey struct {
+	layout   columnLayout
+	index    int
+	selected bool
+}
+
+// renderRow draws one file's row, reusing the row drawn for the same file, layout, and selection,
+// since moving the cursor changes two rows of the screen and redrawing all of them cost a lipgloss
+// render per cell of every row.
 func (m *Model) renderRow(originalIdx int, layout columnLayout) string {
+	key := rowKey{layout: layout, index: originalIdx, selected: originalIdx == m.selected}
+
+	if m.drawn != nil {
+		if row, ok := m.drawn.rows[key]; ok && m.drawn.rowsGeneration == theme.Generation() {
+			return row
+		}
+	}
+
+	row := m.drawRow(originalIdx, layout)
+
+	if m.drawn != nil {
+		if m.drawn.rows == nil || len(m.drawn.rows) >= maxKeptRows || m.drawn.rowsGeneration != theme.Generation() {
+			m.drawn.rows, m.drawn.rowsGeneration = map[rowKey]string{}, theme.Generation()
+		}
+
+		m.drawn.rows[key] = row
+	}
+
+	return row
+}
+
+// maxKeptRows bounds the rows kept across frames, several screens of a long list.
+const maxKeptRows = 1024
+
+func (m *Model) drawRow(originalIdx int, layout columnLayout) string {
 	file := m.files[originalIdx]
 	selected := originalIdx == m.selected
 

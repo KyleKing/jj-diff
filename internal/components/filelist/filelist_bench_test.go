@@ -29,7 +29,9 @@ func BenchmarkFileListRender_10Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for range b.N {
+	for i := range b.N {
+		// Moving the cursor each frame redraws rather than answering the last frame.
+		m.SetSelected(i % 2)
 		_ = m.View(40, 30, false)
 	}
 }
@@ -41,7 +43,9 @@ func BenchmarkFileListRender_100Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for range b.N {
+	for i := range b.N {
+		// Moving the cursor each frame redraws rather than answering the last frame.
+		m.SetSelected(i % 2)
 		_ = m.View(40, 30, false)
 	}
 }
@@ -53,7 +57,9 @@ func BenchmarkFileListRender_500Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for range b.N {
+	for i := range b.N {
+		// Moving the cursor each frame redraws rather than answering the last frame.
+		m.SetSelected(i % 2)
 		_ = m.View(40, 30, false)
 	}
 }
@@ -65,7 +71,9 @@ func BenchmarkFileListRender_1000Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for range b.N {
+	for i := range b.N {
+		// Moving the cursor each frame redraws rather than answering the last frame.
+		m.SetSelected(i % 2)
 		_ = m.View(40, 30, false)
 	}
 }
@@ -77,7 +85,9 @@ func BenchmarkFileListRender_5000Files(b *testing.B) {
 	m.SetFiles(files)
 
 	b.ResetTimer()
-	for range b.N {
+	for i := range b.N {
+		// Moving the cursor each frame redraws rather than answering the last frame.
+		m.SetSelected(i % 2)
 		_ = m.View(40, 30, false)
 	}
 }
@@ -98,7 +108,38 @@ func BenchmarkFileListRenderWithSearch_1000Files(b *testing.B) {
 	})
 
 	b.ResetTimer()
+	for i := range b.N {
+		// Moving the cursor each frame redraws rather than answering the last frame.
+		m.SetSelected(i % 2)
+		_ = m.View(40, 30, false)
+	}
+}
+
+// BenchmarkFileListRender_Unchanged is a frame where nothing the list shows changed, which is most
+// frames: the diff pane took the key. It answers the last frame drawn.
+func BenchmarkFileListRender_Unchanged(b *testing.B) {
+	m := filelist.New()
+	m.SetFiles(generateFiles(1000))
+
+	_ = m.View(40, 30, false)
+
+	b.ResetTimer()
+
 	for range b.N {
 		_ = m.View(40, 30, false)
+	}
+}
+
+// BenchmarkFileListRender_Expanded draws the focused list of 1000 files with the cursor moving.
+func BenchmarkFileListRender_Expanded(b *testing.B) {
+	m := filelist.New()
+	m.SetFiles(generateFiles(1000))
+	m.SetExpanded(true)
+
+	b.ResetTimer()
+
+	for i := range b.N {
+		m.SetSelected(i % 40)
+		_ = m.View(120, 30, true)
 	}
 }
