@@ -12,11 +12,15 @@ import (
 )
 
 // Layout of the split columns: a title row, a gap, two header rows, a hairline, then the bodies.
+// An empty column collapses to a strip of emptyColumnWidth, its number and "empty", so the width
+// goes to the columns with something to show.
 const (
-	columnsChrome   = 5
-	minColumnWidth  = 24
-	columnSeparator = " │ "
-	tabSpaces       = "    "
+	columnsChrome        = 5
+	minColumnWidth       = 24
+	emptyColumnWidth     = 11
+	columnSeparator      = " │ "
+	columnSeparatorWidth = 3
+	tabSpaces            = "    "
 )
 
 // renderColumns draws the split columns over the whole screen, the footer under them.
@@ -24,7 +28,7 @@ func (m *Model) renderColumns() string {
 	c := m.cols
 	inner := max(m.width-2*paneMargin, 1)
 	first, shown := m.columnWindow(inner)
-	colWidth := max((inner-(shown-1)*len(columnSeparator))/shown, 1)
+	widths := m.columnWidths(first, shown, inner)
 	bodyHeight := max(m.height-columnsChrome-1, 1)
 
 	title := theme.Skin.Title.Render("Split") + "  " + theme.Skin.Muted.Render(m.splitCommand())
@@ -33,8 +37,9 @@ func (m *Model) renderColumns() string {
 	}
 
 	cells := make([][]string, 0, shown)
-	for col := first; col < first+shown; col++ {
-		cells = append(cells, append(m.columnHeader(col, colWidth), m.columnBody(col, colWidth, bodyHeight)...))
+	for i, width := range widths {
+		col := first + i
+		cells = append(cells, append(m.columnHeader(col, width), m.columnBody(col, width, bodyHeight)...))
 	}
 
 	rows := []string{fit(title, inner), ""}
@@ -61,12 +66,76 @@ func (m *Model) renderColumns() string {
 }
 
 // columnWindow is the first column drawn and how many fit at width, keeping the focused one in view.
+// A collapsed column needs only its strip, so emptying a column can bring another into view.
 func (m *Model) columnWindow(width int) (int, int) {
 	c := m.cols
-	shown := min(max((width+len(columnSeparator))/(minColumnWidth+len(columnSeparator)), 1), c.count())
-	first := min(max(c.focus-shown+1, 0), c.count()-shown)
 
-	return first, shown
+	for shown := c.count(); shown > 1; shown-- {
+		first := min(max(c.focus-shown+1, 0), c.count()-shown)
+		need := (shown - 1) * columnSeparatorWidth
+
+		for col := first; col < first+shown; col++ {
+			need += m.columnNeed(col)
+		}
+
+		if need <= width {
+			return first, shown
+		}
+	}
+
+	return c.focus, 1
+}
+
+// collapsed says whether col draws as a narrow strip: it owns nothing, and is not being described,
+// since a description being typed needs the room to show.
+func (m *Model) collapsed(col int) bool {
+	return len(m.items(col)) == 0 && (col != m.cols.focus || !m.cols.describing)
+}
+
+func (m *Model) columnNeed(col int) int {
+	if m.collapsed(col) {
+		return emptyColumnWidth
+	}
+
+	return minColumnWidth
+}
+
+// columnWidths shares width among the shown columns: each collapsed one gets its strip and the rest
+// split what is left, the last of them taking the cells an uneven split leaves over. When every
+// shown column is collapsed they share the width evenly, since there is nothing to give it to.
+func (m *Model) columnWidths(first, shown, width int) []int {
+	widths := make([]int, shown)
+	free := width - (shown-1)*columnSeparatorWidth
+	open := 0
+
+	for i := range widths {
+		if m.collapsed(first + i) {
+			widths[i] = emptyColumnWidth
+			free -= emptyColumnWidth
+		} else {
+			open++
+		}
+	}
+
+	if open == 0 {
+		free, open = width-(shown-1)*columnSeparatorWidth, shown
+		clear(widths)
+	}
+
+	last := -1
+
+	for i := range widths {
+		if widths[i] == 0 {
+			widths[i] = max(free/open, 1)
+			last = i
+		}
+	}
+
+	if last >= 0 {
+		widths[last] += max(free-max(free/open, 1)*open, 0)
+	}
+
+	return widths
 }
 
 // columnHeader is a column's two header rows: its number and description, then what it holds.
@@ -93,7 +162,11 @@ func (m *Model) columnHeader(col, width int) []string {
 	head := style.Render(fmt.Sprintf(" %d ", col+1)) + " " + name
 
 	hunks, added, removed := m.columnCounts(col)
+
 	counts := theme.Skin.Muted.Render("empty, dropped on apply")
+	if m.collapsed(col) {
+		counts = theme.Skin.Muted.Render("empty")
+	}
 
 	if hunks > 0 {
 		counts = theme.Skin.Muted.Render(plural(hunks, "hunk")+" · ") +
@@ -132,7 +205,7 @@ func (m *Model) columnBody(col, width, height int) []string {
 		rows = append(rows, m.hunkRows(col, it, width, focused && i == cursor)...)
 	}
 
-	if len(items) == 0 {
+	if len(items) == 0 && !m.collapsed(col) {
 		hint := "empty: > or a digit sends hunks here"
 		if col == 0 {
 			hint = "empty: the source keeps no change"

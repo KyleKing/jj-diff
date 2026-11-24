@@ -209,3 +209,63 @@ func TestColumns_Golden(t *testing.T) {
 		})
 	}
 }
+
+// An empty column keeps only a strip, so the columns holding hunks get its width: with column 2
+// emptied, both full columns are wider than an even three-way split would leave them.
+func TestColumns_EmptyColumnCollapsesToAStrip(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{80, 100, 120, 160} {
+		t.Run(fmt.Sprintf("%dx24", width), func(t *testing.T) {
+			t.Parallel()
+
+			m := Press(t, inColumns(t), "d", "a", "d", "d", "enter", ">", "h")
+			m.width, m.height = width, 24
+			inner := width - 2*paneMargin
+
+			if got := owners(m); !strings.HasPrefix(got, "1:") || !strings.Contains(got, " 2:0h+0-0 ") {
+				t.Fatalf("owners = %q, want column 2 empty", got)
+			}
+
+			first, shown := m.columnWindow(inner)
+			if first != 0 || shown != m.cols.count() {
+				t.Fatalf("columnWindow(%d) = %d, %d, want every column shown once one is a strip", inner, first, shown)
+			}
+
+			checkStripWidths(t, m.columnWidths(first, shown, inner), inner)
+
+			for i, line := range strings.Split(ansi.Strip(m.render()), "\n") {
+				if got := ansi.StringWidth(line); got > width {
+					t.Errorf("row %d is %d cells, want at most %d: %q", i, got, width, line)
+				}
+			}
+		})
+	}
+}
+
+// checkStripWidths asserts column 2 is the strip, the others are wider than an even split, and the
+// columns and their separators fill inner exactly.
+func checkStripWidths(t *testing.T, widths []int, inner int) {
+	t.Helper()
+
+	shown := len(widths)
+	even := (inner - (shown-1)*columnSeparatorWidth) / shown
+
+	if widths[1] != emptyColumnWidth {
+		t.Errorf("empty column is %d cells, want the %d-cell strip", widths[1], emptyColumnWidth)
+	}
+
+	total := (shown - 1) * columnSeparatorWidth
+
+	for i, w := range widths {
+		total += w
+
+		if i != 1 && w <= even {
+			t.Errorf("column %d is %d cells, want more than the even share %d", i+1, w, even)
+		}
+	}
+
+	if total != inner {
+		t.Errorf("columns and separators fill %d cells, want %d", total, inner)
+	}
+}
