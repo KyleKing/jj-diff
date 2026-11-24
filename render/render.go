@@ -2,6 +2,28 @@
 // jj-diff's diff rendering, published for other tools to draw a diff the same way this one does:
 // the same parser, the same word-level intra-line highlighting, and the same syntax highlighting.
 // Hunk and line selection stay inside jj-diff, since only an editor needs them.
+//
+// # Drawing plain first
+//
+// Syntax colors cost a lexer pass over every file a diff touches: tens of milliseconds for a
+// small change and over a second for a large one. Lines and Document.Rows lex on the first draw
+// of a file and block until it is done, which is right for a one-shot render and wrong for a
+// screen that must answer the next key. Such a screen draws with Peek, which never lexes, and
+// starts the lexing in the background with Start:
+//
+//	doc := render.New(text, opts) // opts.Syntax set
+//	rows, colored := doc.Peek(0, doc.Len())
+//	if !colored {
+//		done := doc.Start()
+//		cmd = func() tea.Msg { <-done; return coloredMsg{doc} }
+//	}
+//
+// and, when coloredMsg arrives, draws the same rows again with Peek (or Rows), now in color and
+// without lexing. The colored rows hold the same text in the same places as the plain ones, so a
+// cursor or scroll offset kept across the swap stays on the same line.
+//
+// Only the lexing runs in the background. A Document is not safe for concurrent use, so the
+// command waits on Start's channel and the drawing stays on the update loop.
 package render
 
 import (
@@ -107,6 +129,7 @@ func Lines(diffText string, opts Options) []string {
 // Document is a parsed diff whose rows render on demand, so a window of a large diff costs only that window.
 type Document struct {
 	renderer *renderer
+	started  chan struct{}
 	files    []diff.FileChange
 	segments []segment
 	rows     int
@@ -213,6 +236,79 @@ func (d *Document) Rows(from, to int) []string {
 	return out
 }
 
+// Start lexes every file of the diff in the background and returns a channel closed once all of
+// their colors are ready, after which Peek draws in color and Rows never blocks on the lexer.
+// Calling it again answers the same channel. Without Options.Syntax there is
+// nothing to lex, and the channel is already closed. The lexing is safe to run while the caller
+// draws; waiting on the channel is the only part of the Document a command should touch.
+func (d *Document) Start() <-chan struct{} {
+	if d.started != nil {
+		return d.started
+	}
+
+	done := make(chan struct{})
+	d.started = done
+
+	h := d.renderer.highlighter
+	if h == nil {
+		close(done)
+
+		return done
+	}
+
+	paths := d.drawnPaths()
+	waits := make([]<-chan struct{}, 0, len(paths))
+
+	for _, path := range paths {
+		waits = append(waits, h.Start(path))
+	}
+
+	go func() {
+		for _, wait := range waits {
+			<-wait
+		}
+
+		close(done)
+	}()
+
+	return done
+}
+
+// drawnPaths is each file with a hunk drawn line by line, skipping a collapsed generated file or a
+// folded hunk, whose lines never reach the screen and so are never worth a lexer pass.
+func (d *Document) drawnPaths() []string {
+	var paths []string
+
+	seen := map[int]bool{}
+
+	for i := range d.segments {
+		seg := &d.segments[i]
+		if seg.hunk < 0 || seg.note != "" || seen[seg.file] {
+			continue
+		}
+
+		seen[seg.file] = true
+		paths = append(paths, d.files[seg.file].Path)
+	}
+
+	return paths
+}
+
+// Peek renders rows [from, to) like Rows, except that it never lexes: a line whose file Start has
+// not finished lexing is drawn plain, in its line face, rather than waited for. The bool reports
+// whether every row drawn had its colors, so a caller that sees false redraws once Start's channel
+// closes. Without Options.Syntax every row is as colored as it will get, and it is true.
+func (d *Document) Peek(from, to int) ([]string, bool) {
+	r := d.renderer
+	r.peek, r.uncolored = true, false
+
+	defer func() { r.peek = false }()
+
+	rows := d.Rows(from, to)
+
+	return rows, !r.uncolored
+}
+
 func (d *Document) row(seg *segment, row int) string {
 	r := d.renderer
 	file := &d.files[seg.file]
@@ -267,6 +363,9 @@ type renderer struct {
 	pens  [kinds][2]*kindPens
 	faces *facePens
 	opts  Options
+	// peek draws without lexing, for Document.Peek, and uncolored records that a line was drawn
+	// without the colors it will have once lexed.
+	peek, uncolored bool
 }
 
 // The line kinds, indexing a renderer's pens.
@@ -644,7 +743,12 @@ func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResul
 	if r.highlighter != nil {
 		var out strings.Builder
 
-		r.highlighter.Paint(&out, path, line, r.kindPens(line.Type, onBase).syntax)
+		faces := r.kindPens(line.Type, onBase).syntax
+		if !r.peek {
+			r.highlighter.Paint(&out, path, line, faces)
+		} else if !r.highlighter.Peek(&out, path, line, faces) {
+			r.uncolored = true
+		}
 
 		return out.String()
 	}

@@ -77,7 +77,10 @@ palette passed in rather than read from this program's theme. It renders unified
 does not select, since hunk and line selection belong to the editor. The two-column pairing lives in
 `internal/diff` so both renderers use the same one. `render.Lines` draws a whole diff, while `render.New`
 parses once and draws any window of rows on demand, which is what a caller with a small pane over a large
-diff wants. Syntax colors come from aragonite's `highlight`, which lexes each file once, in the background for the editor. [jojo](https://github.com/KyleKing/jj-tui) draws its
+diff wants. Syntax colors come from aragonite's `highlight`, which lexes each file once, in the background for the editor.
+`Rows` lexes a file on its first draw and blocks, so a screen draws with `Document.Peek`, which never lexes
+and draws a not-yet-lexed line plain, and calls `Document.Start` to lex in the background, redrawing once
+its channel closes (2000 rows: 190 ms blocking, against 9 ms plain and 7 ms colored after). [jojo](https://github.com/KyleKing/jj-tui) draws its
 diff pane with it.
 
 ### Design Principles

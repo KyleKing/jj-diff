@@ -77,3 +77,37 @@ func BenchmarkRowsFirstScreen2000Rows(b *testing.B) {
 		_ = render.New(text, opts).Rows(0, 44)
 	}
 }
+
+// benchmarkPeek is what a screen pays on its update loop to draw every row of a diff before its
+// colors are ready: parsing and drawing plain, with no lexer pass.
+func benchmarkPeek(b *testing.B, rows int) {
+	b.Helper()
+
+	text, opts := goDiff(rows), benchOptions()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		doc := render.New(text, opts)
+		_, _ = doc.Peek(0, doc.Len())
+	}
+}
+
+func BenchmarkPeek240Rows(b *testing.B)  { benchmarkPeek(b, 240) }
+func BenchmarkPeek2000Rows(b *testing.B) { benchmarkPeek(b, 2000) }
+
+// BenchmarkPeekColored2000Rows is the redraw once Start's channel has closed: every row in color,
+// with the lexing already paid off the loop.
+func BenchmarkPeekColored2000Rows(b *testing.B) {
+	text, opts := goDiff(2000), benchOptions()
+	doc := render.New(text, opts)
+	<-doc.Start()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		_, _ = doc.Peek(0, doc.Len())
+	}
+}
