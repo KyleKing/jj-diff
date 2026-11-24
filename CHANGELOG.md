@@ -1,3 +1,9 @@
+## v0.12.0 (2026-11-24)
+
+### Feat
+
+- **tui**: fit colors to the terminal's depth and hold frames to framecheck
+
 ## v0.11.0 (2026-11-24)
 
 ### Feat
