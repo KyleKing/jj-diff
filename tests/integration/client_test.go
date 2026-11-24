@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/hermetic"
 	"github.com/kyleking/aragonite/trail"
 
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	code := m.Run()
+	code := hermetic.Run(m, hermetic.App("jj-diff", "jojo"))
 
 	integration.Cleanup()
 	os.Exit(code)

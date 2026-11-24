@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/kyleking/aragonite/hermetic"
+
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -19,5 +21,5 @@ func TestMain(m *testing.M) {
 	}
 
 	theme.Init()
-	os.Exit(m.Run())
+	hermetic.Main(m, hermetic.App("jj-diff", "jojo"))
 }

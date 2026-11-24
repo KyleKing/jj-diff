@@ -1,12 +1,12 @@
 package modal_test
 
 import (
-	"os"
 	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/hermetic"
 	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/jj-diff/internal/components/modal"
@@ -15,7 +15,7 @@ import (
 
 func TestMain(m *testing.M) {
 	theme.Init()
-	os.Exit(m.Run())
+	hermetic.Main(m, hermetic.App("jj-diff", "jojo"))
 }
 
 // Every row of a box is the same width, so the frame's right edge is one straight line whatever the

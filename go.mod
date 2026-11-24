@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
-	github.com/kyleking/aragonite v1.29.0
+	github.com/kyleking/aragonite v1.30.0
 	github.com/sergi/go-diff v1.4.0
 )
 

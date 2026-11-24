@@ -15,6 +15,7 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
+	"github.com/kyleking/aragonite/hermetic"
 )
 
 // These drive the built binary on a pty with a terminal emulator reading what it writes, because a
@@ -169,9 +170,16 @@ func (s *screen) quit() {
 // binary is jj-diff built once for every test that drives it, by TestMain.
 var binary string //nolint:gochecknoglobals // set once by TestMain, before any test runs
 
+// TestMain builds the binary and runs the tests in a home of their own, failing the run if one
+// reaches the real one.
 func TestMain(m *testing.M) {
-	os.Exit(buildAndRun(m))
+	hermetic.Main(runner(func() int { return buildAndRun(m) }), hermetic.App("jj-diff", "jojo"))
 }
+
+// runner is a function hermetic.Main can drive, so the build runs inside the isolated home too.
+type runner func() int
+
+func (r runner) Run() int { return r() }
 
 func buildAndRun(m *testing.M) int {
 	dir, err := os.MkdirTemp("", "jj-diff-e2e")

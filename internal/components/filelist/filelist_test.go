@@ -9,6 +9,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/hermetic"
 	"github.com/kyleking/aragonite/tui/framecheck"
 
 	"github.com/kyleking/jj-diff/internal/components/filelist"
@@ -27,7 +28,7 @@ func TestMain(m *testing.M) {
 	}
 
 	theme.Init()
-	os.Exit(m.Run())
+	hermetic.Main(m, hermetic.App("jj-diff", "jojo"))
 }
 
 func changedFile(path string, additions, deletions int) diff.FileChange {

@@ -10,6 +10,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/hermetic"
 	"github.com/kyleking/aragonite/tui/framecheck"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
@@ -34,7 +35,7 @@ func TestMain(m *testing.M) {
 
 	theme.Init()
 	flag.Parse()
-	os.Exit(m.Run())
+	hermetic.Main(m, hermetic.App("jj-diff", "jojo"))
 }
 
 // mixedDiff is tab-indented edits, a reindent-only hunk, a lockfile, and removed lines that begin "-- ".

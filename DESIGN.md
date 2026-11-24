@@ -203,6 +203,18 @@ Model tests cover UI state management, selection state, navigation, and mode tra
 
 Integration tests in `tests/integration/client_test.go` drive real jj workflows and cover MoveChanges, rollback, and working copy preservation.
 
+### Tests never touch the real home
+
+jj 0.47 keeps each repository's config, and a record of every repository it opens, under
+`$XDG_CONFIG_HOME/jj/repos/`, so every test that ran jj used to leave entries in the runner's
+`~/.config/jj/repos` (about 70 per `go test`, `mise run bench`, and `hk check --all`). Every test
+package's `TestMain` is aragonite's `hermetic.Main(m, hermetic.App("jj-diff", "jojo"))`, which points
+HOME, the XDG directories, `JJ_CONFIG`, git's global config, gh's config, and `TMPDIR` at a root of
+the binary's own, names the committer, and fails the run when the real jj, git, or gh config, or
+jj-diff's or jojo's own directories, changed because of it. `TestEveryTestPackageIsHermetic` in
+`cmd/jj-diff` fails a package that leaves it out. A benchmark runs in the same binary, so it is
+covered by the same `TestMain`.
+
 ### Coverage goals
 
 | Component | Target | Last measured |

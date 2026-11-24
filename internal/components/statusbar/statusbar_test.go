@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/hermetic"
 	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/jj-diff/internal/components/statusbar"
@@ -20,7 +21,7 @@ func TestMain(m *testing.M) {
 	}
 
 	theme.Init()
-	os.Exit(m.Run())
+	hermetic.Main(m, hermetic.App("jj-diff", "jojo"))
 }
 
 // hints builds a footer's hints the way the model does: most useful first, the last pinned.
