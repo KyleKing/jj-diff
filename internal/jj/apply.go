@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 // ApplySelection runs this program's half of a write, run by jj as the diff editor with the two trees
@@ -17,7 +19,17 @@ import (
 //
 // The two trees hold only the files that differ, so replacing right wholesale touches nothing the
 // command was not already rewriting.
+//
+// For a split chain both patches are given, and a file an earlier group took whole is one the two
+// trees no longer hold, since jj sees no change in it. Such a file is dropped from both patches when
+// they agree on it, which is what this group not touching it means.
 func ApplySelection(left, right, unapplyPatch, applyPatch string) error {
+	if unapplyPatch != "" && applyPatch != "" {
+		if err := dropUntouched(left, right, unapplyPatch, applyPatch); err != nil {
+			return err
+		}
+	}
+
 	if err := replaceTree(left, right); err != nil {
 		return fmt.Errorf("resetting %s to %s: %w", right, left, err)
 	}
@@ -131,6 +143,11 @@ func copyFile(from, to string, mode fs.FileMode) (err error) {
 // against the nearest enclosing repository rather than the working directory, so a repository above
 // dir would turn the apply into a silent no-op; the ceiling stops that search at dir's parent.
 func gitApply(dir, patchFile string, reverse bool) error {
+	// A chain step whose patch dropUntouched emptied has nothing to apply.
+	if info, err := os.Stat(patchFile); err == nil && info.Size() == 0 {
+		return nil
+	}
+
 	ceiling := filepath.Dir(dir)
 	if resolved, err := filepath.EvalSymlinks(ceiling); err == nil {
 		ceiling = resolved
@@ -151,4 +168,86 @@ func gitApply(dir, patchFile string, reverse bool) error {
 	}
 
 	return nil
+}
+
+// dropUntouched rewrites both patch files without the files neither tree holds and both patches
+// change alike.
+func dropUntouched(left, right, unapplyPatch, applyPatch string) error {
+	texts := make([]string, 0, 2)
+
+	for _, path := range []string{unapplyPatch, applyPatch} {
+		b, err := os.ReadFile(path) //nolint:gosec // G304: a patch this program wrote.
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", path, err)
+		}
+
+		texts = append(texts, string(b))
+	}
+
+	held := func(path string) bool {
+		for _, dir := range []string{left, right} {
+			if _, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(path))); err == nil {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	unapply, apply := patchSections(texts[0]), patchSections(texts[1])
+
+	keep := func(sections, other []patchSection) string {
+		var b strings.Builder
+
+		for _, s := range sections {
+			if !held(s.path) && slices.ContainsFunc(other, func(o patchSection) bool { return o == s }) {
+				continue
+			}
+
+			b.WriteString(s.text)
+		}
+
+		return b.String()
+	}
+
+	for i, out := range []string{keep(unapply, apply), keep(apply, unapply)} {
+		path := []string{unapplyPatch, applyPatch}[i]
+		if err := os.WriteFile(path, []byte(out), 0o600); err != nil { //nolint:mnd // private to the user
+			return fmt.Errorf("writing %s: %w", path, err)
+		}
+	}
+
+	return nil
+}
+
+// patchSection is one file's part of a git diff, from its diff --git line to the next.
+type patchSection struct {
+	path string
+	text string
+}
+
+// patchSections splits a git diff by file, naming each by its new path, or its old one when the file
+// is deleted.
+func patchSections(patch string) []patchSection {
+	var out []patchSection
+
+	for _, part := range strings.SplitAfter(patch, "\n") {
+		if strings.HasPrefix(part, "diff --git ") || len(out) == 0 {
+			out = append(out, patchSection{path: sectionPath(part)})
+		}
+
+		out[len(out)-1].text += part
+	}
+
+	return out
+}
+
+// sectionPath is the path a diff --git line names: the b/ side, which a rename and an addition carry.
+func sectionPath(line string) string {
+	_, b, ok := strings.Cut(strings.TrimSuffix(line, "\n"), " b/")
+	if !ok {
+		return ""
+	}
+
+	return b
 }

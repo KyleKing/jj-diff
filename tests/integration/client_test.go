@@ -359,6 +359,43 @@ func TestSplit_ChainOfAdjacentGroups(t *testing.T) {
 	}
 }
 
+// The first group takes one file whole, so the second split's trees no longer hold it: jj sees no
+// change there. The chain still lands, each commit holding its own file.
+func TestSplit_ChainWhereAnEarlierGroupTookAWholeFile(t *testing.T) {
+	t.Parallel()
+
+	repo := integration.NewTestRepo(t)
+	repo.WriteFile("a.txt", "a\n")
+	repo.WriteFile("b.txt", "b\n")
+	repo.WriteFile("c.txt", "c\n")
+	repo.Commit("base")
+	repo.WriteFile("a.txt", "A\n")
+	repo.WriteFile("b.txt", "B\n")
+	repo.WriteFile("c.txt", "C\n")
+	repo.MustRun("describe", "-m", "source")
+
+	one := integration.Pick{Hunks: map[string][]int{"a.txt": {0}}}
+	two := integration.Pick{Hunks: map[string][]int{"a.txt": {0}, "b.txt": {0}}}
+
+	if _, err := writer(t, repo).Split("@", []jj.SplitGroup{
+		{Through: repo.Patch("@", one), Description: "one"},
+		{Through: repo.Patch("@", two), Description: "two"},
+	}, false); err != nil {
+		t.Fatalf("Split failed: %v", err)
+	}
+
+	for rev, want := range map[string]string{
+		"description(substring:one)": "a.txt",
+		"description(substring:two)": "b.txt",
+		"@":                          "c.txt",
+	} {
+		got := strings.TrimSpace(repo.MustRun("diff", "--name-only", "-r", rev))
+		if got != want {
+			t.Errorf("%s changes %q, want %q", rev, got, want)
+		}
+	}
+}
+
 func TestSplit_ParallelGroupsAreSiblings(t *testing.T) {
 	t.Parallel()
 
