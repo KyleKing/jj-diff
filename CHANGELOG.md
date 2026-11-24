@@ -1,3 +1,9 @@
+## v0.12.3 (2026-11-24)
+
+### Fix
+
+- **theme**: draw selected rows through the skin on aragonite v1.27.1
+
 ## v0.12.2 (2026-11-24)
 
 ### Fix
