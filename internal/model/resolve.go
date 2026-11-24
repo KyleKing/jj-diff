@@ -171,6 +171,10 @@ func (m *Model) resolveGeneral(action string) (tea.Cmd, bool) {
 		return m.cancel(), true
 	case keys.ActionReload:
 		return m.loadConflicts(), true
+	case keys.ActionBack:
+		// The conflict viewer is always launched into (--resolve), so its top level has nothing to
+		// back out to but the shell.
+		return m.quit(), true
 	}
 
 	return nil, false

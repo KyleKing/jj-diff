@@ -302,8 +302,12 @@ func (m *Model) columnsEdit(action string) (tea.Cmd, bool) {
 	case keys.ActionRedo:
 		m.columnsHistory(&c.redo, &c.undo, "redo")
 	case keys.ActionBack:
-		m.columnsBack()
+		return m.columnsBack(), true
 	case keys.ActionQuit:
+		if m.onlyColumns {
+			return m.quitColumns(), true
+		}
+
 		m.leaveColumns()
 	default:
 		return nil, m.columnsMotion(action)
@@ -484,8 +488,9 @@ func (m *Model) columnsHistory(from, to *[]columnsSnapshot, word string) {
 	*from = (*from)[:len(*from)-1]
 }
 
-// columnsBack backs out one level: visual, then the selection, then the columns themselves.
-func (m *Model) columnsBack() {
+// columnsBack backs out one level: visual, then the selection, then the columns themselves, which
+// for a session launched into them (--split) is leaving the program.
+func (m *Model) columnsBack() tea.Cmd {
 	c := m.cols
 
 	switch {
@@ -493,9 +498,25 @@ func (m *Model) columnsBack() {
 		c.visual = false
 	case !c.sel.IsEmpty():
 		c.sel = NewSelectionState()
+	case m.onlyColumns:
+		return m.quitColumns()
 	default:
 		m.leaveColumns()
 	}
+
+	return nil
+}
+
+// quitColumns leaves a session launched into the columns, asking first when a hunk has moved out
+// of column 1, since leaving then throws the split away.
+func (m *Model) quitColumns() tea.Cmd {
+	if m.columnsMoved() {
+		m.quitPrompt = true
+
+		return nil
+	}
+
+	return tea.Quit
 }
 
 func (m *Model) leaveColumns() {

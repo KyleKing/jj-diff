@@ -148,7 +148,7 @@ at its cursor:
 | `-p` | toggle `--parallel`: the new commits become siblings of the revision instead of a chain |
 | `u` / `ctrl+r` | undo / redo a move or a description |
 | `enter` / `c` | apply: `jj split` per non-empty column; empty columns are dropped |
-| `esc` / `q` | back out: visual, then the selection, then the columns, writing nothing |
+| `esc` / `q` | back out: visual, then the selection, then the columns, writing nothing. Launched with `--split`, leaving the columns exits jj-diff, asking write / discard / stay first when a hunk has moved |
 
 ### Conflict viewer
 
@@ -170,7 +170,7 @@ Picks are kept in memory until you write them.
 | `\s` | sides side by side, or stacked |
 | `u` / `ctrl+r` | undo / redo a pick |
 | `c` / `enter` | write every pick as one `jj resolve` operation |
-| `q` | quit, asking first when picks are unwritten |
+| `q` / `esc` | quit, asking first when picks are unwritten |
 
 The write is `jj resolve -r REV --tool :editor` with jj-diff as the editor, which
 replaces each file with your picks applied. Regions you did not pick keep their

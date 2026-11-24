@@ -280,8 +280,12 @@ func (m *Model) renderStatusBar() string {
 
 	if m.quitPrompt {
 		question := "quit with a selection pending?"
-		if m.mode == ModeResolve {
+
+		switch {
+		case m.mode == ModeResolve:
 			question = "quit with picks unwritten?"
+		case m.cols != nil:
+			question = "quit with the split unwritten?"
 		}
 
 		ctx.Notice, ctx.Alarm, ctx.Hints = question, true, m.quitPromptHints()

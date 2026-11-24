@@ -274,6 +274,10 @@ func (m *Model) runRestore(sel *SelectionState) tea.Cmd {
 // confirm writes the selection: back to jj in the diff editor, else into the -d destination, else
 // through the picker.
 func (m *Model) confirm() tea.Cmd {
+	if m.cols != nil {
+		return m.applyColumns()
+	}
+
 	switch m.mode {
 	case ModeDiffEditor:
 		return m.applyDiffEditorSelection()
@@ -392,7 +396,7 @@ func (m *Model) applyDiffEditorSelection() tea.Cmd {
 // quitPromptHints is the question q asks over a pending selection.
 func (m *Model) quitPromptHints() []keyhint.Hint {
 	write := "write"
-	if m.mode == ModeInteractive && m.destination == "" {
+	if m.mode == ModeInteractive && m.destination == "" && m.cols == nil {
 		write = "squash…"
 	}
 

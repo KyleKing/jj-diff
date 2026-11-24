@@ -163,6 +163,9 @@ type Model struct {
 	aborted bool
 	// startColumns opens the split columns once the diff loads, for --split.
 	startColumns bool
+	// onlyColumns is a session launched into the split columns, where backing out of them quits
+	// rather than dropping to the interactive diff nobody asked for.
+	onlyColumns bool
 	// band draws the coach's next steps as a band above the footer rather than in its status slot.
 	band bool
 	// loadedOnce is whether a diff has arrived, before which an empty one means nothing yet.
@@ -253,7 +256,7 @@ func NewModelWithSource(
 }
 
 // StartInColumns opens the split columns as soon as the diff loads, with every change in column 1.
-func (m *Model) StartInColumns() { m.startColumns = true }
+func (m *Model) StartInColumns() { m.startColumns, m.onlyColumns = true, true }
 
 // Aborted reports a diff-editor session that ended without writing. The program exits non-zero for
 // it, which is what tells jj to leave the revision as it was.
