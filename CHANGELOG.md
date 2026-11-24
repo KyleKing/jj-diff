@@ -1,3 +1,9 @@
+## v0.15.1 (2026-11-24)
+
+### Fix
+
+- **test**: take aragonite v1.31.1, so a hook's GIT_DIR never reaches a fixture
+
 ## v0.15.0 (2026-11-24)
 
 ### Feat
