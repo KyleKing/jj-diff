@@ -485,3 +485,26 @@ func (c *Client) executeJJ(args ...string) (string, error) {
 func (c *Client) ChangeID(revset string) (string, error) {
 	return c.resolveChangeID(revset)
 }
+
+// ScopeTemplate is how jojo writes a change id everywhere it keys state by one, read marks
+// included: its shortest unique prefix, at least eight characters. Marks are filed under exactly
+// this text, so the full id would name a file jojo never writes.
+const ScopeTemplate = "change_id.shortest(8)"
+
+// ScopeID is the change ID a revset names in the form jojo files read marks under (ScopeTemplate),
+// read without snapshotting the working copy: a snapshot never changes which change @ is, and this
+// runs beside the diff's own jj call, which takes the snapshot.
+func (c *Client) ScopeID(revset string) (string, error) {
+	output, err := c.executeJJ("log", "--ignore-working-copy", "-r", revset, "--no-graph", "--limit", "1",
+		"-T", ScopeTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	changeID := strings.TrimSpace(output)
+	if changeID == "" {
+		return "", fmt.Errorf("%q: %w", revset, errRevsetNoMatch)
+	}
+
+	return changeID, nil
+}

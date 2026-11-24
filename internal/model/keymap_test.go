@@ -33,8 +33,10 @@ func TestKeymap_AgreesWithShared(t *testing.T) {
 			t.Errorf("%s: %q", modeName(mode), got)
 		}
 
-		if _, err := keys.Merge(sharedBindings(mode), toolBindings(mode), nil); err != nil {
-			t.Errorf("%s: %v", modeName(mode), err)
+		for _, reads := range []bool{false, true} {
+			if _, err := keys.Merge(sharedBindings(mode, reads), toolBindings(mode), nil); err != nil {
+				t.Errorf("%s (reads %t): %v", modeName(mode), reads, err)
+			}
 		}
 	}
 }
@@ -45,7 +47,7 @@ func TestHelp_ListsEveryBoundAction(t *testing.T) {
 	t.Parallel()
 
 	for _, mode := range modes {
-		km := newKeymap(mode)
+		km := newKeymap(mode, true)
 		listed := map[string]bool{}
 
 		for _, ctx := range []keys.Context{keys.List, keys.View, keys.Select, keys.Picker, keys.Split, keys.Conflict} {

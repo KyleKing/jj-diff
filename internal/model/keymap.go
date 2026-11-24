@@ -44,13 +44,22 @@ var unsupported = []string{
 }
 
 // supportedObjects are the ] and [ objects a single revision's diff has, and the conflict viewer's.
-func supportedObjects(mode OperatingMode) []string {
+// A revision whose read marks are shown (reads) also steps between unread hunks.
+func supportedObjects(mode OperatingMode, reads bool) []string {
 	if mode == ModeResolve {
 		return []string{keys.ObjConflict, keys.ObjFile}
 	}
 
+	if reads && showsReads(mode) {
+		return []string{keys.ObjHunk, keys.ObjFile, keys.ObjUnread}
+	}
+
 	return []string{keys.ObjHunk, keys.ObjFile}
 }
+
+// showsReads reports whether mode views a revision, which is where read marks have a change to be
+// scoped by. The diff editor sees two directories and the conflict viewer no hunks.
+func showsReads(mode OperatingMode) bool { return mode == ModeBrowse || mode == ModeInteractive }
 
 // columnsUnsupported is the shared vocabulary the split columns do not act on: they have one pane,
 // no search, and draw hunks without folds or view options. Each is taken off the Split screen so its
@@ -100,12 +109,13 @@ var resolveUnsupported = []string{
 //nolint:gochecknoglobals // a fixed table, read only.
 var pickerFlags = []string{"t", "o", "A", "B", "u", "k"}
 
-// sharedBindings is the slice of aragonite's table jj-diff uses in mode.
-func sharedBindings(mode OperatingMode) []keys.Binding {
+// sharedBindings is the slice of aragonite's table jj-diff uses in mode, with the unread motions
+// where read marks are shown (reads).
+func sharedBindings(mode OperatingMode, reads bool) []keys.Binding {
 	drop := slices.Clone(unsupported)
 
 	for _, o := range keys.Objects() {
-		if !slices.Contains(supportedObjects(mode), o.Noun) {
+		if !slices.Contains(supportedObjects(mode, reads), o.Noun) {
 			drop = append(drop, keys.NextAction(o.Noun), keys.PrevAction(o.Noun))
 		}
 	}
@@ -126,6 +136,7 @@ func sharedBindings(mode OperatingMode) []keys.Binding {
 	}
 
 	shared := keys.Without(slices.Concat(keys.Global(), keys.DiffView()), drop...)
+	shared = onUnread(shared)
 
 	if mode == ModeInteractive {
 		// The columns' -o, -A, and -B place the result for jojo's picker, which jj-diff has not got.
@@ -140,6 +151,19 @@ func sharedBindings(mode OperatingMode) []keys.Binding {
 	}
 
 	return shared
+}
+
+// onUnread puts the unread motions where a revision's hunks are listed or drawn: the file list as
+// well as the diff, since a session opens on the list and ]u is how to start reading from it. The
+// split columns draw no marks and take them off.
+func onUnread(bindings []keys.Binding) []keys.Binding {
+	for i, b := range bindings {
+		if b.Action == keys.NextAction(keys.ObjUnread) || b.Action == keys.PrevAction(keys.ObjUnread) {
+			bindings[i].Contexts = keys.View | keys.Select | keys.List
+		}
+	}
+
+	return bindings
 }
 
 // splitFlag is -p, the one split flag the columns offer, on the columns alone: the squash picker's
@@ -232,11 +256,12 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 	)
 }
 
-// newKeymap merges the shared and tool bindings for mode. A collision is a programming error that
-// TestKeymap_AgreesWithShared catches, so it panics rather than limping on with a keymap that
-// would silently shadow one action with another.
-func newKeymap(mode OperatingMode) *keys.Keymap {
-	km, err := keys.Merge(sharedBindings(mode), toolBindings(mode), nil)
+// newKeymap merges the shared and tool bindings for mode, with the unread motions where read marks
+// are shown (reads). A collision is a programming error that TestKeymap_AgreesWithShared catches,
+// so it panics rather than limping on with a keymap that would silently shadow one action with
+// another.
+func newKeymap(mode OperatingMode, reads bool) *keys.Keymap {
+	km, err := keys.Merge(sharedBindings(mode, reads), toolBindings(mode), nil)
 	if err != nil {
 		panic(err)
 	}
@@ -339,7 +364,8 @@ func (m *Model) footerHints() []keyhint.Hint {
 			hint(actionSplit, ""), hint(actionRestore, ""), hint(keys.ActionUndo, ""), hint(keys.ActionHelp, ""))
 	default:
 		hints = slices.Concat(lines("scroll"),
-			hint(keys.NextAction(keys.ObjHunk), ""), hint(keys.NextAction(keys.ObjFile), ""),
+			hint(keys.NextAction(keys.ObjHunk), ""), hint(keys.NextAction(keys.ObjUnread), ""),
+			hint(keys.NextAction(keys.ObjFile), ""),
 			hint(keys.ActionWhitespace, ""), hint(keys.ActionViewSideBySide, ""), hint(keys.ActionHelp, ""))
 	}
 

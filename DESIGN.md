@@ -17,6 +17,7 @@ jj-diff/
 │   ├── jj/               # jj CLI integration
 │   ├── diff/             # Diff parsing and patch generation
 │   ├── conflict/         # Snapshot-style conflict markers: parse, pick, write back
+│   ├── reads/            # jojo's read marks, shown read-only on a revision
 │   ├── search/           # Search functionality
 │   ├── fuzzy/            # Fuzzy matching
 │   ├── components/       # UI components (filelist, diffview, modals)
@@ -112,6 +113,31 @@ second-look and jojo use:
   described) draw `empty.Card`/`empty.Block` naming the revision, why, and the keys out
 - The opt-in usage log (`keyusage.Open("jj-diff")`) records each command key, the action it ran,
   and refused presses (`Recorder.Gated`)
+
+**Read marks** (`internal/reads`, `internal/model/reads.go`)
+
+jojo marks hunks read and jj-diff shows them, read-only, on a revision in browse or interactive
+mode. The two must name one directory and one id per hunk, so nothing is jj-diff's own:
+
+- The directory is `seen.StateDir("jojo", "seen", seen.RepoKey(repo))`, where `repo` is
+  aragonite's `seen.JJRepo(cwd)`: the nearest `.jj` above the working directory, followed through
+  a secondary workspace's pointer to the main store. jojo keys by the same store from its
+  workspace root, and `TestOpen_AgreesWithJojo` writes jojo's derivation out longhand and holds
+  `reads.Open` to it from a root, a subdirectory, and a second workspace
+- The scope is the revision's change id as jojo writes it everywhere, `change_id.shortest(8)`
+  (`Client.ScopeID`, with `--ignore-working-copy` since it runs beside the diff's own jj call); the
+  full id would name a file jojo never writes. A hunk's id is `seen.Parse` over the same
+  `jj diff --git` text jj-diff parses. `reads.Map` pairs those ids with jj-diff's hunks by path
+  and order, and leaves a file whose hunk count the two parsers disagree on unmarked rather than
+  marked wrong
+- The change id and the diff load as two commands, so the first frame waits on neither; marks
+  appear once both have arrived. Every message runs one `stat` of the scope's file, and a changed
+  modification time or size rereads it (`Marks.Refresh`), with focus reporting turned on so a
+  terminal regaining focus is a message. Nothing in jj-diff writes a mark, which is why `␣` can
+  keep meaning select
+- The diff editor and the conflict viewer have no change to scope marks by and show none; their
+  keymaps bind no `]u`. Where marks show, `]u` / `[u` are also bound on the file list, the screen
+  a session opens on
 
 ### Design Principles
 

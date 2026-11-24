@@ -263,6 +263,8 @@ func (m *Model) step(s keys.Step) tea.Cmd {
 	case keys.ObjHunk:
 		m.focusedPanel = PanelDiffView
 		m.selectAdjacentHunk(delta)
+	case keys.ObjUnread:
+		m.stepUnread(s.Back)
 	}
 
 	return nil

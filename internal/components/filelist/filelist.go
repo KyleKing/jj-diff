@@ -35,10 +35,12 @@ type Model struct {
 	getMatches func(fileIdx int) []MatchRange
 	// drawn is the last frame View drew and what it drew it from. It is a pointer so a parent
 	// drawing from a copy of the list still fills the one cache.
-	drawn        *drawn
-	filterQuery  string
-	files        []diff.FileChange
-	counts       []changeCounts
+	drawn       *drawn
+	filterQuery string
+	files       []diff.FileChange
+	counts      []changeCounts
+	// reads is the read state drawn beside each file, off unless SetReads turned it on.
+	reads        reads
 	selected     int
 	scrollOffset int
 	isSearching  bool
@@ -171,13 +173,14 @@ type drawKey struct {
 	height      int
 	expanded    bool
 	filterMode  bool
+	reads       uint64
 }
 
 func (m *Model) drawKey(width, height int) drawKey {
 	key := drawKey{
 		filterQuery: m.filterQuery, generation: theme.Generation(), count: len(m.files),
 		selected: m.selected, scroll: m.scrollOffset, width: width, height: height,
-		expanded: m.expanded, filterMode: m.filterMode,
+		expanded: m.expanded, filterMode: m.filterMode, reads: m.reads.generation,
 	}
 
 	if len(m.files) > 0 {
@@ -211,7 +214,7 @@ func (m *Model) renderCollapsed(width int) string {
 	band := theme.Skin.FileBand
 	file := m.files[m.selected]
 
-	right := m.counts[m.selected].render(&band, 0, 0) +
+	right := m.reads.heading(m.selected, &band) + m.counts[m.selected].render(&band, 0, 0) +
 		band.Render(headingGap) +
 		skin.On(band, theme.Skin.Muted).Render(fmt.Sprintf("%d/%d", m.selected+1, len(m.files))) +
 		band.Render(" ")
@@ -293,10 +296,10 @@ func (m *Model) visibleIndices() []int {
 // headerCount is what the Files rule counts: the cursor's place, or how many rows a filter kept.
 func (m *Model) headerCount(filteredCount int) string {
 	if m.filterMode && filteredCount < len(m.files) {
-		return fmt.Sprintf("%d/%d filtered", filteredCount, len(m.files))
+		return fmt.Sprintf("%d/%d filtered", filteredCount, len(m.files)) + m.reads.total()
 	}
 
-	return fmt.Sprintf("%d/%d", m.selected+1, len(m.files))
+	return fmt.Sprintf("%d/%d", m.selected+1, len(m.files)) + m.reads.total()
 }
 
 // scrollStart centers the selected row in the visible window, falling back to the stored scroll
@@ -366,13 +369,18 @@ type rowKey struct {
 	layout   columnLayout
 	index    int
 	selected bool
+	reads    bool
+	read     bool
 }
 
 // renderRow draws one file's row, reusing the row drawn for the same file, layout, and selection,
 // since moving the cursor changes two rows of the screen and redrawing all of them cost a lipgloss
 // render per cell of every row.
 func (m *Model) renderRow(originalIdx int, layout columnLayout) string {
-	key := rowKey{layout: layout, index: originalIdx, selected: originalIdx == m.selected}
+	key := rowKey{
+		layout: layout, index: originalIdx, selected: originalIdx == m.selected,
+		reads: m.reads.on, read: m.reads.fileRead(originalIdx),
+	}
 
 	if m.drawn != nil {
 		if row, ok := m.drawn.rows[key]; ok && m.drawn.rowsGeneration == theme.Generation() {
@@ -403,7 +411,7 @@ func (m *Model) drawRow(originalIdx int, layout columnLayout) string {
 	base := lipgloss.NewStyle()
 	right := m.counts[originalIdx].render(&base, layout.addWidth, layout.delWidth) +
 		strings.Repeat(" ", rightPad)
-	lead := strings.Repeat(" ", margin) + statusCell(file.ChangeType, &base) + " "
+	lead := strings.Repeat(" ", margin) + statusCell(file.ChangeType, &base) + " " + m.reads.cell(originalIdx, &base)
 	room := layout.width - lipgloss.Width(lead) - lipgloss.Width(right) - len(headingGap)
 	row := fitRow(lead+pathCell(file.Path, max(room, 0), &base, selected), right, layout.width, &base)
 

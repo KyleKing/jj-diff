@@ -159,6 +159,7 @@ type headerKey struct {
 	width    int
 	current  bool
 	selected bool
+	read     bool
 }
 
 // The state bits of a rowKey.

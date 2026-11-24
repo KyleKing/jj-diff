@@ -24,6 +24,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
+	"github.com/kyleking/jj-diff/internal/reads"
 	"github.com/kyleking/jj-diff/internal/search"
 )
 
@@ -119,6 +120,8 @@ type Model struct {
 	cols *splitColumns
 	// res is the conflict viewer's state in ModeResolve.
 	res *resolveState
+	// marks is the revision's read marks, which jojo writes and jj-diff shows; nil shows none.
+	marks *reads.Marks
 	// again repeats the last write on the current selection, for the repeat action.
 	again func(m *Model, sel *SelectionState) tea.Cmd
 	// dim is the faint the diff pane is drawn in while the file list has focus.
@@ -178,6 +181,9 @@ type errMsg struct {
 
 type diffLoadedMsg struct {
 	changes []diff.FileChange
+	// hunks names the changes' hunks for the read marks, set only where marks are shown.
+	hunks reads.Hunks
+	named bool
 }
 
 type revisionsLoadedMsg struct {
@@ -218,7 +224,7 @@ func NewModelWithSource(
 	mode OperatingMode,
 	cfg config.Config,
 ) (Model, error) {
-	km := newKeymap(mode)
+	km := newKeymap(mode, false)
 
 	m := Model{
 		client:       client,
@@ -271,17 +277,30 @@ func (m *Model) Init() tea.Cmd {
 	return m.loadDiff()
 }
 
+// loadDiff reads the diff, and where read marks are shown the change id they are scoped by beside
+// it, so neither jj call waits on the other and the first frame waits on neither's marks.
 func (m *Model) loadDiff() tea.Cmd {
-	source := m.diffSource
+	source, named := m.diffSource, m.marks.On()
 
-	return func() tea.Msg {
+	load := func() tea.Msg {
 		diffText, err := source.GetDiff()
 		if err != nil {
 			return errMsg{err}
 		}
 
-		return diffLoadedMsg{diff.Parse(diffText)}
+		changes := diff.Parse(diffText)
+		if !named {
+			return diffLoadedMsg{changes: changes}
+		}
+
+		return diffLoadedMsg{changes: changes, hunks: reads.Map(diffText, changes), named: true}
 	}
+
+	if !named {
+		return load
+	}
+
+	return tea.Batch(load, m.loadScope())
 }
 
 // Update handles one message in place and returns the receiver, so the concrete type is always
@@ -294,6 +313,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	model, cmd := m.handle(msg)
+	m.syncReads()
 
 	if lit := m.diffView.HighlightCmd(); lit != nil {
 		cmd = tea.Batch(cmd, lit)
@@ -337,6 +357,15 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case diffLoadedMsg:
 		m.loaded(msg.changes)
+
+		if msg.named {
+			m.marks.SetHunks(msg.hunks)
+		}
+
+	case scopeMsg:
+		if msg.err == nil {
+			m.marks.SetScope(msg.scope)
+		}
 
 	case errMsg:
 		m.err = msg.err

@@ -27,6 +27,10 @@ func (m *Model) gate(action string) keys.Availability {
 		return keys.Refuse("the diff editor runs no jj commands; jj ran this one")
 	}
 
+	if action == keys.NextAction(keys.ObjUnread) || action == keys.PrevAction(keys.ObjUnread) {
+		return m.unreadGate()
+	}
+
 	switch m.context() {
 	case keys.Conflict:
 		return m.conflictGate(action)

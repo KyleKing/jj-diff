@@ -19,6 +19,9 @@ import (
 func (m *Model) View() tea.View {
 	view := tea.NewView(m.render())
 	view.AltScreen = true
+	// A terminal coming back into focus is when jojo may have marked hunks meanwhile, which the
+	// next message's stat then picks up.
+	view.ReportFocus = m.marks.On()
 
 	return view
 }
@@ -64,6 +67,7 @@ func (m *Model) render() string {
 
 	frame.pushSelectionState()
 	frame.pushSearchState()
+	frame.pushReads()
 
 	fileListView := frame.fileList.View(frame.width, fileListHeight, fileListExpanded)
 	diffViewHeight := frame.screenHeight() - fileListHeight - chromeHeight

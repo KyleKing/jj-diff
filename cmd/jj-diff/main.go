@@ -20,6 +20,7 @@ import (
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
 	"github.com/kyleking/jj-diff/internal/model"
+	"github.com/kyleking/jj-diff/internal/reads"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -293,6 +294,12 @@ func prepareRevisionMode(f *flags) (builder, error) {
 
 		if f.split {
 			m.StartInColumns()
+		}
+
+		// jojo's read marks for this repository, shown read-only. A directory with no jj repository
+		// or no state directory shows none.
+		if store, err := reads.Open(wd); err == nil {
+			m.WithReads(store)
 		}
 
 		return m, nil

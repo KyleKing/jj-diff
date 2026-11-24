@@ -1,0 +1,24 @@
+  M internal/app/config.go                                 1 unread  +1 -1  2/3 
+                                                                                
+▸ type Config struct {  L5–7                                                    
+     5       Name string                                                        
+     6 ▎     Port int                                                           
+     6 ▎     Port uint16                                                        
+     7   }                                                                      
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+  ▸ next  nothing selected yet · space select   v lines   s squash   ? help     

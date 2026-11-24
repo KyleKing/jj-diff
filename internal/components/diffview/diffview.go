@@ -95,8 +95,10 @@ func (idx *LineIndex) FindHunkForOffset(offset int) HunkPosition {
 // Model is the diff pane. It holds no cursor authority of its own: the parent model pushes the
 // selected hunk, line cursor, search state, and tag state in before each render.
 type Model struct {
-	getHunkTags    func(hunkIdx int) []SplitTag
-	isSelected     func(hunkIdx int) bool
+	getHunkTags func(hunkIdx int) []SplitTag
+	isSelected  func(hunkIdx int) bool
+	// isRead decides which hunks draw their header muted behind ReadGlyph, nil for none.
+	isRead         func(hunkIdx int) bool
 	isLineSelected func(hunkIdx, lineIdx int) bool
 	getMatches     func(hunkIdx, lineIdx int) []MatchRange
 	lineIndex      *LineIndex
@@ -449,6 +451,13 @@ func (m *Model) SetSearchState(
 ) {
 	m.isSearching = isSearching
 	m.getMatches = getMatches
+}
+
+// SetReadState installs the lookup for which hunks have been read, whose headers then draw muted
+// behind ReadGlyph. It is asked once per visible hunk per render, so it must be cheap; nil draws
+// none read, which is the diff editor's case and a revision's before its marks load.
+func (m *Model) SetReadState(isRead func(hunkIdx int) bool) {
+	m.isRead = isRead
 }
 
 // SetTagState installs the lookup for split tags drawn beside each hunk header. The callback is asked
@@ -1072,14 +1081,17 @@ func (m *Model) renderHunkHeader(width, hunkIdx int, isCurrent, isSelected bool)
 		tags = m.getHunkTags(hunkIdx)
 	}
 
+	read := m.isRead != nil && m.isRead(hunkIdx)
+
 	key := headerKey{
 		hunk: hunkIdx, width: width, current: isCurrent, selected: isSelected, tags: string(tagRunes(tags)),
+		read: read,
 	}
 	if row, ok := m.cache.headers[key]; ok {
 		return row
 	}
 
-	row := m.drawHunkHeader(width, hunkIdx, tags, isCurrent, isSelected)
+	row := m.drawHunkHeader(width, hunkIdx, tags, headerState{current: isCurrent, selected: isSelected, read: read})
 
 	if m.cache.headers == nil || len(m.cache.headers) >= maxCachedRows {
 		m.cache.headers = map[headerKey]string{}
@@ -1099,16 +1111,38 @@ func tagRunes(tags []SplitTag) []rune {
 	return out
 }
 
-func (m *Model) drawHunkHeader(width, hunkIdx int, tags []SplitTag, isCurrent, isSelected bool) string {
+// headerState is what a hunk header shows besides the hunk: the cursor, the selection, and a read
+// mark.
+type headerState struct {
+	current, selected, read bool
+}
+
+// ReadGlyph leads the header of a hunk that has been read.
+const ReadGlyph = "✓"
+
+func (m *Model) drawHunkHeader(width, hunkIdx int, tags []SplitTag, st headerState) string {
 	hunk := &m.fileChange.Hunks[hunkIdx]
 	p := m.pensFor()
 
 	lead, name := strings.Repeat(" ", margin), p.subtitle
-	if isCurrent {
+	if st.current {
 		lead, name = p.current, p.cursor
 	}
 
 	var b strings.Builder
+
+	// A read hunk is drawn quieter than an unread one, its name muted behind the glyph, so the eye
+	// skips it; the cursor still marks it in the margin.
+	section := hunk.Section()
+	if st.read {
+		name = p.muted
+
+		if section == "" {
+			p.muted.Write(&b, ReadGlyph+" ")
+		} else {
+			section = ReadGlyph + " " + section
+		}
+	}
 
 	p.muted.Write(&b, hunk.Range())
 
@@ -1117,14 +1151,13 @@ func (m *Model) drawHunkHeader(width, hunkIdx int, tags []SplitTag, isCurrent, i
 		p.accent.Write(&b, "["+string(tag)+"]")
 	}
 
-	if isSelected {
+	if st.selected {
 		b.WriteString(" ")
 		p.success.Write(&b, "✓")
 	}
 
 	tail := b.String()
 
-	section := hunk.Section()
 	if section == "" {
 		return padRow(lead+fitStyled(tail, width-margin, &lipgloss.Style{}), width, &lipgloss.Style{})
 	}
