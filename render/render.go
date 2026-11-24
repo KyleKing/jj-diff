@@ -256,11 +256,11 @@ func (d *Document) Start() <-chan struct{} {
 		return done
 	}
 
-	paths := d.drawnPaths()
-	waits := make([]<-chan struct{}, 0, len(paths))
+	files := d.drawnFiles()
+	waits := make([]<-chan struct{}, 0, len(files))
 
-	for _, path := range paths {
-		waits = append(waits, h.Start(path))
+	for _, file := range files {
+		waits = append(waits, h.Start(file))
 	}
 
 	go func() {
@@ -274,10 +274,12 @@ func (d *Document) Start() <-chan struct{} {
 	return done
 }
 
-// drawnPaths is each file with a hunk drawn line by line, skipping a collapsed generated file or a
-// folded hunk, whose lines never reach the screen and so are never worth a lexer pass.
-func (d *Document) drawnPaths() []string {
-	var paths []string
+// drawnFiles is the index of each file section with a hunk drawn line by line, skipping a
+// collapsed generated file or a folded hunk, whose lines never reach the screen and so are never
+// worth a lexer pass. It names sections rather than paths, because one diff can hold the same path
+// twice (a `git log -p` across commits) and each section is lexed on its own.
+func (d *Document) drawnFiles() []int {
+	var files []int
 
 	seen := map[int]bool{}
 
@@ -288,10 +290,10 @@ func (d *Document) drawnPaths() []string {
 		}
 
 		seen[seg.file] = true
-		paths = append(paths, d.files[seg.file].Path)
+		files = append(files, seg.file)
 	}
 
-	return paths
+	return files
 }
 
 // Peek renders rows [from, to) like Rows, except that it never lexes: a line whose file Start has
@@ -335,10 +337,10 @@ func (d *Document) row(seg *segment, row int) string {
 
 	words := r.wordsFor(seg.file, seg.hunk, hunk)
 	if r.opts.SideBySide {
-		return r.column(file.Path, seg.pairs[row-1], words)
+		return r.column(seg.file, seg.pairs[row-1], words)
 	}
 
-	return r.line(file.Path, hunk.Lines[row-1], words[row-1])
+	return r.line(seg.file, hunk.Lines[row-1], words[row-1])
 }
 
 func changedLines(hunk *diff.Hunk) int {
@@ -527,10 +529,10 @@ const gutterPad = " \u2502 "
 
 // column draws one row of two panes. Each pane is fitted on its own, so a long line is cut at its
 // own column rather than pushing the other pane off the row.
-func (r *renderer) column(path string, pair diff.SidePair, words map[int]diff.WordDiffResult) string {
+func (r *renderer) column(file int, pair diff.SidePair, words map[int]diff.WordDiffResult) string {
 	pane := r.paneWidth()
-	left := r.pane(path, pair.Left, false, words[pair.LeftIdx], pane)
-	right := r.pane(path, pair.Right, true, words[pair.RightIdx], r.rightWidth(pane))
+	left := r.pane(file, pair.Left, false, words[pair.LeftIdx], pane)
+	right := r.pane(file, pair.Right, true, words[pair.RightIdx], r.rightWidth(pane))
 
 	return left + gutterPad + right
 }
@@ -558,16 +560,16 @@ func (r *renderer) rightWidth(left int) int {
 
 // pane draws one side of a row, padded to width so the separator stays in one column. A nil line is
 // the blank opposite an addition or a deletion with no counterpart.
-func (r *renderer) pane(path string, line *diff.Line, isRight bool, words diff.WordDiffResult, width int) string {
+func (r *renderer) pane(file int, line *diff.Line, isRight bool, words diff.WordDiffResult, width int) string {
 	if line == nil {
 		return strings.Repeat(" ", max(width, 0))
 	}
 
 	if r.restyled() {
-		return r.washed(r.numbers(sideNumber(*line, isRight), line.Type)+r.sign(line.Type), path, *line, words, width)
+		return r.washed(r.numbers(sideNumber(*line, isRight), line.Type)+r.sign(line.Type), file, *line, words, width)
 	}
 
-	content := r.content(path, *line, words, false)
+	content := r.content(file, *line, words, false)
 	if r.opts.LineNumbers {
 		content = r.palettePens().gutter.draw(sideNumber(*line, isRight)) + content
 	}
@@ -596,14 +598,14 @@ func sideNumber(line diff.Line, isRight bool) string {
 	return pad(strconv.Itoa(n)) + " "
 }
 
-func (r *renderer) line(path string, line diff.Line, words diff.WordDiffResult) string {
+func (r *renderer) line(file int, line diff.Line, words diff.WordDiffResult) string {
 	if r.restyled() {
 		lead := r.numbers(gutter(line), line.Type) + r.sign(line.Type)
 
-		return r.washed(lead, path, line, words, r.opts.Width)
+		return r.washed(lead, file, line, words, r.opts.Width)
 	}
 
-	text := line.Type.String() + r.content(path, line, words, false)
+	text := line.Type.String() + r.content(file, line, words, false)
 	if r.opts.LineNumbers {
 		text = r.palettePens().gutter.draw(gutter(line)) + text
 	}
@@ -705,8 +707,8 @@ const washSGR = "\x1b[38;2;255;255;255;48;2;255;255;255m\x1b[m"
 
 // washed draws lead and the line's content on its wash, cut or padded to width so the tint runs
 // edge to edge. A zero width leaves the line its natural length.
-func (r *renderer) washed(lead, path string, line diff.Line, words diff.WordDiffResult, width int) string {
-	text := lead + r.content(path, line, words, true)
+func (r *renderer) washed(lead string, file int, line diff.Line, words diff.WordDiffResult, width int) string {
+	text := lead + r.content(file, line, words, true)
 
 	if width <= 0 {
 		return text
@@ -735,7 +737,7 @@ func (r *renderer) washed(lead, path string, line diff.Line, words diff.WordDiff
 // content is the line's text with whatever highlighting the options ask for, and no marker. With
 // onBase every part of it is drawn on the line's wash, so the wash is not broken by a token's
 // reset; without, it is drawn on no style, for an older-style line whose face goes around it.
-func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResult, onBase bool) string {
+func (r *renderer) content(file int, line diff.Line, words diff.WordDiffResult, onBase bool) string {
 	if spans := sideSpans(line.Type, words); len(spans) > 0 {
 		return r.emphasize(line, words, onBase)
 	}
@@ -745,8 +747,8 @@ func (r *renderer) content(path string, line diff.Line, words diff.WordDiffResul
 
 		faces := r.kindPens(line.Type, onBase).syntax
 		if !r.peek {
-			r.highlighter.Paint(&out, path, line, faces)
-		} else if !r.highlighter.Peek(&out, path, line, faces) {
+			r.highlighter.Paint(&out, file, line, faces)
+		} else if !r.highlighter.Peek(&out, file, line, faces) {
 			r.uncolored = true
 		}
 

@@ -155,7 +155,7 @@ func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
 	m.highlighter = highlight.New(file)
-	m.lexed = m.highlighter.Start(file.Path)
+	m.lexed = m.highlighter.Start(0)
 	m.announced = false
 
 	if m.cache == nil {
@@ -905,7 +905,7 @@ func (m *Model) writeContent(
 		return true
 	}
 
-	return m.highlighter.Peek(b, m.fileChange.Path, line, rp.faces)
+	return m.highlighter.Peek(b, 0, line, rp.faces)
 }
 
 func (m *Model) lookupWordDiff(

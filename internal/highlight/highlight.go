@@ -74,13 +74,23 @@ func (p *Palette) Faces(base lipgloss.Style) *Faces {
 	return f
 }
 
-// Highlighter colors the lines of one set of files. Its lexing is cached per file and safe to
-// run in the background, but drawing is not safe for concurrent use, and a changed diff needs a
-// new Highlighter.
+// Highlighter colors the lines of one set of files. Its lexing is cached per file section and
+// safe to run in the background, but drawing is not safe for concurrent use, and a changed diff
+// needs a new Highlighter.
+//
+// A section is one entry of the files it was built over, named by its index. One diff can hold the
+// same path more than once (`git log -p` across commits), and two such sections share line numbers
+// while holding different text, so each is lexed and looked up on its own rather than by path.
 type Highlighter struct {
-	spans   *aghighlight.Cache
-	text    map[agdiff.LineRef]string
-	palette Palette
+	palette  Palette
+	sections []section
+}
+
+// section is one file of the diff with its own span cache and the text each of its lines holds.
+type section struct {
+	spans *aghighlight.Cache
+	text  map[agdiff.LineRef]string
+	path  string
 }
 
 // New returns a Highlighter over files drawing in the process-wide theme.
@@ -93,16 +103,20 @@ func New(files ...diff.FileChange) *Highlighter {
 //
 //nolint:gocritic // hugeParam: a palette is built once, at startup.
 func NewWith(p Palette, files ...diff.FileChange) *Highlighter {
-	converted := diff.Aragonite(files)
-	text := make(map[agdiff.LineRef]string)
+	sections := make([]section, len(files))
 
-	for i := range converted.Files {
-		for _, line := range converted.Files[i].Lines {
+	for i := range files {
+		converted := diff.Aragonite(files[i : i+1])
+		text := make(map[agdiff.LineRef]string)
+
+		for _, line := range converted.Files[0].Lines {
 			text[refOf(files[i].Path, line)] = line.Text
 		}
+
+		sections[i] = section{path: files[i].Path, spans: aghighlight.NewCache(converted), text: text}
 	}
 
-	return &Highlighter{spans: aghighlight.NewCache(converted), text: text, palette: p}
+	return &Highlighter{sections: sections, palette: p}
 }
 
 // Palette is the palette the Highlighter draws in, for a caller building Faces for it.
@@ -110,43 +124,55 @@ func (h *Highlighter) Palette() *Palette {
 	return &h.palette
 }
 
-// Start lexes path in the background and returns a channel closed once its colors are ready.
-// Calling it again for the same path answers the same channel.
-func (h *Highlighter) Start(path string) <-chan struct{} {
-	return h.spans.Start(path)
+// Start lexes the file at index file in the background and returns a channel closed once its
+// colors are ready. Calling it again for the same file answers the same channel; an index outside
+// the files answers a closed channel, as there is nothing to lex.
+func (h *Highlighter) Start(file int) <-chan struct{} {
+	if file < 0 || file >= len(h.sections) {
+		done := make(chan struct{})
+		close(done)
+
+		return done
+	}
+
+	sec := &h.sections[file]
+
+	return sec.spans.Start(sec.path)
 }
 
 // Paint appends line's content in f to b, lexing its file first if that has not happened.
-func (h *Highlighter) Paint(b *strings.Builder, path string, line diff.Line, f *Faces) {
-	h.draw(b, path, line, f, true)
+func (h *Highlighter) Paint(b *strings.Builder, file int, line diff.Line, f *Faces) {
+	h.draw(b, file, line, f, true)
 }
 
-// Peek appends line's content in f to b without ever lexing: until Start's lexing of path has
+// Peek appends line's content in f to b without ever lexing: until Start's lexing of file has
 // landed it draws the content plain. It reports whether the colors were ready.
-func (h *Highlighter) Peek(b *strings.Builder, path string, line diff.Line, f *Faces) bool {
-	return h.draw(b, path, line, f, false)
+func (h *Highlighter) Peek(b *strings.Builder, file int, line diff.Line, f *Faces) bool {
+	return h.draw(b, file, line, f, false)
 }
 
-func (h *Highlighter) draw(b *strings.Builder, path string, line diff.Line, f *Faces, wait bool) bool {
+func (h *Highlighter) draw(b *strings.Builder, file int, line diff.Line, f *Faces, wait bool) bool {
 	content := line.Content
 	if content == "" {
 		return true
 	}
 
 	agLine := diff.AragoniteLine(line)
-	if h.text[refOf(path, agLine)] != content {
+	if file < 0 || file >= len(h.sections) || h.sections[file].text[refOf(h.sections[file].path, agLine)] != content {
 		f.Base.Write(b, content)
 
 		return true
 	}
 
+	sec := &h.sections[file]
+
 	var spans []aghighlight.Span
 
 	ready := true
 	if wait {
-		spans = h.spans.Spans(path, agLine)
+		spans = sec.spans.Spans(sec.path, agLine)
 	} else {
-		spans, ready = h.spans.Peek(path, agLine)
+		spans, ready = sec.spans.Peek(sec.path, agLine)
 	}
 
 	at := 0
