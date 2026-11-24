@@ -314,23 +314,15 @@ func TestResize_GrowAfterAStaleFrameKeepsThePageInPlace(t *testing.T) {
 			// What a scroll inside the old frame ends with: the margins restored as 1 to its height.
 			sc.resize(tc.to, xansi.SetTopBottomMargins(1, tc.from.rows))
 
-			sc.awaitFrame("a frame for the new size", func(f []string) bool {
-				return len(f) == tc.to.rows && strings.Contains(f[len(f)-1], "help")
-			})
-
-			// Give a repaint drawn inside the stale margins time to scroll the page, then read again.
-			time.Sleep(300 * time.Millisecond)
-
-			frame := sc.frame()
-
-			if !strings.Contains(frame[0], "Files") {
-				t.Errorf("the file list's heading is not the first row after growing to %dx%d:\n%s",
-					tc.to.cols, tc.to.rows, strings.Join(frame, "\n"))
-			}
-
-			if !strings.Contains(frame[1], "file00.go") {
-				t.Errorf("the first file is not right under the heading:\n%s", strings.Join(frame, "\n"))
-			}
+			// The repaired frame, and only it, has the heading on the first row, the first file under it,
+			// and the footer on the last row: the repaint drawn inside the stale margins has the footer
+			// too but the page scrolled up. A wait on the footer alone, then a fixed sleep, read whichever
+			// of the two was on screen when the sleep ran out, and flaked under load.
+			sc.awaitFrame(fmt.Sprintf("the page in place after growing to %dx%d", tc.to.cols, tc.to.rows),
+				func(f []string) bool {
+					return len(f) == tc.to.rows && strings.Contains(f[len(f)-1], "help") &&
+						strings.Contains(f[0], "Files") && strings.Contains(f[1], "file00.go")
+				})
 
 			sc.quit()
 		})
