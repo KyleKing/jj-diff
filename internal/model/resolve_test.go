@@ -162,7 +162,7 @@ func TestResolve_Golden(t *testing.T) {
 					t.Errorf("the frame is %d rows, want %d", len(lines), size.h)
 				}
 
-				golden(t, filepath.Join("testdata", name+".golden"), frame+"\n")
+				frameGolden(t, filepath.Join("testdata", name+".golden"), frame+"\n", size.w)
 			})
 		}
 	}
@@ -237,7 +237,7 @@ func paneTexts(frame string) []string {
 
 	for top, line := range lines {
 		row := []rune(line)
-		if !strings.Contains(line, "╭ 1 ") {
+		if !strings.Contains(line, "╭─ 1 ") {
 			continue
 		}
 

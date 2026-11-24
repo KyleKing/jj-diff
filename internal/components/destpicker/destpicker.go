@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/jj-diff/internal/components/modal"
@@ -205,18 +206,21 @@ func Line(rev *jj.RevisionEntry) string {
 		mark = theme.Skin.Muted.Render("◆") + " "
 	}
 
+	// A description is the author's text: an emoji a terminal draws wider than lipgloss counts
+	// would push the rest of the row out of line.
+	description := glyph.Settle(rev.Description)
 	rest := strings.TrimPrefix(rev.Short, rev.ChangeID)
 	pad := strings.Repeat(" ", max(idWidth-len(rev.Short), 0))
 
 	if rev.Immutable {
-		return mark + theme.Skin.Muted.Render(rev.Short+pad+"  "+rev.Description)
+		return mark + theme.Skin.Muted.Render(rev.Short+pad+"  "+description)
 	}
 
 	id := theme.Skin.Cursor.Render(rev.ChangeID) + theme.Skin.Muted.Render(rest) + pad
 
-	desc := theme.Skin.Body.Render(rev.Description)
+	desc := theme.Skin.Body.Render(description)
 	if rev.Description == noDescription {
-		desc = theme.Skin.Muted.Render(rev.Description)
+		desc = theme.Skin.Muted.Render(description)
 	}
 
 	return mark + id + "  " + desc

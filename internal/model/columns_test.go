@@ -205,7 +205,8 @@ func TestColumns_Golden(t *testing.T) {
 				t.Errorf("the frame is %d rows, want %d", len(lines), size.h)
 			}
 
-			golden(t, filepath.Join("testdata", fmt.Sprintf("columns_%dx%d.golden", size.w, size.h)), frame+"\n")
+			path := filepath.Join("testdata", fmt.Sprintf("columns_%dx%d.golden", size.w, size.h))
+			frameGolden(t, path, frame+"\n", size.w)
 		})
 	}
 }

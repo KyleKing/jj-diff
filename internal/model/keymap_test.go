@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/framecheck"
 	"github.com/kyleking/aragonite/tui/keys"
 )
 
@@ -285,7 +286,7 @@ func TestHelp_Golden(t *testing.T) {
 					t.Fatal("? did not open the legend")
 				}
 
-				golden(t, filepath.Join("testdata", name+".golden"), ansi.Strip(m.render())+"\n")
+				frameGolden(t, filepath.Join("testdata", name+".golden"), ansi.Strip(m.render())+"\n", size.w)
 			})
 		}
 	}
@@ -348,6 +349,16 @@ func withPicker(t *testing.T) *Model {
 //
 //nolint:gochecknoglobals // a fixture
 var frameSizes = []struct{ w, h int }{{80, 24}, {100, 30}}
+
+// frameGolden holds a whole frame to framecheck (every row exactly width cells, every box corner
+// joined, no glyph a terminal may draw wider than counted) before comparing it to its golden, so a
+// layout fault fails here with its row and column rather than reading as a plausible golden diff.
+func frameGolden(t *testing.T, path, frame string, width int) {
+	t.Helper()
+
+	framecheck.Require(t, path, strings.TrimSuffix(frame, "\n"), framecheck.Width(width))
+	golden(t, path, frame)
+}
 
 func golden(t *testing.T, path, got string) {
 	t.Helper()

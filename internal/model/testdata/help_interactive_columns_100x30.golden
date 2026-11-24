@@ -1,6 +1,6 @@
   Split  jj split -r @ · chain 2 → 1         ╭─ keys · 35 of 35 ───────────────────────────────────╮
                                              │ a key explains itself · / filters                   │
-   1  stays in @                             │ ── General ──────────────────────────────────────── │
+    1   stays in @                           │ ── General ──────────────────────────────────────── │
   3 hunks · +3 −2                            │ ▌ ?       help                                      │
   ───────────────────────────────────────────│   :       command palette                           │
   file1.txt                                  │   q       close, or quit at the root                │
@@ -22,7 +22,7 @@
                                              │   n       repeat the last motion                    │
                                              │   N       repeat the last motion backward           │
                                              │   ]h      next hunk                                 │
-                                             │                                                     │
+                                             │   [h      previous hunk                             │
                                              │ ── General · ?  help ────────────────────────────── │
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │

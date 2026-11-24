@@ -178,7 +178,7 @@ func TestEmpty_Golden(t *testing.T) {
 				m := c.build(t)
 				m.width, m.height = size.w, size.h
 
-				golden(t, filepath.Join("testdata", name+".golden"), ansi.Strip(m.render())+"\n")
+				frameGolden(t, filepath.Join("testdata", name+".golden"), ansi.Strip(m.render())+"\n", size.w)
 			})
 		}
 	}
@@ -198,7 +198,7 @@ func TestPalette_Golden(t *testing.T) {
 			m.width, m.height = size.w, size.h
 			m = Press(t, m, ":", "a", "m", "e", "n", "d")
 
-			golden(t, filepath.Join("testdata", name+".golden"), ansi.Strip(m.render())+"\n")
+			frameGolden(t, filepath.Join("testdata", name+".golden"), ansi.Strip(m.render())+"\n", size.w)
 		})
 	}
 }

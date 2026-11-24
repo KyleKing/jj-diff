@@ -202,10 +202,17 @@ became `za`, `F` merged into `f`, `r` became `ctrl+l`, `d` then `a` became `s` t
 
 ## Fonts
 
-File rows carry a filetype icon from a [Nerd Font](https://www.nerdfonts.com/), which is the
-default. Set `ARAGONITE_ICONS=unicode` to use glyphs every monospace font has instead; the setting
-is shared with second-look and jojo, and no column moves either way. Under `NO_COLOR` a changed
-line's sign bar turns into `+` and `−`.
+File rows draw only glyphs every monospace font carries by default. With a
+[Nerd Font](https://www.nerdfonts.com/), set `JJ_DIFF_ICONS=nerd` for a filetype icon beside each
+file (`none` drops icons altogether); `ARAGONITE_ICONS` overrides it and is shared with second-look
+and jojo, and no column moves either way. File names and descriptions are drawn with any emoji a
+terminal may measure differently (a VS16 heart, a Unicode 10+ face) settled to a stable form, so the
+counts beside them stay in their column. Under `NO_COLOR` a changed line's sign bar turns into `+`
+and `−`.
+
+Colors follow the terminal's depth: tinted backgrounds in truecolor (`COLORTERM=truecolor`, honored
+inside tmux), greys in 256 colors, and no backgrounds in 16, where the sign bar and line number say
+which side a line is on.
 
 Full docs: [./docs](./docs)
 

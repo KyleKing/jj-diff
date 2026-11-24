@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/generated"
+	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/overview"
 
 	"github.com/kyleking/jj-diff/internal/config"
@@ -722,7 +723,7 @@ func (m *Model) renderGeneratedSummary(width int) string {
 	note := fmt.Sprintf(
 		"%s▸ %s is generated: +%d -%d in %d hunk%s",
 		strings.Repeat(" ", margin),
-		m.fileChange.Path, m.fileChange.AddedLines(), m.fileChange.DeletedLines(),
+		glyph.Settle(m.fileChange.Path), m.fileChange.AddedLines(), m.fileChange.DeletedLines(),
 		len(m.fileChange.Hunks), plural(len(m.fileChange.Hunks)),
 	)
 	if selected > 0 {

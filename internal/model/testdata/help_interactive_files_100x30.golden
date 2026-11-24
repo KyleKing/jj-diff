@@ -1,28 +1,28 @@
   ── Files 1/3 ──────────────────────────────╭─ keys · 26 of 26 ───────────────────────────────────╮
-  M  file1.txt                              │ a key explains itself · / filters                   │
-  A  file2.txt                              │ ── General ──────────────────────────────────────── │
-  D  file3.txt                              │ ▌ ?         help                                    │
-  ───────────────────────────────────────────│   :         command palette                         │
-▸ L1–4                                       │   q         close, or quit at the root              │
-     1   line 1                              │   esc       back out one level                      │
-     2 ▎ new line                            │   ctrl+c    cancel the running command, else quit   │
-     3   line 2                              │   u         undo                                    │
-  L11–13                                     │   ctrl+r    redo                                    │
-    11   line 10                             │   ctrl+l    reload from the source                  │
-    12 ▎ another line                        │   tab       next pane                               │
-                                             │   .         repeat the last change                  │
-                                             │   gm        messages and the last failure           │
+  M file1.txt                                │ a key explains itself · / filters                   │
+  A file2.txt                                │ ── General ──────────────────────────────────────── │
+  D file3.txt                                │ ▌ ?                  help                           │
+  ───────────────────────────────────────────│   :                  command palette                │
+▸ L1–4                                       │   q                  close, or quit at the root     │
+     1   line 1                              │   esc                back out one level             │
+     2 ▎ new line                            │   ctrl+c             cancel the running command, e… │
+     3   line 2                              │   u                  undo                           │
+  L11–13                                     │   ctrl+r             redo                           │
+    11   line 10                             │   ctrl+l             reload from the source         │
+    12 ▎ another line                        │   tab                next pane                      │
+                                             │   .                  repeat the last change         │
+                                             │   gm                 messages and the last failure  │
                                              │ ── Move ─────────────────────────────────────────── │
-                                             │   gg        top                                     │
-                                             │   G         bottom                                  │
-                                             │   j/down    down a line                             │
-                                             │   k/up      up a line                               │
-                                             │   ctrl+d    half a page down                        │
-                                             │   ctrl+u    half a page up                          │
-                                             │   ctrl+f    a page down                             │
-                                             │   ctrl+b    a page up                               │
-                                             │   ctrl+e/…  scroll a line down                      │
-                                             │                                                     │
+                                             │   gg                 top                            │
+                                             │   G                  bottom                         │
+                                             │   j/down             down a line                    │
+                                             │   k/up               up a line                      │
+                                             │   ctrl+d             half a page down               │
+                                             │   ctrl+u             half a page up                 │
+                                             │   ctrl+f             a page down                    │
+                                             │   ctrl+b             a page up                      │
+                                             │   ctrl+e/shift+down  scroll a line down             │
+                                             │   ctrl+y/shift+up    scroll a line up               │
                                              │ ── General · ?  help ────────────────────────────── │
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │

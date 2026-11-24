@@ -89,6 +89,12 @@ func TestLoadConfigFromEnv(t *testing.T) {
 			checkFn:  func(c config.Config) bool { return c.WordLevelDiff },
 			expected: true,
 		},
+		{
+			name:     "nerd icons",
+			envVars:  map[string]string{"JJ_DIFF_ICONS": "nerd"},
+			checkFn:  func(c config.Config) bool { return c.Icons == "nerd" },
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {

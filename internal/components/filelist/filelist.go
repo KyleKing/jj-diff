@@ -10,6 +10,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/glyph"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
@@ -456,8 +457,9 @@ func pathCell(path string, width int, base *lipgloss.Style, bright bool) string 
 		return ""
 	}
 
-	dir, name := splitPath(path)
 	icon := theme.Icons.File(path)
+	// A file name is content: settled, so an emoji in it is drawn as wide as it is counted.
+	dir, name := splitPath(glyph.Settle(path))
 	prefix := icon.Prefix()
 
 	if lipgloss.Width(prefix)+lipgloss.Width(name) > width {

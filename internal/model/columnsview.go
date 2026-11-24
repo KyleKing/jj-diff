@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/empty"
+	"github.com/kyleking/aragonite/tui/glyph"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -30,7 +31,7 @@ func (m *Model) renderColumns() string {
 	inner := max(m.width-2*paneMargin, 1)
 	first, shown := m.columnWindow(inner)
 	widths := m.columnWidths(first, shown, inner)
-	bodyHeight := max(m.height-columnsChrome-1, 1)
+	bodyHeight := max(m.screenHeight()-columnsChrome-1, 1)
 
 	title := theme.Skin.Title.Render("Split") + "  " + theme.Skin.Muted.Render(m.splitCommand())
 	if shown < c.count() {
@@ -144,7 +145,7 @@ func (m *Model) columnHeader(col, width int) []string {
 	c := m.cols
 	focused := col == c.focus
 
-	name := c.descs[col]
+	name := glyph.Settle(c.descs[col])
 
 	switch {
 	case col == 0:
@@ -195,7 +196,7 @@ func (m *Model) columnBody(col, width, height int) []string {
 	for i, it := range items {
 		file := m.changes[it.file]
 		if it.file != lastFile {
-			rows = append(rows, fit(theme.Skin.Heading.Render(file.Path), width))
+			rows = append(rows, fit(theme.Skin.Heading.Render(glyph.Settle(file.Path)), width))
 			lastFile = it.file
 		}
 

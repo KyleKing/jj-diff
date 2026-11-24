@@ -117,7 +117,7 @@ func (m *Model) pensFor() *pens {
 	}
 
 	p.wordAdded, p.wordRemoved = pen.Of(theme.WordDiffAddedStyle), pen.Of(theme.WordDiffDeletedStyle)
-	p.match = pen.Of(lipgloss.NewStyle().Background(theme.Accent).Foreground(theme.ModalBg))
+	p.match = pen.Of(lipgloss.NewStyle().Background(theme.Accent).Foreground(theme.Palette.Base))
 	p.foldNote = pen.Of(foldNoteStyle())
 	p.subtitle, p.muted = pen.Of(theme.Skin.Subtitle), pen.Of(theme.Skin.Muted)
 	p.accent, p.success, p.cursor = pen.Of(theme.Skin.Accent), pen.Of(theme.Skin.Success), pen.Of(theme.Skin.Cursor)

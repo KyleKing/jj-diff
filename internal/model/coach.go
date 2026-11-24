@@ -269,8 +269,14 @@ func (m *Model) bandLines() []string {
 	return coach.BandLines(theme.Skin, m.coach.All(m.state(), m.gate), tip, m.width)
 }
 
-// withBand lays the band over the rows just above the footer, which keeps the screen's own layout
-// and costs nothing when the band is off.
+// screenHeight is the rows a screen draws in: the terminal less the band's rows, which the band
+// takes for itself rather than covering, so the cursor row is never under it.
+func (m *Model) screenHeight() int {
+	return max(m.height-len(m.bandLines()), 1)
+}
+
+// withBand puts the band between a screen and its footer. The screen was drawn screenHeight rows
+// tall, so the band adds rows instead of covering any, and costs nothing when it is off.
 func (m *Model) withBand(frame string) string {
 	band := m.bandLines()
 	if len(band) == 0 {
@@ -279,11 +285,12 @@ func (m *Model) withBand(frame string) string {
 
 	lines := strings.Split(frame, "\n")
 	last := len(lines) - 1
-	start := max(last-len(band), 0)
+	out := make([]string, 0, len(lines)+len(band))
+	out = append(out, lines[:last]...)
 
-	for i := start; i < last; i++ {
-		lines[i] = ansi.Truncate(band[i-start], m.width, "")
+	for _, l := range band[:min(len(band), m.height-1)] {
+		out = append(out, ansi.Truncate(l, m.width, ""))
 	}
 
-	return strings.Join(slices.Clip(lines), "\n")
+	return strings.Join(append(out, lines[last]), "\n")
 }

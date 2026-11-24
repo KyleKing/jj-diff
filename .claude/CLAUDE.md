@@ -74,4 +74,6 @@ The invariant that makes it safe: the selection is the only content that changes
 
 `internal/theme/` initializes a global theme at startup. It auto-detects via `lipgloss.HasDarkBackground(os.Stdin, os.Stdout)`, honors `CATPPUCCIN_THEME=latte` or `macchiato`, and components read global colors such as `theme.Primary` and `theme.AddedLine`.
 
+`theme.Profile()` (aragonite `theme.Profile`, which honors `COLORTERM=truecolor` inside tmux) is the one color depth: the skin and diff faces are fitted to it (`skin.For`, `skin.DiffFor`) and `main.go` hands it to Bubble Tea with `tea.WithColorProfile`. Every background comes from those faces; the theme package paints none of its own. Frame goldens go through `frameGolden`, which runs aragonite `framecheck` first, and `TestChromeIsWidthStable` holds the source's literals to the glyph policy.
+
 Force a theme in tests with `t.Setenv("CATPPUCCIN_THEME", "macchiato")` followed by `theme.Init()`. Lip Gloss v2 has no global background override, so the environment variable is the only seam.

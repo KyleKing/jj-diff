@@ -13,7 +13,7 @@ import (
 // renderEmpty is the screen with no diff to show: a card naming the revision that is empty, why, and
 // the keys out, over the footer. Before the first diff arrives it says the diff is on its way.
 func (m *Model) renderEmpty() string {
-	body := max(m.height-1, 1)
+	body := max(m.screenHeight()-1, 1)
 
 	var lines []string
 

@@ -66,7 +66,7 @@ func (m *Model) render() string {
 	frame.pushSearchState()
 
 	fileListView := frame.fileList.View(frame.width, fileListHeight, fileListExpanded)
-	diffViewHeight := frame.height - fileListHeight - chromeHeight
+	diffViewHeight := frame.screenHeight() - fileListHeight - chromeHeight
 	diffViewView := frame.renderDiffView(diffViewHeight)
 
 	// The collapsed list is the diff's heading on a band, which already sets it apart, so the row
@@ -91,11 +91,17 @@ func (m *Model) render() string {
 
 // finish lays everything that floats over a screen on it, bottom to top: the coach's band, the
 // modal that is up, the which-key panel, and last the palette over every row but the footer.
+//
+// The palette leaves the modal out rather than covering part of it: a strip over the bottom rows
+// would cut the box and leave its top edge standing above the strip, a frame with no sides. The
+// palette lists the modal's own keys and the footer still names it, and closing the palette brings
+// the box back.
 func (m *Model) finish(screen string) string {
-	frame := m.whichKey(composite(m.withBand(screen), m.overlayView(), m.width, m.height))
 	if !m.pal.IsOpen() {
-		return frame
+		return m.whichKey(composite(m.withBand(screen), m.overlayView(), m.width, m.height))
 	}
+
+	frame := m.whichKey(m.withBand(screen))
 
 	lines := strings.Split(frame, "\n")
 	last := len(lines) - 1
@@ -110,13 +116,16 @@ func (m *Model) fileListHeight() int {
 		return collapsedFileListHeight
 	}
 
-	return max(min(m.fileList.ContentHeight(), m.height/maxFileListFraction), minFileListHeight)
+	return max(min(m.fileList.ContentHeight(), m.screenHeight()/maxFileListFraction), minFileListHeight)
 }
 
 // diffHeight is the rows the diff pane draws in, which paging and framing measure against.
 func (m *Model) diffHeight() int {
-	return max(m.height-m.fileListHeight()-chromeHeight, 1)
+	return max(m.screenHeight()-m.fileListHeight()-chromeHeight, 1)
 }
+
+// whichKeyMargin is the columns left of the which-key panel at its widest.
+const whichKeyMargin = 4
 
 // whichKey floats the keys that can follow a waiting prefix over the bottom right of the frame, the
 // way mini.which-key does, so a chord never has to be remembered whole.
@@ -135,8 +144,9 @@ func (m *Model) whichKey(frame string) string {
 		On:     theme.Skin.Accent,
 	}
 
-	half := m.width / 2 //nolint:mnd // the panel takes half the screen at most
-	box := keyhint.Panel(styles, append([]keyhint.Hint{head}, hints...), half)
+	// The panel sizes to its widest hint, and may take all but a margin, so a flag's description
+	// is never cut to fit half the screen.
+	box := keyhint.Panel(styles, append([]keyhint.Hint{head}, hints...), max(1, m.width-whichKeyMargin))
 
 	// The panel sits above the footer, which keeps saying where the user is and how to get out.
 	lines := strings.Split(frame, "\n")

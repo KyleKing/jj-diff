@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/framecheck"
 
 	"github.com/kyleking/jj-diff/internal/components/filelist"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -215,6 +216,23 @@ func TestKeptFrameMatchesAFreshDraw(t *testing.T) {
 
 		if got, want := kept.View(s.width, s.height, true), fresh.View(s.width, s.height, true); got != want {
 			t.Errorf("step %d: the kept frame is\n%s\nwant\n%s", i, ansi.Strip(got), ansi.Strip(want))
+		}
+	}
+}
+
+// A file name is content, and an emoji in it is one a terminal may draw wider than lipgloss
+// counts (a heart that is an emoji only with VS16, a Unicode 10+ face). The row settles it, so
+// framecheck finds no unstable glyph and the counts stay against the right edge.
+func TestExpandedListSettlesEmojiInPaths(t *testing.T) {
+	t.Parallel()
+
+	rows := expandedRows(t, 40, changedFile("notes/❤️-\U0001F97A.md", 3, 1), changedFile("a.go", 12, 0))
+
+	framecheck.Require(t, t.Name(), strings.Join(rows, "\n"), framecheck.Width(40))
+
+	for _, row := range rows[1:] {
+		if end := strings.TrimRight(row, " "); !strings.HasSuffix(end, "-1") && !strings.HasSuffix(end, "+12") {
+			t.Errorf("row %q does not end in its counts", row)
 		}
 	}
 }

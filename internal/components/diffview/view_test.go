@@ -10,6 +10,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/framecheck"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/config"
@@ -217,6 +218,7 @@ func TestViewGolden(t *testing.T) {
 
 				view := m.View(size[0], size[1], true)
 				checkRows(t, view, size[0], size[1], sc.mode == config.ViewModeUnified)
+				framecheck.Require(t, t.Name(), view, framecheck.Width(size[0]))
 				compareGolden(t, fmt.Sprintf("%s_%dx%d", sc.name, size[0], size[1]), ansi.Strip(view))
 			})
 		}

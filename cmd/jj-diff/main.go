@@ -149,6 +149,8 @@ func main() {
 	theme.Init()
 
 	cfg := config.LoadConfig()
+	theme.UseIcons(cfg.Icons)
+
 	if f.showWhitespace {
 		cfg.ShowWhitespace = true
 	}
@@ -177,7 +179,9 @@ func main() {
 	usage := keyusage.Open(appName)
 	initialModel.WithLedger(ledger).WithUsage(usage)
 
-	p := tea.NewProgram(&initialModel)
+	// The renderer draws at the depth the theme was fitted to, which inside tmux is not what
+	// Bubble Tea would detect on its own.
+	p := tea.NewProgram(&initialModel, tea.WithColorProfile(theme.Profile()))
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running program: %v", err)
 	}

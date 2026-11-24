@@ -10,6 +10,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	aragonite "github.com/kyleking/aragonite/tui/theme"
 )
 
 // Exported color variables.
@@ -18,10 +19,6 @@ var (
 	Accent          color.Color
 	Secondary       color.Color
 	Text            color.Color
-	SelectedBg      color.Color
-	MutedBg         color.Color
-	SoftMutedBg     color.Color
-	ModalBg         color.Color
 	Muted           color.Color
 	AddedLine       color.Color
 	DeletedLine     color.Color
@@ -37,13 +34,11 @@ var (
 	HunkHeaderStyle        lipgloss.Style
 	SectionStyle           lipgloss.Style
 	KeyStyle               lipgloss.Style
-	FooterStyle            lipgloss.Style
 	AdditionStyle          lipgloss.Style
 	DeletionStyle          lipgloss.Style
 	SelectionStyle         lipgloss.Style
 	SelectedFocusedStyle   lipgloss.Style
 	SelectedUnfocusedStyle lipgloss.Style
-	StatusBarStyle         lipgloss.Style
 	BorderStyle            lipgloss.Style
 	WordDiffAddedStyle     lipgloss.Style
 	WordDiffDeletedStyle   lipgloss.Style
@@ -66,11 +61,16 @@ func tint(base, accent color.Color, share float64) color.Color {
 	return color.RGBA{R: mix(br, ar), G: mix(bg, ag), B: mix(bb, ab), A: byteMax}
 }
 
+// Profile is the color depth the theme is fitted to: colorprofile.Detect, except that
+// COLORTERM=truecolor is honored inside tmux. The program hands the same answer to Bubble Tea so
+// the faces and the renderer agree on the depth.
+func Profile() colorprofile.Profile { return aragonite.Profile(os.Stdout, os.Environ()) }
+
 // Init detects the appropriate theme and the terminal's color depth, then initializes all colors and
 // styles.
 func Init() {
 	t := Detect()
-	applyTheme(&t, colorprofile.Detect(os.Stdout, os.Environ()))
+	applyTheme(&t, Profile())
 }
 
 // applyTheme sets color variables and recomputes all styles, deriving the diff tints so they stay
@@ -80,15 +80,15 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 	Accent = t.Accent
 	Secondary = t.Secondary
 	Text = t.Text
-	SelectedBg = t.SelectedBg
-	MutedBg = t.MutedBg
-	SoftMutedBg = t.SoftMutedBg
-	ModalBg = t.ModalBg
-	AddedLine = t.AddedLine
-	DeletedLine = t.DeletedLine
-	Muted = tint(ModalBg, Text, mutedTintShare)
+	// The two sides' colors say which side a count or a line is on, so they keep their hue in
+	// 256 colors, where the nearest match for Latte's red is a grey.
+	AddedLine = aragonite.Hue(t.AddedLine, p)
+	DeletedLine = aragonite.Hue(t.DeletedLine, p)
 
+	// Every background comes from the skin, which fits it to p; nothing here paints one of its own.
 	applySkin(t, p)
+
+	Muted = tint(Palette.Base, Text, mutedTintShare)
 
 	HeaderStyle = lipgloss.NewStyle().
 		Foreground(Primary).
@@ -106,11 +106,6 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 		Foreground(Accent).
 		Bold(true)
 
-	FooterStyle = lipgloss.NewStyle().
-		Background(SoftMutedBg).
-		Foreground(Text).
-		Padding(0, 1)
-
 	AdditionStyle = lipgloss.NewStyle().
 		Foreground(AddedLine)
 
@@ -126,11 +121,6 @@ func applyTheme(t *Theme, p colorprofile.Profile) {
 		Bold(true)
 
 	SelectedUnfocusedStyle = Skin.Band.Foreground(Text)
-
-	StatusBarStyle = lipgloss.NewStyle().
-		Background(SoftMutedBg).
-		Foreground(Text).
-		Padding(0, 1)
 
 	BorderStyle = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -155,18 +145,4 @@ var generation atomic.Uint64
 // component caching rendered rows or pens keys them by it, since Init can run again in tests.
 func Generation() uint64 {
 	return generation.Load()
-}
-
-// PaneStyle returns a dynamic border style for panes.
-func PaneStyle(width, height int, focused bool) lipgloss.Style {
-	style := lipgloss.NewStyle().
-		Width(width).
-		Height(height).
-		BorderStyle(lipgloss.RoundedBorder())
-
-	if focused {
-		return style.BorderForeground(Primary)
-	}
-
-	return style.BorderForeground(MutedBg)
 }

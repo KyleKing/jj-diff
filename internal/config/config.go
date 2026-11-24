@@ -23,6 +23,9 @@ const (
 // zero-value replacement from DefaultConfig, so callers never build one by hand.
 type Config struct {
 	ViewMode ViewModeType
+	// Icons names the icon set file rows are drawn with: "unicode" (the default, no file icons),
+	// "nerd" for a Nerd Font, or "none". JJ_DIFF_ICONS sets it and ARAGONITE_ICONS overrides it.
+	Icons string
 	// CoachLayout is where the next step shows: the footer's status slot (Inline, the default), or
 	// a labeled band above the footer, which JJ_DIFF_COACH_LAYOUT=band asks for.
 	CoachLayout     coach.Layout
@@ -81,6 +84,8 @@ func LoadConfig() Config {
 	if layout, err := coach.ParseLayout(os.Getenv("JJ_DIFF_COACH_LAYOUT")); err == nil {
 		cfg.CoachLayout = layout
 	}
+
+	cfg.Icons = os.Getenv("JJ_DIFF_ICONS")
 
 	if v := os.Getenv("JJ_DIFF_WORD_DIFF"); v != "" {
 		cfg.WordLevelDiff = parseBool(v)

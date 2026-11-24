@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/empty"
+	"github.com/kyleking/aragonite/tui/glyph"
 
 	"github.com/kyleking/jj-diff/internal/conflict"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -26,8 +27,11 @@ const (
 	paneGap = 1
 	// A border cell either side of a pane.
 	borders = 2
-	// A pane's title skips the corner and a space at either end.
+	// A pane's body sits a border and a space in from either side.
 	titleInset = 4
+	// The top edge around a title: "╭─ " before it, " " and at least one "─" and "╮" after, the
+	// same shape as aragonite's overlay.Box.
+	titleEdge = 6
 )
 
 // pane is one labeled box of text: a side, the base, or the result.
@@ -46,7 +50,7 @@ type pane struct {
 func (m *Model) renderResolve() string {
 	r := m.res
 	inner := max(m.width-2*paneMargin, 1)
-	bodyHeight := max(m.height-resolveChrome-1, 1)
+	bodyHeight := max(m.screenHeight()-resolveChrome-1, 1)
 
 	if r == nil || len(r.files) == 0 {
 		e := m.noConflicts()
@@ -54,7 +58,9 @@ func (m *Model) renderResolve() string {
 			e = empty.Empty{Title: "Reading the conflicts", Why: "jj resolve --list is running."}
 		}
 
-		return strings.Join(append(empty.Card(theme.Skin, e, m.width, max(m.height-1, 1)), m.renderStatusBar()), "\n")
+		card := empty.Card(theme.Skin, e, m.width, max(m.screenHeight()-1, 1))
+
+		return strings.Join(append(card, m.renderStatusBar()), "\n")
 	}
 
 	left, total := r.unresolved()
@@ -68,7 +74,7 @@ func (m *Model) renderResolve() string {
 	body = body[min(r.scroll, max(len(body)-bodyHeight, 0)):]
 	rows = append(rows, body[:min(len(body), bodyHeight)]...)
 
-	for len(rows) < m.height-1 {
+	for len(rows) < m.screenHeight()-1 {
 		rows = append(rows, "")
 	}
 
@@ -77,7 +83,7 @@ func (m *Model) renderResolve() string {
 		rows[i] = fit(margin+rows[i], m.width)
 	}
 
-	return strings.Join(append(rows[:m.height-1], m.renderStatusBar()), "\n")
+	return strings.Join(append(rows[:m.screenHeight()-1], m.renderStatusBar()), "\n")
 }
 
 // fileTabs is the row of conflicted files, each with how many of its regions are picked.
@@ -160,7 +166,7 @@ func sidePanes(region *conflict.Region, p conflict.Pick) []pane {
 		id, desc := splitLabel(s.Label)
 		out = append(out, pane{
 			title: fmt.Sprintf("%d %s", i+1, id),
-			note:  desc,
+			note:  glyph.Settle(desc),
 			lines: s.Lines(),
 			on:    (p.Kind == conflict.TakeSide && p.Side == i+1) || p.Kind == conflict.TakeAll,
 		})
@@ -168,7 +174,7 @@ func sidePanes(region *conflict.Region, p conflict.Pick) []pane {
 		if i == 0 && len(region.Bases) > 0 {
 			id, desc := splitLabel(region.Bases[0].Label)
 			out = append(out, pane{
-				title: "0 base " + id, note: desc, lines: region.Bases[0].Lines(),
+				title: "0 base " + id, note: glyph.Settle(desc), lines: region.Bases[0].Lines(),
 				on: p.Kind == conflict.TakeBase,
 			})
 		}
@@ -284,7 +290,7 @@ func paneWidths(panes []pane, avail int) []int {
 
 // paneNeed is the width that draws p's title, its note beside it, and its widest line uncut.
 func paneNeed(p pane) int {
-	need := lipgloss.Width(fullTitle(p)) + titleInset + 1
+	need := lipgloss.Width(fullTitle(p)) + titleEdge
 
 	for _, l := range p.lines {
 		need = max(need, lipgloss.Width(expand(l))+titleInset)
@@ -313,7 +319,7 @@ func box(p pane, width int) []string {
 	}
 
 	inner := max(width-titleInset, 1)
-	room := max(width-titleInset-1, 0)
+	room := max(width-titleEdge, 0)
 
 	title := fullTitle(p)
 
@@ -324,7 +330,7 @@ func box(p pane, width int) []string {
 		lines = wrapNote(p.note, inner)
 	}
 
-	top := "╭ " + title + " " + strings.Repeat("─", max(width-lipgloss.Width(title)-titleInset, 0)) + "╮"
+	top := "╭─ " + title + " " + strings.Repeat("─", max(width-lipgloss.Width(title)-titleEdge+1, 0)) + "╮"
 
 	rows := []string{edge.Render(top)}
 
