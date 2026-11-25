@@ -129,3 +129,37 @@ func TestProfileHonorsTruecolorInsideTmux(t *testing.T) {
 		t.Errorf("added wash is the grey %v, want the truecolor tint", wash)
 	}
 }
+
+// TestFor_HonorsTheOverrideAndQueriesNothing pins the pair main starts with: Pinned says whether
+// the background is needed at all, and For takes the answer the program learned through its own
+// input rather than asking the terminal. It sets CATPPUCCIN_THEME, which the process shares, so it
+// runs alone.
+func TestFor_HonorsTheOverrideAndQueriesNothing(t *testing.T) {
+	for _, tc := range []struct {
+		dark       theme.Theme
+		light      theme.Theme
+		override   string
+		wantPinned bool
+	}{
+		{theme.Macchiato(), theme.Latte(), "", false},
+		{theme.Macchiato(), theme.Latte(), "solarized", false},
+		{theme.Latte(), theme.Latte(), "Light", true},
+		{theme.Macchiato(), theme.Macchiato(), "macchiato", true},
+	} {
+		t.Run("override="+tc.override, func(t *testing.T) {
+			t.Setenv("CATPPUCCIN_THEME", tc.override)
+
+			if got := theme.Pinned(); got != tc.wantPinned {
+				t.Errorf("Pinned() = %t, want %t", got, tc.wantPinned)
+			}
+
+			if got := theme.For(true); got != tc.dark {
+				t.Errorf("For(dark) = %+v, want %+v", got, tc.dark)
+			}
+
+			if got := theme.For(false); got != tc.light {
+				t.Errorf("For(light) = %+v, want %+v", got, tc.light)
+			}
+		})
+	}
+}

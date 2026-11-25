@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/launch"
 	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/pen"
 
@@ -125,6 +126,9 @@ type Model struct {
 	res *resolveState
 	// marks is the revision's read marks, which jojo writes and jj-diff shows; nil shows none.
 	marks *reads.Marks
+	// early holds the keys pressed before the first load lands, which act once it has: until then
+	// there is no file for a j to move to or a space to select. ctrl+c is never held.
+	early launch.Keys
 	// again repeats the last write on the current selection, for the repeat action.
 	again func(m *Model, sel *SelectionState) tea.Cmd
 	// dim is the faint the diff pane is drawn in while the file list has focus.
@@ -340,6 +344,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Until the first load lands a key has nothing to act on, so it waits for it (ctrl+c never does).
+	if key, ok := msg.(tea.KeyPressMsg); ok && m.early.Hold(key) {
+		return m, nil
+	}
+
 	model, cmd := m.handle(msg)
 	m.syncReads()
 
@@ -390,6 +399,8 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.marks.SetHunks(msg.hunks)
 		}
 
+		return m.landed(nil)
+
 	case scopeMsg:
 		if msg.err == nil {
 			m.marks.SetScope(msg.scope)
@@ -401,6 +412,9 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case errMsg:
 		m.err = msg.err
+
+		// A load that failed releases the keys too, since the failure is what they may be asking about.
+		return m.landed(nil)
 
 	case revisionsLoadedMsg:
 		m.openPicker(msg)
@@ -419,10 +433,23 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case conflictsLoadedMsg:
 		cmd := m.conflictsLoaded(msg)
 
-		return m, cmd
+		return m.landed(cmd)
 	}
 
 	return m, nil
+}
+
+// landed follows a load: the first one presses, in order, the keys held while it was on its way,
+// after cmd. Every later load has none to press.
+func (m *Model) landed(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	held := m.early.Release()
+	if len(held) == 0 {
+		return m, cmd
+	}
+
+	next, pressed := launch.Replay(tea.Model(m), held)
+
+	return next, tea.Batch(cmd, pressed)
 }
 
 // loaded takes a fresh diff. Hunk indices from the last one mean nothing in it, so the selection and

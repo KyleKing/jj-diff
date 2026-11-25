@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/tui/coach"
+	"github.com/kyleking/aragonite/tui/launch"
 
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/diff"
@@ -140,17 +141,84 @@ func main() {
 		return
 	}
 
-	// The diff starts loading before anything else, because detecting the terminal's theme and color
-	// depth waits on the terminal and on tmux, and none of that needs the diff.
+	// The diff starts loading before anything else, because the first frame waits on it and nothing
+	// about it needs the theme or the terminal.
 	build, err := prepare(&f, flag.Args())
 	if err != nil {
 		log.Fatalf("Failed to initialize: %v", err)
 	}
 
-	theme.Init()
+	cfg := configure(&f)
 
+	// The revision's label is read before the terminal is taken, so a revision that does not exist
+	// is reported on the shell's screen.
+	if err := build.wait(); err != nil {
+		log.Fatalf("Failed to initialize: %v", err)
+	}
+
+	// The coach's ledger is always on: it holds tip ids and action names with times, never keys. The
+	// usage log is opt-in, and nil when it is off.
+	ledger, err := coach.OpenLedger(appName)
+	if err != nil {
+		log.Printf("coach: starting without its notes: %v", err)
+	}
+
+	usage := keyusage.Open(appName)
+
+	var (
+		app      *model.Model
+		buildErr error
+	)
+
+	start := func(dark bool) tea.Model {
+		theme.InitFor(dark)
+		theme.UseIcons(cfg.Icons)
+
+		m, err := build.make(cfg)
+		if err != nil {
+			buildErr = err
+
+			return failed{}
+		}
+
+		m.WithLedger(ledger).WithUsage(usage)
+		app = &m
+
+		return app
+	}
+
+	// A theme left to the terminal is asked for inside the program, where the answer cannot eat a key
+	// typed as the command was entered.
+	var first tea.Model = launch.New(start)
+	if theme.Pinned() {
+		first = start(true)
+	}
+
+	// The renderer draws at the depth the theme was fitted to, which inside tmux is not what
+	// Bubble Tea would detect on its own.
+	p := tea.NewProgram(first, tea.WithColorProfile(theme.Profile()))
+	if _, err := p.Run(); err != nil {
+		log.Fatalf("Error running program: %v", err)
+	}
+
+	if buildErr != nil {
+		log.Fatalf("Failed to initialize: %v", buildErr)
+	}
+
+	if err := ledger.Save(); err != nil {
+		log.Printf("coach: saving its notes: %v", err)
+	}
+
+	if err := usage.Close(); err != nil {
+		log.Printf("usage: %v", err)
+	}
+
+	report(app, build.editor)
+}
+
+// configure reads the config file and lays the flags over it.
+func configure(f *flags) config.Config {
 	cfg := config.LoadConfig()
-	theme.UseIcons(cfg.Icons)
 
 	if f.showWhitespace {
 		cfg.ShowWhitespace = true
@@ -165,45 +233,28 @@ func main() {
 		cfg.TabWidth = f.tabWidth
 	}
 
-	initialModel, err := build(cfg)
-	if err != nil {
-		log.Fatalf("Failed to initialize: %v", err)
-	}
+	return cfg
+}
 
-	// The coach's ledger is always on: it holds tip ids and action names with times, never keys. The
-	// usage log is opt-in, and nil when it is off.
-	ledger, err := coach.OpenLedger(appName)
-	if err != nil {
-		log.Printf("coach: starting without its notes: %v", err)
-	}
-
-	usage := keyusage.Open(appName)
-	initialModel.WithLedger(ledger).WithUsage(usage)
-
-	// The renderer draws at the depth the theme was fitted to, which inside tmux is not what
-	// Bubble Tea would detect on its own.
-	p := tea.NewProgram(&initialModel, tea.WithColorProfile(theme.Profile()))
-	if _, err := p.Run(); err != nil {
-		log.Fatalf("Error running program: %v", err)
-	}
-
-	if err := ledger.Save(); err != nil {
-		log.Printf("coach: saving its notes: %v", err)
-	}
-
-	if err := usage.Close(); err != nil {
-		log.Printf("usage: %v", err)
-	}
-
-	// What the session wrote goes to stderr once the screen is gone, so the program that launched it
-	// can repeat it: the last line that starts with "jj-diff: " is the outcome.
-	if outcome := initialModel.Outcome(); outcome != "" {
-		fmt.Fprintln(os.Stderr, "jj-diff: "+outcome)
+// report says what the session wrote once the screen is gone, and exits non-zero for a diff editor
+// that wrote nothing. A program that ended before its model was built (app nil) wrote nothing.
+func report(app *model.Model, editor bool) {
+	// The program that launched this one can repeat the outcome: the last line that starts with
+	// "jj-diff: " is it.
+	if app != nil {
+		if outcome := app.Outcome(); outcome != "" {
+			fmt.Fprintln(os.Stderr, "jj-diff: "+outcome)
+		}
 	}
 
 	// A diff editor that quits without writing exits non-zero, which is what tells jj to leave the
 	// revision as it was instead of taking the right side it started with.
-	if initialModel.Aborted() {
+	aborted := editor
+	if app != nil {
+		aborted = app.Aborted()
+	}
+
+	if aborted {
 		fmt.Fprintln(os.Stderr, "jj-diff: quit without writing; the revision is unchanged")
 		os.Exit(1)
 	}
@@ -237,10 +288,16 @@ func runEditorHalf(f *flags) bool {
 }
 
 // builder finishes a model once the theme and the config are known. The work prepare started in the
-// background (the diff, the revision's label) is waited on here.
-type builder func(cfg config.Config) (model.Model, error)
+// background (the diff, the revision's label) runs while the terminal is set up: wait is the part a
+// model cannot be built without, and make builds it once the theme is in place.
+type builder struct {
+	wait func() error
+	make func(cfg config.Config) (model.Model, error)
+	// editor is diff-editor mode, which exits non-zero when it writes nothing.
+	editor bool
+}
 
-func prepare(f *flags, args []string) (builder, error) {
+func prepare(f *flags, args []string) (*builder, error) {
 	switch len(args) {
 	case 0:
 		return prepareRevisionMode(f)
@@ -251,7 +308,7 @@ func prepare(f *flags, args []string) (builder, error) {
 	}
 }
 
-func prepareRevisionMode(f *flags) (builder, error) {
+func prepareRevisionMode(f *flags) (*builder, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get working directory: %w", err)
@@ -288,11 +345,15 @@ func prepareRevisionMode(f *flags) (builder, error) {
 
 	go func() { labeled <- revision.ResolveLabel() }()
 
-	return func(cfg config.Config) (model.Model, error) {
+	wait := func() error {
 		if err := <-labeled; err != nil {
-			return model.Model{}, fmt.Errorf("reading the revision: %w", err)
+			return fmt.Errorf("reading the revision: %w", err)
 		}
 
+		return nil
+	}
+
+	return &builder{wait: wait, make: func(cfg config.Config) (model.Model, error) {
 		m, err := model.NewModelWithSource(source, client, f.destination, mode, cfg)
 		if err != nil {
 			return model.Model{}, fmt.Errorf("building the revision model: %w", err)
@@ -314,10 +375,10 @@ func prepareRevisionMode(f *flags) (builder, error) {
 		}
 
 		return m, nil
-	}, nil
+	}}, nil
 }
 
-func prepareDiffEditorMode(leftDir, rightDir string) (builder, error) {
+func prepareDiffEditorMode(leftDir, rightDir string) (*builder, error) {
 	if _, err := os.Stat(leftDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("left %s: %w", leftDir, errMissingDir)
 	}
@@ -327,12 +388,22 @@ func prepareDiffEditorMode(leftDir, rightDir string) (builder, error) {
 
 	source := diff.Prefetch(diff.NewDirectorySource(leftDir, rightDir))
 
-	return func(cfg config.Config) (model.Model, error) {
+	build := func(cfg config.Config) (model.Model, error) {
 		m, err := model.NewModelWithSource(source, nil, "", model.ModeDiffEditor, cfg)
 		if err != nil {
 			return model.Model{}, fmt.Errorf("building the diff-editor model: %w", err)
 		}
 
 		return m, nil
-	}, nil
+	}
+
+	return &builder{wait: func() error { return nil }, make: build, editor: true}, nil
 }
+
+// failed is the program when its model could not be built: it quits before drawing anything, and
+// main reports why once the terminal is back.
+type failed struct{}
+
+func (failed) Init() tea.Cmd                         { return tea.Quit }
+func (f failed) Update(tea.Msg) (tea.Model, tea.Cmd) { return f, nil }
+func (failed) View() tea.View                        { return tea.NewView("") }

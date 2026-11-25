@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -68,6 +69,8 @@ type screen struct {
 	term    *vt.SafeEmulator
 	drained chan struct{}
 	mu      sync.Mutex
+	// silent is a terminal that answers no capability query, as a bare pty or a minimal emulator does.
+	silent bool
 }
 
 func (s *screen) drain() {
@@ -80,7 +83,7 @@ func (s *screen) drain() {
 		s.feed(chunk[:n])
 
 		for _, a := range answers {
-			if strings.Contains(string(chunk[:n]), a.query) {
+			if !s.silent && strings.Contains(string(chunk[:n]), a.query) {
 				_, _ = s.pty.WriteString(a.reply) //nolint:errcheck // the process is gone once this fails
 			}
 		}
@@ -264,19 +267,47 @@ func changedRepo(t *testing.T, env []string, files int) string {
 func open(t *testing.T, sz size, dir string, env []string, args ...string) *screen {
 	t.Helper()
 
+	return start(t, sz, dir, env, false, "", args...)
+}
+
+// start runs jj-diff on a pty of sz, a terminal that answers capability queries unless silent.
+// Typed is written to the pty before the program runs, so it waits in the input queue as a key
+// pressed the instant the command is entered does.
+func start(t *testing.T, sz size, dir string, env []string, silent bool, typed string, args ...string) *screen {
+	t.Helper()
+
 	cmd := exec.CommandContext(t.Context(), binary, args...) // #nosec G204 -- the binary TestMain built
 	cmd.Dir, cmd.Env = dir, env
 
-	f, err := pty.StartWithSize(cmd, sz.winsize())
+	f, tty, err := pty.Open()
 	if err != nil {
+		t.Fatalf("opening a pty: %v", err)
+	}
+
+	t.Cleanup(func() { _ = f.Close() }) //nolint:errcheck // the process is gone by then
+
+	if err := pty.Setsize(f, sz.winsize()); err != nil {
+		t.Fatalf("sizing the pty: %v", err)
+	}
+
+	if typed != "" {
+		if _, err := f.WriteString(typed); err != nil {
+			t.Fatalf("typing %q ahead: %v", typed, err)
+		}
+	}
+
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+
+	if err := cmd.Start(); err != nil {
 		t.Fatalf("starting jj-diff on a pty: %v", err)
 	}
 
-	s := &screen{t: t, pty: f, cmd: cmd, term: emulate(sz), drained: make(chan struct{})}
+	_ = tty.Close() //nolint:errcheck // the child holds its own descriptor
+
+	s := &screen{t: t, pty: f, cmd: cmd, term: emulate(sz), drained: make(chan struct{}), silent: silent}
 
 	go s.drain()
-
-	t.Cleanup(func() { _ = f.Close() }) //nolint:errcheck // the process is gone by then
 
 	return s
 }

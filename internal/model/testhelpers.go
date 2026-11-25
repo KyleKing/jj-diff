@@ -13,7 +13,9 @@ import (
 	"github.com/kyleking/jj-diff/internal/jj"
 )
 
-// NewTestModel builds a Model backed by a jj client rooted at a fresh temp dir.
+// NewTestModel builds a Model backed by a jj client rooted at a fresh temp dir. Its keys act at
+// once, as they do once the first load has landed; a test of the keys held before that builds with
+// NewModel.
 func NewTestModel(tb testing.TB, mode OperatingMode) *Model {
 	tb.Helper()
 
@@ -24,6 +26,8 @@ func NewTestModel(tb testing.TB, mode OperatingMode) *Model {
 	if err != nil {
 		tb.Fatalf("Failed to create model: %v", err)
 	}
+
+	m.early.Release()
 
 	return &m
 }

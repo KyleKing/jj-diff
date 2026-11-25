@@ -72,7 +72,7 @@ The invariant that makes it safe: the selection is the only content that changes
 
 ## Theme system
 
-`internal/theme/` initializes a global theme at startup. It auto-detects via `lipgloss.HasDarkBackground(os.Stdin, os.Stdout)`, honors `CATPPUCCIN_THEME=latte` or `macchiato`, and components read global colors such as `theme.Primary` and `theme.AddedLine`.
+`internal/theme/` initializes a global theme at startup, and components read global colors such as `theme.Primary` and `theme.AddedLine`. `CATPPUCCIN_THEME=latte` or `macchiato` pins the flavor; otherwise `main.go` starts the program under aragonite `tui/launch`, which asks the terminal for its background through Bubble Tea's own input and calls `theme.InitFor(dark)` before the model is built. Never query the background before `Program.Run` (`lipgloss.HasDarkBackground`, aragonite `theme.Detect`): it reads stdin itself and discards the key typed as jj-diff was entered. Keys that arrive before the first load are held in `Model.early` and pressed once it lands; ctrl+c is never held. `TestLaunch_FirstKeyActs` pins both on a pty.
 
 `theme.Profile()` (aragonite `theme.Profile`, which honors `COLORTERM=truecolor` inside tmux) is the one color depth: the skin and diff faces are fitted to it (`skin.For`, `skin.DiffFor`) and `main.go` hands it to Bubble Tea with `tea.WithColorProfile`. Every background comes from those faces; the theme package paints none of its own. Frame goldens go through `frameGolden`, which runs aragonite `framecheck` first, and `TestChromeIsWidthStable` holds the source's literals to the glyph policy.
 

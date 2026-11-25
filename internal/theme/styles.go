@@ -63,10 +63,15 @@ func tint(base, accent color.Color, share float64) color.Color {
 // the faces and the renderer agree on the depth.
 func Profile() colorprofile.Profile { return aragonite.Profile(os.Stdout, os.Environ()) }
 
-// Init detects the appropriate theme and the terminal's color depth, then initializes all colors and
-// styles.
-func Init() {
-	t := Detect()
+// Init initializes all colors and styles for a dark background, or the flavor CATPPUCCIN_THEME
+// names, at the terminal's color depth. It never asks the terminal for its background; a program
+// that needs it calls InitFor with the answer.
+func Init() { InitFor(true) }
+
+// InitFor initializes all colors and styles for a terminal whose background is dark or not, unless
+// CATPPUCCIN_THEME names a flavor, at the terminal's color depth.
+func InitFor(dark bool) {
+	t := For(dark)
 	applyTheme(&t, Profile())
 }
 

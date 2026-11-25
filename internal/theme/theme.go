@@ -45,20 +45,37 @@ func Macchiato() Theme {
 	}
 }
 
-// Detect returns the appropriate theme based on environment.
-func Detect() Theme {
-	if env := os.Getenv("CATPPUCCIN_THEME"); env != "" {
-		switch strings.ToLower(env) {
-		case "latte", "light":
-			return Latte()
-		case "macchiato", "dark":
-			return Macchiato()
-		}
+// For is the theme for a terminal whose background is dark or not, unless CATPPUCCIN_THEME names a
+// flavor. It queries nothing: the program learns the background through its own input
+// (aragonite tui/launch), because a query made before the program runs reads the keys typed
+// meanwhile and throws them away with its reply.
+func For(dark bool) Theme {
+	if t, ok := pinnedTheme(); ok {
+		return t
 	}
 
-	if lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
+	if dark {
 		return Macchiato()
 	}
 
 	return Latte()
+}
+
+// Pinned reports whether CATPPUCCIN_THEME names a flavor, in which case the terminal's background
+// is never needed.
+func Pinned() bool {
+	_, ok := pinnedTheme()
+
+	return ok
+}
+
+func pinnedTheme() (Theme, bool) {
+	switch strings.ToLower(os.Getenv("CATPPUCCIN_THEME")) {
+	case "latte", "light":
+		return Latte(), true
+	case "macchiato", "dark":
+		return Macchiato(), true
+	}
+
+	return Theme{}, false
 }

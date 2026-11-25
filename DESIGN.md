@@ -309,8 +309,9 @@ What moved the numbers, so a change can tell whether it undoes one:
   and the footer its last line. A frame where the cursor moved redraws the rows it moved between.
   Rows with search hits are drawn fresh, and a row drawn before its colors landed is not kept.
 - **Search hits are indexed once per search,** by line and by file, rather than scanned per row.
-- **Startup overlaps its jj calls.** `diff.Prefetch` starts `jj diff` before theme detection, which
-  waits on the terminal and on `tmux info`; the label resolves beside it with
+- **Startup overlaps its jj calls.** `diff.Prefetch` starts `jj diff` before the program asks the
+  terminal for its background (through its own input, under aragonite `tui/launch`, so a key typed
+  as the command is entered is held rather than eaten); the label resolves beside it with
   `--ignore-working-copy`, off the working-copy lock; and `CheckInstalled` looks jj up on `PATH`
   rather than running it.
 
