@@ -623,14 +623,14 @@ func (m *Model) applyColumns() tea.Cmd {
 	client, revision, parallel := m.client, m.revision, m.cols.parallel
 	m.cols = nil
 
-	return func() tea.Msg {
+	return m.writing(func() tea.Msg {
 		outcome, err := client.Split(revision, groups, parallel)
 
 		return writtenMsg{
 			err: err, outcome: outcome, call: lastWrite(client),
-			summary: fmt.Sprintf("split %s into %s", revision, plural(len(groups)+1, "commit")),
+			summary: fmt.Sprintf("split %s into %s", revision, plural(len(groups)+1, "commit")), verb: actionSplit,
 		}
-	}
+	})
 }
 
 // splitCommand is the jj command line the columns will run, and the order the commits land in.

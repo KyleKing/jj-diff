@@ -434,7 +434,7 @@ func TestWritten_EchoesTheCommand(t *testing.T) {
 		"jj", "squash", "--from", "@", "--into", "rnzx", "--tool", "jj-diff-selection", "--config", "x=1",
 	})}
 
-	m.written(writtenMsg{summary: "squashed 1 hunk into rnzx", call: call})
+	m.written(&writtenMsg{summary: "squashed 1 hunk into rnzx", call: call})
 
 	if want := "squashed 1 hunk into rnzx · jj squash --from @ --into rnzx · jj undo undoes it"; m.notice != want {
 		t.Errorf("notice = %q, want %q", m.notice, want)

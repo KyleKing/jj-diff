@@ -21,6 +21,9 @@ const (
 	actionApply   = "apply"
 )
 
+// verbDiscard is R's word, in the footer, its question, and the undo that names it.
+const verbDiscard = "discard"
+
 // Legend groups jj-diff files its own verbs under.
 const (
 	groupSelect = "Select"
@@ -246,7 +249,7 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 		},
 		keys.Binding{
 			Action: actionRestore, Keys: []string{"R"}, What: "discard the selection from the revision",
-			Short: "discard", Group: groupWrite, Contexts: keys.Select,
+			Short: verbDiscard, Group: groupWrite, Contexts: keys.Select,
 		},
 		keys.Binding{
 			Action: actionConfirm, Keys: []string{"c"}, What: "confirm: squash into -d, or apply the split",
@@ -337,7 +340,7 @@ func (m *Model) columnsHints() []keyhint.Hint {
 func (m *Model) conflictHints() []keyhint.Hint {
 	return slices.Concat(m.labeled(keys.ActionTakeSide, ""), m.hint(keys.ActionTakeBase, ""),
 		m.hint(keys.ActionTakeAll, ""), m.hint(actionConfirm, ""), m.hint(keys.NextAction(keys.ObjConflict), ""),
-		m.hint(keys.ActionUndo, ""), m.hint(keys.ActionHelp, ""))
+		m.hint(keys.ActionUndo, m.undoWord()), m.hint(keys.ActionHelp, ""))
 }
 
 // footerHints is what the footer offers on a screen, most useful first: Fit sheds from the end,
@@ -371,7 +374,8 @@ func (m *Model) footerHints() []keyhint.Hint {
 			hint(keys.ActionHelp, ""))
 	case m.mode == ModeInteractive:
 		hints = slices.Concat(hint(actionSelect, ""), hint(keys.ActionVisual, ""), hint(actionSquash, ""),
-			hint(actionSplit, ""), hint(actionRestore, ""), hint(keys.ActionUndo, ""), hint(keys.ActionHelp, ""))
+			hint(actionSplit, ""), hint(actionRestore, ""), hint(keys.ActionUndo, m.undoWord()),
+			hint(keys.ActionHelp, ""))
 	default:
 		// The tick leads after the motion, so the footer names what space does here at every width.
 		hints = slices.Concat(lines("scroll"), hint(keys.ActionRead, ""),

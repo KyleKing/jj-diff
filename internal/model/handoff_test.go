@@ -38,7 +38,7 @@ func TestSplitLaunch_ExitsAfterTheSplitApplies(t *testing.T) {
 
 	m := returningSplit(t)
 
-	cmd := m.written(writtenMsg{summary: "split @ into 2 commits"})
+	cmd := m.written(&writtenMsg{summary: "split @ into 2 commits"})
 	if !quits(cmd) {
 		t.Fatal("a split launched with --split stayed open after it applied")
 	}
@@ -55,7 +55,7 @@ func TestSplitLaunch_StaysOpenWhenTheWriteFails(t *testing.T) {
 
 	m := returningSplit(t)
 
-	if cmd := m.written(writtenMsg{err: errSplitFailed}); cmd != nil && quits(cmd) {
+	if cmd := m.written(&writtenMsg{err: errSplitFailed}); cmd != nil && quits(cmd) {
 		t.Fatal("a failed split quit")
 	}
 
@@ -71,7 +71,7 @@ func TestSplitFromTheDiff_StaysOpenAfterItApplies(t *testing.T) {
 
 	m := inColumns(t)
 
-	if cmd := m.written(writtenMsg{summary: "split @ into 2 commits"}); cmd == nil {
+	if cmd := m.written(&writtenMsg{summary: "split @ into 2 commits"}); cmd == nil {
 		t.Fatal("a split in -i did not read the diff again")
 	}
 
@@ -87,7 +87,7 @@ func returningResolve(t *testing.T) *Model {
 	m := inResolve(t)
 	m.ReturnAfterWrite()
 
-	if cmd := m.written(writtenMsg{summary: "resolved 3 regions in 2 files"}); cmd == nil || !m.leaveIfResolved {
+	if cmd := m.written(&writtenMsg{summary: "resolved 3 regions in 2 files"}); cmd == nil || !m.leaveIfResolved {
 		t.Fatal("a resolve launched with --resolve did not read the conflicts again to see whether it is done")
 	}
 
@@ -141,7 +141,7 @@ func TestResolveWithoutLaunch_StaysAfterTheLastConflict(t *testing.T) {
 	t.Parallel()
 
 	m := inResolve(t)
-	m.written(writtenMsg{summary: "resolved 3 regions in 2 files"})
+	m.written(&writtenMsg{summary: "resolved 3 regions in 2 files"})
 
 	if _, cmd := m.Update(conflictsLoadedMsg{}); cmd != nil && quits(cmd) {
 		t.Error("a resolve nobody launched for one write quit")

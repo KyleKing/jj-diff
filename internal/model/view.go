@@ -370,7 +370,11 @@ func (m *Model) renderStatusBar() string {
 		Hints:        m.footerHints(),
 	}
 
-	if !m.quitPrompt && m.notice == "" {
+	if m.discarding != nil {
+		ctx.Notice, ctx.Alarm, ctx.Hints = m.discardQuestion(), true, discardHints()
+	}
+
+	if !m.quitPrompt && m.discarding == nil && m.notice == "" {
 		ctx.Lead, ctx.LeadKey, ctx.Hints = m.coachFooter(ctx.Hints)
 	}
 

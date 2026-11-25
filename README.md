@@ -54,7 +54,7 @@ jj-diff --interactive
 
 Press `tab` to reach the diff, `]h` (or `n`) to reach the hunk, `v` for line-level
 selection, `space` to confirm the lines, then `s` and `enter` on `@-` to squash them
-there. `jj undo` takes it back. Press `?` at any point for the keymap, or `:` to find
+there. `u` takes it back. Press `?` at any point for the keymap, or `:` to find
 a command by name.
 
 ![Moving a hunk into the commit it belongs to with s](docs/images/squash.gif)
@@ -112,10 +112,10 @@ or on the hunk under the cursor when nothing is selected:
 | `space` | select the hunk, or in visual mode the lines | `-i`, editor |
 | `v` / `V` | select a range of lines | `-i`, editor |
 | `~` | invert the selection in the file | `-i`, editor |
-| `u` / `ctrl+r` | undo / redo a selection edit | `-i`, editor |
+| `u` / `ctrl+r` | undo / redo: the last selection edit, else (in `-i`) the session's last write, by restoring the operation before it | `-i`, editor |
 | `s` | squash into…: a picker in jj log order, `/` filters, `enter` applies | `-i` |
 | `S` | split into columns, the selection (or the hunk) in a new commit's column | `-i` |
-| `R` | discard from the revision | `-i` |
+| `R` | discard from the revision, asking first (`y` discards, any other key keeps) | `-i` |
 | `c` | confirm: squash into the `-d` destination, or write and return to jj | `-i`, editor |
 | `.` | repeat the last write on the current selection | `-i` |
 | `-t` `-o` `-A` `-B` `-u` `-k` | in the picker: `--into` / new commit onto, after, before / keep the destination's message / keep the emptied source | `-i` |
@@ -123,10 +123,14 @@ or on the hunk under the cursor when nothing is selected:
 Every write is a single jj operation (`jj squash`, `jj split`, or `jj restore` with
 jj-diff as the diff editor), so `jj undo` reverses it whole. A split into more than
 two commits is one `jj split` per new commit, and the footer names the
-`jj op restore` that takes the whole split back. In the diff editor, leaving
+`jj op restore` that takes the whole split back. Inside the session `u` does that for
+you, as it does in jojo: it restores the operation recorded before the write, and
+`ctrl+r` puts the write back. It refuses, saying so, once jj has run anything since,
+including a snapshot of an edit you made to the working copy, because restoring then
+would take that back too. In the diff editor, leaving
 without `c` exits non-zero and jj leaves the revision as it was. The footer names the
-command each write ran (`squashed 1 hunk into rnzx · jj squash --from @ --into rnzx · jj
-undo undoes it`), and `gm` lists every one.
+command each write ran (`squashed 1 hunk into rnzx · jj squash --from @ --into rnzx · u
+undoes it`), and `gm` lists every one.
 
 ### Read marks
 
@@ -216,14 +220,14 @@ Picks are kept in memory until you write them.
 | `R` | put the region back to conflicted |
 | `M` | hand the file to your configured merge tool (`jj resolve`) and read it again |
 | `\s` | sides side by side, or stacked |
-| `u` / `ctrl+r` | undo / redo a pick |
+| `u` / `ctrl+r` | undo / redo a pick, else the session's last write |
 | `c` / `enter` | write every pick as one `jj resolve` operation |
 | `q` / `esc` | quit, asking first when picks are unwritten |
 
 The write is `jj resolve -r REV --tool :editor` with jj-diff as the editor, which
 replaces each file with your picks applied. Regions you did not pick keep their
 markers, and jj reads them back as the conflict that remains, so a file can be
-resolved a region at a time. `jj undo` reverses the write. jojo, or any tool, can
+resolved a region at a time. `u` (or `jj undo`) reverses the write. jojo, or any tool, can
 open it on a conflicted revision with `jj-diff --resolve -r <change-id>`.
 
 ### Launched for one write

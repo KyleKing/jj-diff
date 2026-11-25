@@ -26,6 +26,8 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 	m.coach.Press(time.Now())
 
 	switch {
+	case m.discarding != nil:
+		return m.handleDiscardKey(key)
 	case m.pal.IsOpen():
 		return m.pal.Update(msg)
 	case m.msgs != nil:
@@ -138,9 +140,9 @@ func (m *Model) verb(action string) tea.Cmd {
 		m.focusedPanel = PanelFileList
 		m.fileList.SetFilterMode(true)
 	case keys.ActionUndo:
-		m.undoSelection()
+		return m.undoAction()
 	case keys.ActionRedo:
-		m.redoSelection()
+		return m.redoAction()
 	case keys.ActionRepeat:
 		return m.repeat()
 	default:
@@ -394,7 +396,7 @@ func (m *Model) enterVisualMode() {
 // history a new edit forks away from.
 func (m *Model) edit(change func()) {
 	m.undo = append(m.undo, m.selection.Clone())
-	m.redo = nil
+	m.redo, m.unwritten = nil, nil
 
 	change()
 }

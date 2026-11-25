@@ -58,6 +58,13 @@ func (m *Model) gate(action string) keys.Availability {
 // listGate is the gate on the file list, which has nothing to open, filter, or search when the
 // revision changes no file.
 func (m *Model) listGate(action string) keys.Availability {
+	switch action {
+	case keys.ActionUndo:
+		return m.historyGate(false)
+	case keys.ActionRedo:
+		return m.historyGate(true)
+	}
+
 	if len(m.changes) > 0 {
 		return keys.Allow()
 	}
@@ -96,13 +103,9 @@ func (m *Model) selectGate(action string) keys.Availability {
 
 		return m.writeGate()
 	case keys.ActionUndo:
-		if len(m.undo) == 0 {
-			return keys.Refuse(whyNothingToUndo)
-		}
+		return m.historyGate(false)
 	case keys.ActionRedo:
-		if len(m.redo) == 0 {
-			return keys.Refuse(whyNothingToRedo)
-		}
+		return m.historyGate(true)
 	}
 
 	return keys.Allow()
@@ -172,8 +175,12 @@ func (m *Model) conflictGate(action string) keys.Availability {
 	r := m.res
 
 	switch action {
+	case keys.ActionUndo:
+		return m.historyGate(false)
+	case keys.ActionRedo:
+		return m.historyGate(true)
 	case keys.ActionTakeSide, keys.ActionTakeBase, keys.ActionTakeAll, keys.ActionResetRegion,
-		keys.ActionEditRegion, keys.ActionMergeTool, actionConfirm, actionApply, keys.ActionUndo, keys.ActionRedo:
+		keys.ActionEditRegion, keys.ActionMergeTool, actionConfirm, actionApply:
 		if r == nil || len(r.files) == 0 {
 			return keys.Refuse(whyNoConflicts)
 		}
@@ -194,14 +201,6 @@ func (m *Model) conflictGate(action string) keys.Availability {
 	case actionConfirm, actionApply:
 		if !r.anyPicked() {
 			return keys.Refuse(whyNothingPicked)
-		}
-	case keys.ActionUndo:
-		if len(r.undo) == 0 {
-			return keys.Refuse(whyNothingToUndo)
-		}
-	case keys.ActionRedo:
-		if len(r.redo) == 0 {
-			return keys.Refuse(whyNothingToRedo)
 		}
 	}
 

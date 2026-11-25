@@ -88,7 +88,7 @@ func (m *Model) about() map[string]palette.About {
 		actionRestore: {
 			Cmd:   "jj restore --changes-in " + src,
 			Also:  words("unstage / discard / revert / checkout / drop"),
-			Prose: []string{"Takes the selection out of the revision; jj undo brings it back."},
+			Prose: []string{"Takes the selection out of the revision, asking first (y discards); u brings it back."},
 		},
 		actionSelect: {Also: words("stage / add / pick")},
 		keys.ActionRead: {
@@ -102,9 +102,20 @@ func (m *Model) about() map[string]palette.About {
 		}[m.mode == ModeResolve],
 		actionPick:        {Cmd: squash, Also: words("into / destination")},
 		keys.ActionReload: {Cmd: "jj diff -r " + src + " --git", Also: words("refresh / status")},
-		keys.ActionUndo: {
-			Also: words("reset"), Prose: []string{"Undoes the last change to the selection. jj undo reverses a write."},
-		},
+		keys.ActionUndo: map[bool]palette.About{
+			true: {
+				Also: words("reset / jj undo / revert"),
+				Prose: []string{
+					"Takes back the last change: a selection edit, else this session's last write, by restoring " +
+						"the operation before it. Refused once jj has run anything since.",
+				},
+			},
+			false: {Also: words("reset"), Prose: []string{"Undoes the last change to the selection."}},
+		}[m.writesThroughJJ()],
+		keys.ActionRedo: map[bool]palette.About{
+			true:  {Also: words("jj redo"), Prose: []string{"Puts back what u took back."}},
+			false: {},
+		}[m.writesThroughJJ()],
 		keys.ActionMessages:           {Also: words("log / history / trail / commands / errors")},
 		keys.ActionDescribe:           {Cmd: "jj split -m", Also: words("message / reword / commit message")},
 		keys.ActionDescribeEditor:     {Also: words("message / reword / editor")},
@@ -255,7 +266,7 @@ func moving(action string) bool {
 // an overlay, a picker, or a question.
 func (m *Model) busy() bool {
 	return m.pal.IsOpen() || m.msgs != nil || m.picker.IsVisible() || m.searchModal.IsVisible() ||
-		m.fileList.IsFilterMode() || m.quitPrompt || (m.cols != nil && m.cols.describing) ||
+		m.fileList.IsFilterMode() || m.quitPrompt || m.discarding != nil || (m.cols != nil && m.cols.describing) ||
 		len(m.matcher.Pending()) > 0
 }
 

@@ -67,6 +67,11 @@ type Outcome struct {
 	Conflicts string
 	// Undo is the command that reverses the write, empty when one jj undo does.
 	Undo string
+	// Before is the operation current before the write, which restoring takes the write back.
+	Before string
+	// After is the operation the write left current, empty when it could not be read. Restoring
+	// Before is an undo of this write alone only while After is still current.
+	After string
 }
 
 // MoveChanges moves the changes the patch selects out of source and into destination as one jj
@@ -160,14 +165,51 @@ func (c *Client) Split(source string, groups []SplitGroup, parallel bool) (Outco
 
 	// Each group is its own operation, so one jj undo would take back only the last.
 	if len(groups) > 1 {
-		outcome.Undo = "jj op restore " + shortOp(opID)
+		outcome.Undo = "jj op restore " + ShortOp(opID)
 	}
 
-	return outcome, nil
+	return c.stamp(opID, outcome), nil
 }
 
-// shortOp is an operation ID at the length jj prints it.
-func shortOp(id string) string {
+// stamp records the operations around a write that succeeded: before, and the one it left current.
+// A write whose after cannot be read is still a write; it is only not undoable in the session.
+func (c *Client) stamp(before string, o Outcome) Outcome {
+	o.Before = before
+
+	if after, err := c.getCurrentOperationID(); err == nil {
+		o.After = after
+	}
+
+	return o
+}
+
+// ErrMoved is an undo or redo refused because the repository has an operation newer than the one it
+// expected: restoring would throw that operation away too, and whatever the working copy gained.
+var ErrMoved = errors.New("the repository changed since")
+
+// Rewind restores operation to, only while expect is still the current operation, and answers the
+// operation the restore made. It is how the session undoes or redoes a write of its own without
+// taking anything else back: a write elsewhere, or an edit to the working copy (which the check
+// snapshots into an operation of its own), refuses it with ErrMoved.
+func (c *Client) Rewind(expect, to string) (string, error) {
+	now, err := c.getCurrentOperationID()
+	if err != nil {
+		return "", err
+	}
+
+	if now != expect {
+		return "", fmt.Errorf("%w: operation %s is newer", ErrMoved, ShortOp(now))
+	}
+
+	if err := c.restoreOperation(to); err != nil {
+		return "", err
+	}
+
+	return c.getCurrentOperationID()
+}
+
+// ShortOp is an operation ID at the length jj prints it.
+func ShortOp(id string) string {
 	const short = 12
 
 	return id[:min(len(id), short)]
@@ -194,7 +236,7 @@ func (c *Client) write(args []string, sel selection) (Outcome, error) {
 		return Outcome{}, c.restoreOperationAfter(opID, err)
 	}
 
-	return outcome, nil
+	return c.stamp(opID, outcome), nil
 }
 
 // runSelection writes the patches to a private temporary directory, runs args with them as the diff

@@ -6,8 +6,8 @@
 ▸ L1–4                                       │   q       close, or quit at the root                │
      1   line 1                              │   esc     back out one level                        │
      2 ▎ new line                            │   ctrl+c  cancel the running command, else quit     │
-     3   line 2                              │   u       undo                                      │
-  L11–13                                     │   ctrl+r  redo                                      │
+     3   line 2                              │   u       undo · nothing to undo                    │
+  L11–13                                     │   ctrl+r  redo · nothing to redo                    │
     11   line 10                             │   ctrl+l  reload from the source                    │
     12 ▎ another line                        │   tab     next pane                                 │
                                              │   .       repeat the last change                    │

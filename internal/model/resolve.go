@@ -141,6 +141,10 @@ func (m *Model) resolveAction(action string, pressed []string) tea.Cmd {
 		return cmd
 	}
 
+	if cmd, ok := m.resolveHistory(action); ok {
+		return cmd
+	}
+
 	r := m.res
 	if r == nil || len(r.files) == 0 {
 		return nil
@@ -174,6 +178,17 @@ func (m *Model) resolveAction(action string, pressed []string) tea.Cmd {
 	}
 
 	return nil
+}
+
+// resolveHistory is u and ctrl+r once the picks have no history left: the session's writes, which
+// outlive the conflicts they resolved, so a revision left with none still takes u.
+func (m *Model) resolveHistory(action string) (tea.Cmd, bool) {
+	redo := action == keys.ActionRedo
+	if (action != keys.ActionUndo && !redo) || m.selectionHistory(redo) > 0 {
+		return nil, false
+	}
+
+	return m.rewind(redo), true
 }
 
 // resolveGeneral runs the actions that work with no conflicts loaded, false for any other.
@@ -287,7 +302,7 @@ func (m *Model) takePick(p conflict.Pick) {
 	}
 
 	r.undo = append(r.undo, r.picks.clone())
-	r.redo = nil
+	r.redo, m.unwritten = nil, nil
 
 	if p.Kind == conflict.Unresolved {
 		delete(r.picks[r.file], r.region)
@@ -384,12 +399,13 @@ func (m *Model) writeResolution() tea.Cmd {
 
 	client, revision := m.client, m.revision
 
-	return func() tea.Msg {
+	return m.writing(func() tea.Msg {
 		outcome, err := client.Resolve(revision, res)
 
 		return writtenMsg{
 			err: err, outcome: outcome, call: lastWrite(client),
 			summary: fmt.Sprintf("resolved %s in %s", plural(regions, "region"), plural(len(res), "file")),
+			verb:    "resolve",
 		}
-	}
+	})
 }

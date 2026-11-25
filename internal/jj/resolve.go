@@ -165,7 +165,7 @@ func (c *Client) Resolve(revision string, resolutions []Resolution) (_ Outcome, 
 		return Outcome{}, c.restoreOperationAfter(opID, errors.Join(errPlanUnapplied, err))
 	}
 
-	return Outcome{Conflicts: conflictNotice(stderr)}, nil
+	return c.stamp(opID, Outcome{Conflicts: conflictNotice(stderr)}), nil
 }
 
 // ApplyResolution is the editor half of Resolve, which jj runs once per file with the file it

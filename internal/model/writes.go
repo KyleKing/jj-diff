@@ -225,14 +225,14 @@ func (m *Model) runSquash(sel *SelectionState, dest string, opts jj.MoveOptions)
 
 	client, revision, changes, count := m.client, m.revision, m.changes, m.hunks(sel)
 
-	return func() tea.Msg {
+	return m.writing(func() tea.Msg {
 		outcome, err := client.MoveChanges(diff.GeneratePatch(changes, sel), revision, dest, opts)
 
 		return writtenMsg{
 			err: err, outcome: outcome, call: lastWrite(client),
-			summary: fmt.Sprintf("squashed %s into %s", plural(count, "hunk"), dest),
+			summary: fmt.Sprintf("squashed %s into %s", plural(count, "hunk"), dest), verb: actionSquash,
 		}
-	}
+	})
 }
 
 // split opens the split columns with the selection, else the hunk at the cursor, in a new commit's
@@ -254,21 +254,23 @@ func (m *Model) restore() tea.Cmd {
 		return nil
 	}
 
-	return m.runRestore(sel)
+	return m.askDiscard(sel)
 }
 
+// runRestore discards sel. Repeating it asks again, as R does.
 func (m *Model) runRestore(sel *SelectionState) tea.Cmd {
-	m.again = (*Model).runRestore
+	m.again = (*Model).askDiscard
 
 	client, revision, changes, count := m.client, m.revision, m.changes, m.hunks(sel)
 
-	return func() tea.Msg {
+	return m.writing(func() tea.Msg {
 		outcome, err := client.Restore(diff.GeneratePatch(changes, sel), revision)
 
 		return writtenMsg{
 			err: err, outcome: outcome, call: lastWrite(client), summary: "discarded " + plural(count, "hunk"),
+			verb: verbDiscard,
 		}
-	}
+	})
 }
 
 // confirm writes the selection: back to jj in the diff editor, else into the -d destination, else
@@ -317,7 +319,9 @@ func (m *Model) repeat() tea.Cmd {
 // written takes a write home: on success the diff is read again (the selection went with the old
 // one) and the footer says what changed and how to take it back; on failure the footer says why,
 // and nothing changed, since a failed write restores the operation it started from.
-func (m *Model) written(msg writtenMsg) tea.Cmd {
+func (m *Model) written(msg *writtenMsg) tea.Cmd {
+	m.inFlight = false
+
 	if msg.err != nil {
 		m.quitAfterWrite = false
 		m.say(firstLine(msg.err), true)
@@ -330,18 +334,27 @@ func (m *Model) written(msg writtenMsg) tea.Cmd {
 		undo = "jj undo"
 	}
 
-	text := msg.summary + " · " + undo + " reverses it"
+	// The footer names the key while the session can take the write back, and the outcome printed
+	// after the program exits names the jj command, since u is gone by then.
+	here := undo
+	if m.record(msg) {
+		here = "u"
+	}
+
+	text, said := msg.summary+" · "+undo+" reverses it", msg.summary+" · "+here+" reverses it"
 	if msg.call != nil {
 		text = trail.Echo(msg.summary, msg.call, undo+" undoes it")
+		said = trail.Echo(msg.summary, msg.call, here+" undoes it")
 	}
 
 	// A partial resolve leaves the conflicts it did not touch, which jj reports as new ones.
 	conflicts := msg.outcome.Conflicts != "" && m.mode != ModeResolve
 	if conflicts {
 		text = msg.summary + " · " + msg.outcome.Conflicts
+		said = text
 	}
 
-	m.say(text, conflicts)
+	m.say(said, conflicts)
 	m.outcome = text
 
 	if m.quitAfterWrite || (m.returnOnWrite && m.mode != ModeResolve) {
@@ -393,6 +406,16 @@ func (m *Model) applyDiffEditorSelection() tea.Cmd {
 		}
 
 		return diffEditorAppliedMsg{}
+	}
+}
+
+// discardHints are the answers R's question takes. Every key but y keeps the lines, and u is named
+// because the discard, once made, is still one key from coming back.
+func discardHints() []keyhint.Hint {
+	return []keyhint.Hint{
+		{Key: "y", What: verbDiscard, Priority: 3},       //nolint:mnd // kept longest
+		{Key: "n", What: "keep", Priority: 2, Pin: true}, //nolint:mnd // kept next
+		{Key: "u", What: "undoes it", Priority: 1},
 	}
 }
 

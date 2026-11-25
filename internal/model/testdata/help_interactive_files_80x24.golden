@@ -17,8 +17,8 @@
   q       close, or quit at the root                                            
   esc     back out one level                                                    
   ctrl+c  cancel the running command,…                                          
-  u       undo                                                                  
-  ctrl+r  redo                                                                  
+  u       undo · nothing to undo                                                
+  ctrl+r  redo · nothing to redo                                                
   ctrl+l  reload from the source        jj diff -r @ --git                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
 icons  unicode (ARAGONITE_ICONS=unicode) · JJ_DIFF_ICONS=nerd                   

@@ -150,10 +150,16 @@ type Model struct {
 	notice   string
 	// outcome is what the last write did, in the footer's words, which the program repeats on
 	// stderr after it gives the terminal back.
-	outcome      string
-	changes      []diff.FileChange
-	undo         []*SelectionState
-	redo         []*SelectionState
+	outcome string
+	changes []diff.FileChange
+	undo    []*SelectionState
+	redo    []*SelectionState
+	// writes is the session's writes u can take back, newest last, and unwritten the ones it took
+	// back that ctrl+r puts again.
+	writes    []writeRecord
+	unwritten []writeRecord
+	// discarding is the selection R asks about before it discards lines, nil when nothing is asked.
+	discarding   *SelectionState
 	motion       keys.Motion
 	cfg          config.Config
 	picker       destpicker.Model
@@ -174,6 +180,8 @@ type Model struct {
 	quitPrompt bool
 	// quitAfterWrite quits once the write a quit prompt started lands.
 	quitAfterWrite bool
+	// inFlight is a write, undo, or redo running in jj, which another must not race.
+	inFlight bool
 	// aborted is a diff-editor session ended without writing, which must exit non-zero so jj
 	// leaves the revision alone.
 	aborted bool
@@ -220,6 +228,8 @@ type writtenMsg struct {
 	call    *trail.Call
 	outcome jj.Outcome
 	summary string
+	// verb is the write in one word, which the footer's undo names, empty where it has none.
+	verb string
 }
 
 type diffEditorAppliedMsg struct{}
@@ -423,13 +433,10 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case revisionsLoadedMsg:
 		m.openPicker(msg)
 
-	case writtenMsg:
-		cmd := m.written(msg)
+	case writtenMsg, rewoundMsg, diffEditorAppliedMsg:
+		cmd := m.writeMsg(msg)
 
 		return m, cmd
-
-	case diffEditorAppliedMsg:
-		return m, tea.Quit
 
 	case editedMsg:
 		m.edited(msg)
