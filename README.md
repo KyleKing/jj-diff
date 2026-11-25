@@ -104,6 +104,11 @@ why when pressed ("u  nothing to undo") instead of doing nothing.
 | `esc` | back out one level: a waiting prefix, visual mode, the file list | everywhere |
 | `ctrl+c` | quit now, writing nothing | everywhere |
 
+Every text entry (search, the file filter, the picker's filter, a column's description)
+keeps one contract, shared with jojo and second-look, and the footer says it while you
+type: `enter` submits, `ctrl+j` (or `alt+enter`) starts a new line where the text can
+hold one, and `esc` cancels. A paste lands in the prompt.
+
 Selecting and writing (`-i`, or as jj's diff editor). A verb acts on the selection,
 or on the hunk under the cursor when nothing is selected:
 

@@ -353,6 +353,10 @@ func (m *Model) footerHints() []keyhint.Hint {
 	lines := func(word string) []keyhint.Hint { return m.pair(keys.ActionLineDown, keys.ActionLineUp, word) }
 	hint := m.hint
 
+	if hints, ok := m.promptFooter(); ok {
+		return hints
+	}
+
 	var hints []keyhint.Hint
 
 	switch ctx := m.context(); {
@@ -366,17 +370,8 @@ func (m *Model) footerHints() []keyhint.Hint {
 		hints = slices.Concat(lines("move"),
 			hint(actionPick, ""), []keyhint.Hint{{Key: "-", What: "flags"}}, hint(keys.ActionSearch, "filter"),
 			hint(keys.ActionBack, "cancel"))
-	case ctx == keys.List && m.mode == ModeDiffEditor:
-		hints = slices.Concat(lines("nav"), hint(actionSelect, "keep/drop file"), hint(actionConfirm, ""),
-			hint(keys.ActionSwitchPane, "hunks"), hint(actionOpen, ""), hint(keys.ActionFilter, ""),
-			hint(keys.ActionHelp, ""))
-	case ctx == keys.List && m.mode == ModeInteractive:
-		hints = slices.Concat(lines("nav"), hint(actionSelect, ""), hint(actionSquash, ""),
-			hint(actionSplit, ""), hint(actionRestore, ""), hint(actionOpen, ""), hint(keys.ActionUndo, m.undoWord()),
-			hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))
 	case ctx == keys.List:
-		hints = slices.Concat(lines("nav"),
-			hint(actionOpen, ""), hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))
+		hints = m.listHints()
 	case m.mode == ModeDiffEditor:
 		hints = slices.Concat(hint(actionSelect, "keep/drop"), hint(keys.ActionVisual, ""),
 			hint(actionConfirm, ""), hint(keys.ActionUndo, ""), hint(keys.NextAction(keys.ObjHunk), ""),
@@ -402,6 +397,28 @@ func (m *Model) footerHints() []keyhint.Hint {
 	}
 
 	return hints
+}
+
+// listHints is the file list's footer: the write keys where the mode selects, before the way into
+// the diff.
+func (m *Model) listHints() []keyhint.Hint {
+	lines := m.pair(keys.ActionLineDown, keys.ActionLineUp, "nav")
+	hint := m.hint
+
+	switch m.mode {
+	case ModeDiffEditor:
+		return slices.Concat(lines, hint(actionSelect, "keep/drop file"), hint(actionConfirm, ""),
+			hint(keys.ActionSwitchPane, "hunks"), hint(actionOpen, ""), hint(keys.ActionFilter, ""),
+			hint(keys.ActionHelp, ""))
+	case ModeInteractive:
+		return slices.Concat(lines, hint(actionSelect, ""), hint(actionSquash, ""),
+			hint(actionSplit, ""), hint(actionRestore, ""), hint(actionOpen, ""), hint(keys.ActionUndo, m.undoWord()),
+			hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))
+	case ModeBrowse, ModeResolve:
+	}
+
+	return slices.Concat(lines,
+		hint(actionOpen, ""), hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))
 }
 
 // context is the screen the next key lands on, which decides what it means.

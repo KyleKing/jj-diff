@@ -298,6 +298,8 @@ func (m *Model) discoverMsg(msg tea.Msg) (tea.Cmd, bool) {
 		if m.pal.IsOpen() {
 			return m.pal.Update(msg), true
 		}
+
+		return m.pasted(msg)
 	}
 
 	return nil, false

@@ -145,13 +145,15 @@ func (m *Model) columnHeader(col, width int) []string {
 	c := m.cols
 	focused := col == c.focus
 
-	name := glyph.Settle(c.descs[col])
+	// A header is one row, so a description of several lines shows its first.
+	first, _, _ := strings.Cut(c.descs[col], "\n")
+	name := glyph.Settle(first)
 
 	switch {
 	case col == 0:
 		name = "stays in " + m.source
 	case focused && c.describing:
-		name = c.draft + "█"
+		name = draftLine(c.draft)
 	case name == "":
 		name = "(no description)"
 	}
@@ -312,4 +314,17 @@ func emptyColumnRows(col, width int) []string {
 	}
 
 	return []string{fit(theme.Skin.Muted.Render(hint), width)}
+}
+
+// draftLine is a description being typed as its header row draws it: the line the cursor is on, led
+// by how many lines came before it once ctrl+j has started a second.
+func draftLine(draft string) string {
+	lines := strings.Split(draft, "\n")
+	last := glyph.Settle(lines[len(lines)-1]) + "█"
+
+	if len(lines) == 1 {
+		return last
+	}
+
+	return theme.Skin.Muted.Render(fmt.Sprintf("line %d · ", len(lines))) + last
 }

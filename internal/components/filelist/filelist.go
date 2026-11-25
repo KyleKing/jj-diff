@@ -599,3 +599,16 @@ func padToSize(text string, width, height int) string {
 
 	return strings.Join(lines, "\n")
 }
+
+// FirstShown is the file the list draws first, as an index into every file, false when it draws none.
+func (m *Model) FirstShown() (int, bool) {
+	shown := m.visibleIndices()
+	if len(shown) == 0 {
+		return 0, false
+	}
+
+	return shown[0], true
+}
+
+// Shows reports whether the list draws file idx.
+func (m *Model) Shows(idx int) bool { return slices.Contains(m.visibleIndices(), idx) }

@@ -189,7 +189,11 @@ func (m *Model) handleFileListFilterKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 
 	case keyEnter:
-		// Exit filter mode and focus diff view
+		// Enter opens the best match, the top row the filter left, unless the cursor is already on one.
+		if idx, ok := m.fileList.FirstShown(); ok && !m.fileList.Shows(m.selectedFile) {
+			m.jumpToFile(idx)
+		}
+
 		m.fileList.SetFilterMode(false)
 		m.focusedPanel = PanelDiffView
 

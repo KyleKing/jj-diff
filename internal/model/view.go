@@ -392,7 +392,10 @@ func (m *Model) renderStatusBar() string {
 		ctx.Notice, ctx.Alarm, ctx.Hints = m.discardQuestion(), true, discardHints()
 	}
 
-	if !m.quitPrompt && m.discarding == nil && m.notice == "" {
+	// A question or a prompt has the footer to itself: the coach's next step would name keys that
+	// are going into the text or the answer instead.
+	_, prompting := m.promptFooter()
+	if !m.quitPrompt && m.discarding == nil && !prompting && m.notice == "" {
 		ctx.Lead, ctx.LeadKey, ctx.Hints = m.coachFooter(ctx.Hints)
 	}
 

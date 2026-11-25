@@ -545,16 +545,18 @@ func (m *Model) describeColumn() {
 func (m *Model) handleDescribeKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 	c := m.cols
 
-	switch msg.String() {
-	case keyEnter:
+	switch key := msg.String(); {
+	case key == keyEnter:
 		c.describing = false
-		draft, col := c.draft, c.focus
+		draft, col := strings.TrimRight(c.draft, "\n"), c.focus
 		c.edit(func() { c.descs[col] = draft })
-	case keyEsc:
+	case isNewline(key):
+		c.draft += "\n"
+	case key == keyEsc:
 		c.describing = false
-	case keyCtrlC:
+	case key == keyCtrlC:
 		return m.cancel()
-	case keyBackspace:
+	case key == keyBackspace:
 		if r := []rune(c.draft); len(r) > 0 {
 			c.draft = string(r[:len(r)-1])
 		}
