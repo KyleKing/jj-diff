@@ -180,7 +180,18 @@ func (m *Model) View(width, height int) string {
 		body = append(body, "", theme.Skin.Muted.Render(m.command))
 	}
 
-	return modal.Box("Squash into", strconv.Itoa(len(m.shown)), body, m.hints, inner)
+	// The count is the cursor's place, as the file list's rule counts: a bare total beside "Squash
+	// into" read as the revision it would squash into.
+	return modal.Box("Squash into", m.place(), body, m.hints, inner)
+}
+
+// place is the cursor's row of the rows shown, "0/0" with none.
+func (m *Model) place() string {
+	if len(m.shown) == 0 {
+		return "0/0"
+	}
+
+	return strconv.Itoa(m.selected+1) + "/" + strconv.Itoa(len(m.shown))
 }
 
 func (m *Model) scrollStart(visibleRows int) int {

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/jj-diff/internal/components/filelist"
+	"github.com/kyleking/jj-diff/internal/jj"
 )
 
 // lastRow is the frame's last row without its colors, which is the footer.
@@ -167,5 +168,25 @@ func TestFileList_LexesOnlyTheFileTheCursorRestsOn(t *testing.T) {
 
 	if !m.diffView.Lexing() {
 		t.Error("a file opened in the diff pane waited to be lexed")
+	}
+}
+
+// The picker's title counts the cursor's place among the rows, as the file list's rule does: a bare
+// total beside "Squash into" read as the revision the squash would go into.
+func TestPicker_TitleCountsTheCursorsPlace(t *testing.T) {
+	t.Parallel()
+
+	m := NewTestModel(t, ModeInteractive)
+	m.loaded(TestChanges())
+	m.focusedPanel = PanelDiffView
+	m.pending = Only("file1.txt", 0)
+	m.openPicker(revisionsLoadedMsg{revisions: []jj.RevisionEntry{
+		{ChangeID: "aaaa", Short: "aaaa"}, {ChangeID: "bbbb", Short: "bbbb"}, {ChangeID: "cccc", Short: "cccc"},
+	}})
+
+	m = Press(t, m, "j")
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Squash into · 2/3") &&
+		!strings.Contains(view, "Squash into 2/3") {
+		t.Errorf("the picker does not count the cursor's place:\n%s", view)
 	}
 }
