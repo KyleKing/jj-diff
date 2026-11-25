@@ -1,6 +1,6 @@
 # jj-diff
 
-![demo](.github/assets/demo.gif)
+![Splitting a commit into columns, describing the new ones, and applying](docs/images/split.gif)
 
 Read a Jujutsu diff in the terminal and move parts of it around: pick hunks or
 individual lines and send them to another revision, or split one commit into
