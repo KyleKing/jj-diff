@@ -1,3 +1,9 @@
+## v0.19.0 (2026-11-25)
+
+### Feat
+
+- every prompt is a vim field, so text is edited without leaving for nvim
+
 ## v0.18.0 (2026-11-25)
 
 ### Feat
