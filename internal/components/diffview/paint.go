@@ -267,9 +267,28 @@ type HighlightedMsg struct {
 
 // Highlighted is closed once the current file's syntax colors are ready, and nil with no file.
 // Until then the pane draws the file's code plain.
+// It starts the lexing if nothing has yet.
 func (m *Model) Highlighted() <-chan struct{} {
+	m.Lex()
+
 	return m.lexed
 }
+
+// Lex starts lexing the current file's syntax colors in the background, once per file. Loading a
+// file leaves it to the caller, so stepping through a list lexes only the files it rests on; a file
+// lexed before answers at once.
+func (m *Model) Lex() {
+	if m.highlighter != nil && m.lexed == nil {
+		m.lexed = m.highlighter.Start(0)
+	}
+}
+
+// Lexing reports whether the current file's colors are lexed or on their way.
+func (m *Model) Lexing() bool { return m.lexed != nil }
+
+// FileSeq names the file loaded now among every file the pane has loaded, for a deferred Lex to
+// check it is still the one shown.
+func (m *Model) FileSeq() uint64 { return m.fileSeq }
 
 // HighlightCmd waits for the current file's colors and answers HighlightedMsg, so the program
 // redraws when they land. It answers nil when there is nothing to wait for or a command for this

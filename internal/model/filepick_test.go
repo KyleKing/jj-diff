@@ -131,3 +131,41 @@ func TestFileList_VerbWithNothingSelectedTakesTheFile(t *testing.T) {
 		t.Errorf("the list's target holds pick %d of the file, want all of it", got)
 	}
 }
+
+// Stepping down the file list lexes no file it passes: only the one the cursor rests on, once the
+// settle wait for it lands. A wait for a file since left is ignored.
+func TestFileList_LexesOnlyTheFileTheCursorRestsOn(t *testing.T) {
+	t.Parallel()
+
+	m := NewTestModel(t, ModeBrowse)
+	m.loaded(TestChanges())
+	m.focusedPanel = PanelFileList
+
+	m = Press(t, m, "j")
+	stale := m.diffView.FileSeq()
+	m = Press(t, m, "j")
+
+	if m.diffView.Lexing() {
+		t.Fatal("stepping through the list lexed a file at once")
+	}
+
+	m = Update(t, m, lexSettledMsg{seq: stale})
+	if m.diffView.Lexing() {
+		t.Error("the wait for a file the cursor left lexed the file it is on now")
+	}
+
+	m = Update(t, m, lexSettledMsg{seq: m.diffView.FileSeq()})
+	if !m.diffView.Lexing() {
+		t.Error("the cursor rested and the file was not lexed")
+	}
+
+	// In the diff pane the file is what is being read, so it is lexed at once.
+	m = Press(t, m, "tab", "[", "f")
+	if m.selectedFile != 1 {
+		t.Fatalf("[f left file %d, want 1", m.selectedFile)
+	}
+
+	if !m.diffView.Lexing() {
+		t.Error("a file opened in the diff pane waited to be lexed")
+	}
+}

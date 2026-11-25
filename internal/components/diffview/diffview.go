@@ -107,21 +107,25 @@ type Model struct {
 	wordDiffCache  *WordDiffCache
 	lexed          <-chan struct{}
 	highlighter    *highlight.Highlighter
-	cache          *drawCache
-	fileChange     *diff.FileChange
-	mechanical     map[int]string
-	expanded       map[int]bool
+	// lexers keeps the colors of files shown before, shared by every copy of the pane.
+	lexers     *lexers
+	cache      *drawCache
+	fileChange *diff.FileChange
+	mechanical map[int]string
+	expanded   map[int]bool
 	// hidden is the hunks drawn as their header alone, which is U's view of what has been read.
-	hidden        []bool
-	generated     generated.Set
-	viewMode      ViewModeType
-	shown         [][]diff.Line
-	pairs         [][]diff.SidePair
-	visualAnchor  int
-	lineCursor    int
-	tabWidth      int
-	selectedHunk  int
-	offset        int
+	hidden       []bool
+	generated    generated.Set
+	viewMode     ViewModeType
+	shown        [][]diff.Line
+	pairs        [][]diff.SidePair
+	visualAnchor int
+	lineCursor   int
+	tabWidth     int
+	selectedHunk int
+	offset       int
+	// fileSeq counts the files loaded, so a deferred lex can tell it is still for the file shown.
+	fileSeq       uint64
 	isSearching   bool
 	isVisualMode  bool
 	generatedOpen bool
@@ -159,8 +163,14 @@ func New(cfg config.Config) Model {
 func (m *Model) SetFileChange(file diff.FileChange) {
 	m.fileChange = &file
 	m.offset = 0
-	m.highlighter = highlight.New(file)
-	m.lexed = m.highlighter.Start(0)
+	if m.lexers == nil {
+		m.lexers = &lexers{}
+	}
+
+	// Lexing waits for Lex: a file the cursor only steps past is never lexed.
+	m.highlighter = m.lexers.highlighterFor(file)
+	m.lexed = nil
+	m.fileSeq++
 	m.announced = false
 
 	if m.cache == nil {

@@ -60,8 +60,15 @@ func TestHighlightCmdIsHandedOutOncePerFile(t *testing.T) {
 
 	m.SetFileChange(realisticFile(2000))
 
+	// Loading a file lexes nothing until the parent asks, so a file stepped past costs no lexing.
+	if m.HighlightCmd() != nil || m.Lexing() {
+		t.Fatal("loading a file started lexing it before Lex")
+	}
+
+	m.Lex()
+
 	if m.HighlightCmd() == nil {
-		t.Fatal("loading a large file handed out no wait for its colors")
+		t.Fatal("lexing a large file handed out no wait for its colors")
 	}
 
 	if m.HighlightCmd() != nil {
@@ -177,5 +184,26 @@ func waitColors(t *testing.T, m *diffview.Model) {
 	case <-m.Highlighted():
 	case <-time.After(10 * time.Second):
 		t.Fatal("the file's colors never landed")
+	}
+}
+
+// A file shown before is not lexed again: its colors are ready the moment it comes back, as long as
+// it is the same parse of the diff.
+func TestLex_AFileShownBeforeAnswersAtOnce(t *testing.T) {
+	t.Parallel()
+
+	m := diffview.New(config.DefaultConfig())
+	big, small := realisticFile(2000), realisticFile(10)
+
+	m.SetFileChange(big)
+	<-m.Highlighted()
+	m.SetFileChange(small)
+	<-m.Highlighted()
+
+	m.SetFileChange(big)
+	m.Lex()
+
+	if m.HighlightCmd() != nil {
+		t.Error("stepping back to a lexed file waited for its colors again")
 	}
 }

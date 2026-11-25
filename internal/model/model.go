@@ -202,6 +202,8 @@ type Model struct {
 	loadedOnce bool
 	// onlyUnread is U: read hunks draw as their header alone and files read whole leave the list.
 	onlyUnread bool
+	// lexAsked is the diff pane's file a settle wait was last handed out for.
+	lexAsked uint64
 }
 
 type errMsg struct {
@@ -358,6 +360,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if settled, ok := msg.(lexSettledMsg); ok {
+		if settled.seq == m.diffView.FileSeq() {
+			m.diffView.Lex()
+		}
+
+		return m, m.diffView.HighlightCmd()
+	}
+
 	// Until the first load lands a key has nothing to act on, so it waits for it (ctrl+c never does).
 	if key, ok := msg.(tea.KeyPressMsg); ok && m.early.Hold(key) {
 		return m, nil
@@ -365,6 +375,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	model, cmd := m.handle(msg)
 	m.syncReads()
+
+	if settle := m.lexWhenSettled(); settle != nil {
+		cmd = tea.Batch(cmd, settle)
+	}
 
 	if lit := m.diffView.HighlightCmd(); lit != nil {
 		cmd = tea.Batch(cmd, lit)
@@ -507,4 +521,35 @@ func (m *Model) loaded(changes []diff.FileChange) {
 // say puts a notice in the footer until the next key.
 func (m *Model) say(text string, alarm bool) {
 	m.notice, m.alarm = text, alarm
+}
+
+// lexSettle is how long the file list's cursor rests on a file before its syntax colors are lexed.
+// Lexing is most of what a file costs to show, and a reader stepping down the list to the file they
+// want would otherwise pay it for every file they pass.
+const lexSettle = 200 * time.Millisecond
+
+// lexSettledMsg is the file list's cursor having rested on the pane's file seq for lexSettle.
+type lexSettledMsg struct{ seq uint64 }
+
+// lexWhenSettled lexes the diff pane's file now where the pane is what is being read, and from the
+// file list only once the cursor has rested on it.
+func (m *Model) lexWhenSettled() tea.Cmd {
+	if m.diffView.Lexing() {
+		return nil
+	}
+
+	if m.focusedPanel != PanelFileList {
+		m.diffView.Lex()
+
+		return nil
+	}
+
+	seq := m.diffView.FileSeq()
+	if m.lexAsked == seq {
+		return nil
+	}
+
+	m.lexAsked = seq
+
+	return tea.Tick(lexSettle, func(time.Time) tea.Msg { return lexSettledMsg{seq: seq} })
 }

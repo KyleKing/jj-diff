@@ -177,3 +177,25 @@ func BenchmarkModelStartup(b *testing.B) {
 		b.StartTimer()
 	}
 }
+
+// BenchmarkFileListStep is one j or k on the file list and the frame after it, walking down a long
+// list and back, as a reader looking for a file does.
+func BenchmarkFileListStep(b *testing.B) {
+	m := benchModel(b)
+	m.focusedPanel = PanelFileList
+
+	_ = m.render()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := range b.N {
+		key := "j"
+		if (i/50)%2 == 1 {
+			key = "k"
+		}
+
+		m.Update(Key(key))
+		_ = m.render()
+	}
+}
