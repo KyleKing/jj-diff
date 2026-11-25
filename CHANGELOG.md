@@ -1,3 +1,9 @@
+## v0.16.0 (2026-11-25)
+
+### Feat
+
+- **reads**: space in browse marks the hunk read in the shared store
+
 ## v0.15.3 (2026-11-25)
 
 ### Fix
