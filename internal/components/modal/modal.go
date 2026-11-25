@@ -98,7 +98,7 @@ func Fit(line string, width int) string {
 		return ansi.Truncate(line, width-1, "") + "\x1b[m" + theme.Skin.Muted.Render(ellipsis)
 	}
 
-	return line + strings.Repeat(" ", width-lipgloss.Width(line))
+	return line + strings.Repeat(" ", max(0, width-lipgloss.Width(line)))
 }
 
 // Prompt is a text field: a chevron in the accent, what has been typed, and the cursor block.

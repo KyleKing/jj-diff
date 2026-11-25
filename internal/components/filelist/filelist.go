@@ -458,7 +458,7 @@ func fitRow(left, right string, width int, base *lipgloss.Style) string {
 		left = ansi.Truncate(left, room, "")
 	}
 
-	return left + base.Render(strings.Repeat(" ", room-lipgloss.Width(left))) + right
+	return left + base.Render(strings.Repeat(" ", max(0, room-lipgloss.Width(left)))) + right
 }
 
 // statusCell is the one-letter status jj prints, in the color of what happened to the file.

@@ -9,9 +9,9 @@ before:
 builds:
   - main: ./cmd/jj-diff
     id: jj-diff
-    # A cgo-only dependency makes this matrix build cleanly and emit nothing
-    # usable, because cgo cannot cross-compile. See "Releasing a project that
-    # needs cgo" in the template README for the rework that path needs.
+    # The full matrix is wrong for a project that needs cgo or only runs on
+    # one OS. See "Releasing a project that needs cgo" and "Releasing a
+    # project for one OS" in the template README for the reworks.
     env:
       - CGO_ENABLED=0
     ldflags:

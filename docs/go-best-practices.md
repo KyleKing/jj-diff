@@ -388,6 +388,8 @@ type User struct {
 - Deep nesting, where an early return flattens the body
 - Interface pollution: define an interface once a consumer needs the abstraction
 - Ignored errors (`_ = doThing()` is almost always wrong)
+- Unclamped counts into `strings.Repeat`, `slices.Repeat`, or `make` — a
+  subtraction that slips under zero panics; clamp with `max(0, ...)`
 - Global state, where passing dependencies explicitly is clearer
 - Premature optimization: profile first, optimize second
 

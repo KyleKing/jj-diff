@@ -85,7 +85,7 @@ func TestRow_OneReverseBarAtSixteenColors(t *testing.T) {
 
 	for _, width := range []int{10, 24} {
 		row := modal.Row(theme.Skin.Accent.Render("ab")+theme.Skin.Muted.Render("cd"), width, true)
-		want := "\x1b[7mabcd" + strings.Repeat(" ", width-4) + "\x1b[m"
+		want := "\x1b[7mabcd" + strings.Repeat(" ", max(0, width-4)) + "\x1b[m"
 
 		if row != want {
 			t.Errorf("width %d: row %q, want %q", width, row, want)

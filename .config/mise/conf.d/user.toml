@@ -27,7 +27,9 @@ run = "./jj-diff"
 # Overrides the template's task, which runs every tape in the tree. The README's
 # recordings are demo/*.tape, each opening a scene of demo/scene.sh, and each gif
 # is shrunk after recording: 64 colors keeps the truecolor syntax palette and the
-# add and remove bands, which fewer flattens to grey.
+# add and remove bands, which fewer flattens to grey. stills.tape is the template's
+# per-breakpoint still, which `mise run demo:stills` renders with its placeholders
+# filled in, so it is no recording of its own.
 [tasks.demo]
 description = "Generate the README's VHS recordings into docs/images"
 depends = ["build"]
@@ -35,8 +37,9 @@ shell = "bash -c"
 run = '''
 set -euo pipefail
 mkdir -p docs/images
-for tape in demo/*.tape; do vhs "$tape"; done
-for tape in demo/*.tape; do
+tapes=$(find demo -maxdepth 1 -name '*.tape' -not -name stills.tape | sort)
+for tape in $tapes; do vhs "$tape"; done
+for tape in $tapes; do
   gif=docs/images/$(basename "$tape" .tape).gif
   ffmpeg -v error -y -i "$gif" -vf "fps=6,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" "$gif.tmp.gif"
   mv "$gif.tmp.gif" "$gif"

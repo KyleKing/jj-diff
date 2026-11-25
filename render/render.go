@@ -220,7 +220,7 @@ func (d *Document) Rows(from, to int) []string {
 		return nil
 	}
 
-	out := make([]string, 0, to-from)
+	out := make([]string, 0, max(0, to-from))
 	first := sort.Search(len(d.segments), func(i int) bool {
 		return d.segments[i].start+d.segments[i].rows > from
 	})
@@ -843,7 +843,7 @@ func pad(n string) string {
 		return n
 	}
 
-	return strings.Repeat(" ", gutterWidth-len(n)) + n
+	return strings.Repeat(" ", max(0, gutterWidth-len(n))) + n
 }
 
 // fit truncates by cells rather than bytes, and leaves an already-styled line whole when it fits,

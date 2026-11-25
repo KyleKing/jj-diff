@@ -20,6 +20,11 @@ than one file resolves to whichever file loaded last. Name your project file so 
 sorts after `template.toml` (`user.toml` works; `project.toml` does not, since
 `p` < `t`) or a same-named task override will silently do nothing.
 
+mise runs an inline `run` script with `sh -o errexit -c`. `sh` is bash in POSIX mode on
+macOS and dash on Ubuntu, so `set -o pipefail`, `(( ))`, and `[[ ]]` pass on a Mac and
+fail in CI with "Illegal option -o pipefail". A task that uses them sets
+`shell = "bash -c"`.
+
 | Command | Description |
 |---------|-------------|
 | `mise run bench` | Run benchmarks |
@@ -27,12 +32,14 @@ sorts after `template.toml` (`user.toml` works; `project.toml` does not, since
 | `mise run ci` | Full CI check (tests + build) |
 | `mise run clean` | Clean build artifacts |
 | `mise run demo` | Generate VHS demo recordings (needs [vhs](https://github.com/charmbracelet/vhs) on `PATH`; it is not pinned in `[tools]`) |
+| `mise run demo:stills` | Render still PNGs per breakpoint from `demo/stills.tape` (`STILLS_BREAKPOINTS`, `STILLS_FONT` override the sizes and font) |
 | `mise run dev` | Run from source (`go run`, always reflects current code) |
 | `mise run format` | Auto-fix lint and formatting |
 | `mise run hooks` | Run git hooks |
 | `mise run lint` | Run linter |
 | `mise run test` | Run tests with coverage |
 | `mise run test:coverage-min` | Fail below the 70% coverage threshold |
+| `mise run test:golden-orphans` | Fail on any `.golden` file no test regenerates (`GOLDEN_TAGS=golden mise run test:golden-orphans` when the golden tests sit behind a build tag) |
 | `mise run test:view-coverage` | Open the coverage report in a browser |
 | `mise tasks` | List all available tasks |
 
@@ -91,6 +98,7 @@ Automated by the Bump Version workflow.
    - Run goreleaser to build binaries for Linux, macOS, Windows, and FreeBSD (amd64/arm64) and publish the release
 
    goreleaser runs inside that same workflow because a tag pushed with `GITHUB_TOKEN` does not trigger any other workflow.
+   CI runs on Linux only, so `cmd/jj-diff/crossbuild_test.go` builds every target `.goreleaser.yml` lists during `go test` (skipped under `-short`, and for a `CGO_ENABLED=1` build) to catch a Unix-only call before the tag is cut.
 
 3. Verify the release by distinct hash, not by asset count. Every target is a separate build, so the checksums must all differ; a repeated hash means one binary was published under several names:
 

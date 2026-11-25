@@ -32,6 +32,9 @@ build/
 go.work
 go.work.sum
 
+# Scratch output of the demo tapes
+demo/.work/
+
 # Dependency directories
 vendor/
 

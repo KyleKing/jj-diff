@@ -7,10 +7,14 @@ version = "2"
 enable = ["gci", "gofmt", "gofumpt", "goimports"]
 
 [formatters.settings.gci]
-sections = ["standard", "default", "prefix(github.com/kyleking/jj-diff)"]
+sections = [
+  "standard",
+  "default",
+  "prefix(github.com/kyleking/jj-diff)",
+]
 
-[formatters.settings.gofumpt]
-extra-rules = true
+[formatters.settings.gofumpt.extra]
+group-params = true
 
 [formatters.settings.goimports]
 local-prefixes = ["github.com/kyleking/jj-diff"]
@@ -160,6 +164,10 @@ disabled-checks = [
   "unnamedResult",  # contradicts nonamedreturns, which is enabled and wins
   "whyNoLint",
 ]
+
+[linters.settings.gocritic.settings.ruleguard]
+failOn = "dsl"
+rules = ".golangci/rules.go"
 
 [linters.settings.gocyclo]
 min-complexity = 15

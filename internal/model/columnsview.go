@@ -285,7 +285,7 @@ func (m *Model) hunkRows(col int, it item, width int, atCursor bool) []string {
 // fit truncates or pads s to exactly width cells.
 func fit(s string, width int) string {
 	if w := lipgloss.Width(s); w < width {
-		return s + strings.Repeat(" ", width-w)
+		return s + strings.Repeat(" ", max(0, width-w))
 	}
 
 	return ansi.Truncate(s, width, "…")

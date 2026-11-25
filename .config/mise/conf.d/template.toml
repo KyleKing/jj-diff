@@ -17,9 +17,19 @@ run = [
 description = "Build and test ignoring any go.work, the way CI sees the module"
 # A go.work makes a sibling checkout win over the version go.mod pins, so local
 # green says nothing about whether the released dependency actually works. CI has
-# no workspace, so this is the only local check that matches it.
+# no workspace, so this is the only local check that matches it. With no go.work
+# at all the dependency set is already the released one, so the task is a no-op
+# and skips itself rather than running the suite a second time.
 env = { GOWORK = "off" }
-run = ["go build ./...", "go test ./..."]
+shell = "bash -c"
+run = '''
+if [ ! -f go.work ]; then
+  echo "no go.work; the released dependency set is what ci already ran"
+  exit 0
+fi
+go build ./...
+go test ./...
+'''
 
 [tasks.clean]
 description = "Clean build artifacts"
@@ -27,8 +37,30 @@ run = "rm -f coverage.out"
 
 [tasks.demo]
 description = "Generate VHS demo recordings"
-run = 'find . -name "*.tape" -not -path "./.git/*" -exec vhs {} \;'
+run = 'find . -name "*.tape" -not -name stills.tape -not -path "./.git/*" -exec vhs {} \;'
 depends = ["build"]
+
+# STILLS_BREAKPOINTS is "name=WIDTHxHEIGHT" pairs in pixels. VHS falls back to a
+# wide-spaced font when STILLS_FONT is not installed (Menlo ships with macOS).
+[tasks."demo:stills"]
+description = "Render still PNGs per breakpoint from demo/stills.tape"
+depends = ["build"]
+shell = "bash -c"
+run = '''
+set -euo pipefail
+breakpoints=${STILLS_BREAKPOINTS:-"wide=1180x700 narrow=700x700"}
+font=${STILLS_FONT:-Menlo}
+dir=$(mktemp -d)
+trap 'rm -rf "$dir"' EXIT
+mkdir -p demo/.work docs/images
+for bp in $breakpoints; do
+  name=${bp%%=*}
+  size=${bp#*=}
+  sed -e "s/__NAME__/$name/g" -e "s/__WIDTH__/${size%x*}/g" -e "s/__HEIGHT__/${size#*x}/g" \
+    -e "s/__FONT__/$font/g" demo/stills.tape > "$dir/$name.tape"
+  vhs "$dir/$name.tape"
+done
+'''
 
 [tasks.dev]
 description = "Run from source (always reflects current code, no stale build)"
@@ -60,6 +92,7 @@ raw_args = true
 # no-op, so this is correct either way.
 [tasks."test:coverage-min"]
 description = "Verify minimum coverage threshold (70%), subprocess tests included"
+shell = "bash -c"
 run = '''
 set -euo pipefail
 dir=$(mktemp -d)
@@ -68,6 +101,12 @@ mkdir -p "$dir/unit" "$dir/subprocess" "$dir/merged"
 COVERDIR_SUBPROCESS="$dir/subprocess" go test -count=1 -cover -coverpkg=./... ./... -args -test.gocoverdir="$dir/unit"
 go tool covdata merge -i="$dir/unit,$dir/subprocess" -o="$dir/merged"
 go tool covdata textfmt -i="$dir/merged" -o=coverage.out
+# A project whose packages hold no statements yet (a library's first doc.go) has
+# nothing to measure, and a 0% total would fail it for that.
+if [ "$(grep -vc '^mode:' coverage.out || true)" -eq 0 ]; then
+    echo "No statements to cover yet"
+    exit 0
+fi
 # ^total: rather than total, which also matches every covered function whose
 # name contains it, handing awk two numbers and failing the gate with a syntax
 # error rather than a verdict.
@@ -79,6 +118,38 @@ if (( $(awk "BEGIN {print ($coverage < 70)}") )); then
 fi
 '''
 
+# `-update` rewrites goldens and never deletes one, so a golden whose test was renamed
+# or removed lingers. GOLDEN_TAGS=<tag> includes goldens behind a build tag.
+[tasks."test:golden-orphans"]
+description = "Fail on any .golden file that no test regenerates"
+# The copy keeps a gitignored go.work, and its `use` paths do not resolve from the copy.
+env = { GOWORK = "off" }
+shell = "bash -c"
+run = '''
+set -euo pipefail
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir "$work/tree"
+rsync -a --exclude=.git --exclude='*.golden' ./ "$work/tree/"
+find . -name '*.golden' -not -path './.git/*' | sort > "$work/have"
+if [ ! -s "$work/have" ]; then
+  echo "No .golden files to check"
+  exit 0
+fi
+pkgs=$(sed -E 's#/testdata/.*#/#' "$work/have" | sort -u)
+cd "$work/tree"
+# shellcheck disable=SC2086 # pkgs is a list of package directories
+go test -count=1 ${GOLDEN_TAGS:+-tags="$GOLDEN_TAGS"} $pkgs -update
+find . -name '*.golden' | sort > "$work/made"
+orphans=$(comm -23 "$work/have" "$work/made")
+if [ -n "$orphans" ]; then
+  echo "Orphan golden files (no test regenerated them):" >&2
+  echo "$orphans" >&2
+  exit 1
+fi
+echo "No orphan golden files"
+'''
+
 [tasks."test:view-coverage"]
 description = "View coverage report in browser"
 run = "go tool cover -html=coverage.out"
@@ -87,13 +158,16 @@ run = "go tool cover -html=coverage.out"
 # laptop than on a runner fails only in CI, which is the worst place to find out.
 [tools]
 actionlint = "1.7.12"
-go = "1.26.6"
+go = "1.26.11"
 "go:github.com/golangci/golines" = "0.15.0"
 "golangci-lint" = "2.13.2"
 hk = "1.56.1"
 jq = "1.8.2"
 ls-lint = "2.3.1"
 "pipx:commitizen" = "4.18.0"
+"pipx:copier" = "9.19.1"
+# doneram explain feeds the doneram-fix-bump skill in .agents/skills.
+"github:kyleking/doneram" = "2.0.0"
 "pipx:yamllint" = "1.38.0"
 pkl = "0.32.1"
 shellcheck = "0.11.0"

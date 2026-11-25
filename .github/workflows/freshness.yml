@@ -10,11 +10,50 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  # Pins in files the template maintains (workflows, the mise conf.d
+  # template, hk.pkl) are left to my_go_template: its release reaches this
+  # project as a copier update, which this workflow also proposes. Everything
+  # else is checked here: this project's own pins, Go modules and their
+  # advisories, and end-of-life runtimes. The plan job applies it all to a
+  # throwaway checkout and splits it into groups: one PR for security fixes
+  # and routine updates, one per major that needs review, and one per bump
+  # that breaks validation.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      groups: ${{ steps.plan.outputs.groups || '[]' }}
+      plan: ${{ steps.encode.outputs.plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # pkl evaluates .doneram.pkl and mise answers the tool resolvers.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+
+      - uses: kyleking/doneram@a582b5cdbf32b7cf80a50815f6b585b59a91638f # v2.0.0
+        with:
+          version: v2.0.0
+
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: doneram update --output /tmp/plan.json
+
+      - id: encode
+        run: echo "plan=$(base64 -w0 /tmp/plan.json)" >> "$GITHUB_OUTPUT"
+
+  pr:
+    needs: plan
+    if: needs.plan.outputs.groups != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.plan.outputs.groups) }}
     env:
       HAS_APP: ${{ secrets.DONERAM_APP_CLIENT_ID != '' }}
     steps:
@@ -25,61 +64,37 @@ jobs:
       # pkl evaluates .doneram.pkl and mise answers the tool resolvers.
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
 
-      - uses: kyleking/doneram@9deb49166d65a924504e0b3cc1fa2a7459c22b44 # v0.6.1
+      - uses: kyleking/doneram@a582b5cdbf32b7cf80a50815f6b585b59a91638f # v2.0.0
         with:
-          version: v0.6.1
+          version: v2.0.0
 
       - id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: doneram update --output /tmp/doneram.json
-
-      # doneram tracks literals, not dependency graphs, so the Dependabot
-      # gomod role lives here: bump everything, let tidy settle it, and fold
-      # it into the same weekly PR.
-      - name: Update Go modules
-        id: gomod
+          PLAN: ${{ needs.plan.outputs.plan }}
+          GROUP: ${{ matrix.group }}
         run: |
           set -euo pipefail
-          # a dep can demand a newer toolchain than the pin; go get go@X
-          # bumps the go directive and auto fetches it for the retry
-          if ! go get -u ./... 2>&1 | tee /tmp/gomod.log; then
-            ver=$(sed -nE 's/.*requires go >= ([0-9.]+).*/\1/p' /tmp/gomod.log | sort -V | tail -1)
-            [ -n "$ver" ] || exit 1
-            go get "go@$ver"
-            go get -u ./... 2>&1 | tee /tmp/gomod.log
-          fi
-          go mod tidy
-          if git diff --quiet -- go.mod go.sum; then
-            echo 'upgrades=false' >> "$GITHUB_OUTPUT"
-          else
-            echo 'upgrades=true' >> "$GITHUB_OUTPUT"
-            {
-              echo 'log<<GOMOD_EOF'
-              grep -E '^go: (upgraded|added|removed)' /tmp/gomod.log || true
-              echo 'GOMOD_EOF'
-            } >> "$GITHUB_OUTPUT"
-          fi
+          echo "$PLAN" | base64 -d > /tmp/plan.json
+          doneram update --plan /tmp/plan.json --group "$GROUP" --output /tmp/doneram.json
 
       # GITHUB_TOKEN cannot push a branch that edits .github/workflows/**.
       # When the doneram app is installed with secrets set, its scoped
       # installation token covers that push; otherwise the job token opens
       # the PR and any workflow-file patch fails the push loudly.
       - id: app-token
-        if: env.HAS_APP == 'true' && (steps.check.outputs.has_upgrades == 'true' || steps.gomod.outputs.upgrades == 'true')
+        if: env.HAS_APP == 'true' && steps.check.outputs.has_upgrades == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.DONERAM_APP_CLIENT_ID }}
           private-key: ${{ secrets.DONERAM_APP_PRIVATE_KEY }}
 
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        if: steps.check.outputs.has_upgrades == 'true' || steps.gomod.outputs.upgrades == 'true'
+        if: steps.check.outputs.has_upgrades == 'true'
         with:
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
-          branch: chore/doneram-updates
+          branch: doneram/${{ matrix.group }}
           draft: true
           delete-branch: true
-          title: "${{ steps.check.outputs.has_upgrades == 'true' && steps.check.outputs.title || 'chore: update Go modules' }}"
-          body: |
-            ${{ steps.check.outputs.body }}
-            ${{ steps.gomod.outputs.log }}
+          title: ${{ steps.check.outputs.title }}
+          body: ${{ steps.check.outputs.body }}

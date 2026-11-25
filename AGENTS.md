@@ -30,8 +30,10 @@ Known false negatives, each of which has already cost a session:
   writes `hook.hk-*.command` into `.git/config` and creates no `.git/hooks/pre-commit`.
   Check with `git config --get-regexp '^hook\.'` (expect six entries) or
   `git hook list pre-commit` (expect `hk-pre-commit`). A file-existence check is wrong.
-- **Never pipe or chain `git commit`.** `git commit … | tail` reports the pipe's exit
-  code, so a failing hook looks like success and the follow-up push ships nothing.
+- **Never pipe or chain `git commit`.** That means `|`, `;`, `&&`, and `||`.
+  `git commit … | tail` reports the pipe's exit code, and `;` runs the next command
+  after a rejected commit, so a failing hook looks like success and the follow-up push
+  ships nothing.
   Commit as its own command, then confirm with `git log -1`. Hooks rewrite files here;
   when one fails that way, `git add -A` its edits and commit again.
 - **A workflow that passes yamllint can still be broken.** `hk.pkl` excludes
@@ -41,7 +43,9 @@ Known false negatives, each of which has already cost a session:
 - **A release is verified by distinct hashes, not asset count.** Ten assets can be one
   binary published ten times. Confirm with
   `gh release download <tag> -p checksums.txt -O - | awk '{print $1}' | sort -u | wc -l`
-  and expect the same number as there are binaries.
+  and expect the same number as there are binaries. `gh release download` resolves
+  the release over GraphQL, so where only REST is reachable fetch the asset by id:
+  `gh api -H 'Accept: application/octet-stream' "repos/{owner}/{repo}/releases/assets/$(gh api repos/{owner}/{repo}/releases/tags/<tag> --jq '.assets[] | select(.name == "checksums.txt") | .id')"`.
 - **`hk check --all` aborts without mise on PATH.** The hk steps shell out to mise's
   tools, so a plain shell (no `mise activate`) dies on `ls-lint: command not found`
   and every later step reads as aborted. Run it as
@@ -50,6 +54,27 @@ Known false negatives, each of which has already cost a session:
 When a check fails, fix the cause. Do not skip a test, widen a timeout, or disable a
 linter to get to green. Three fix-and-push rounds with no new root cause means stop and
 report what you found.
+
+
+## Releases race your push
+
+`bump_version.yml` runs on every push to `main` whose head commit is not itself a
+`bump:` commit, and a release-worthy commit (`feat`, `fix`, `perf`) lands a
+`bump: version` commit and tag within minutes of your push landing. That means
+`main@origin` moves out from under work you have not pushed yet, so `jj git push`
+regularly refuses with "references unexpectedly moved". The cycle is
+`jj git fetch` → `jj rebase -b <change> -d main@origin` → `jj workspace update-stale`
+→ `jj bookmark set main -r @` → `jj git push`, and the simplest prevention is to
+fetch and rebase before pushing rather than after the refusal. Do not throttle or
+gate the workflow to avoid the cycle: the release cadence is every release-worthy
+commit, by design.
+
+Two jj-vs-git traps that recur here: `jj git push` does not run git hooks, so an
+`hk` pre-push check never fires for it; and a `blob:none` clone leaves jj's backend
+unable to read promisor objects (`Object <id> of type file not found` on checkout),
+fixed by `git config --unset remote.origin.partialclonefilter` plus a
+`git fetch --refetch`.
+
 
 ## Layout
 
@@ -109,12 +134,35 @@ diff, never hand-edit. `hk.pkl` excludes `**/*.golden` from the whitespace fixer
 fixture under any other name (`testdata/golden_*.txt`) will be silently rewritten on
 commit; either rename it or add its glob to that exclude.
 
+A test that runs `git`, `jj`, `gh`, or the built binary inherits the runner's home and
+writes to the real account: jj 0.47 records every repository it opens under
+`$XDG_CONFIG_HOME/jj/repos`, `git config --global` lands in `~/.gitconfig`, and the
+tool's own state goes to the user config directory. Give each test binary a home of
+its own in `TestMain`, before any test runs: point `HOME`, each `XDG_*_HOME`, `TMPDIR`,
+`GIT_CONFIG_GLOBAL` (with `GIT_CONFIG_NOSYSTEM=1`), `JJ_CONFIG`, and `GH_CONFIG_DIR` at
+a temp root, and leave `GOCACHE` and `GOPATH` on the real ones so builds stay warm.
+Where `github.com/kyleking/aragonite` is already a dependency, its `hermetic` package
+does this and fails the run when the real home changed anyway:
+`func TestMain(m *testing.M) { hermetic.Main(m, hermetic.App("jj-diff")) }` in
+each package, plus one test calling `hermetic.RequireEveryPackage` so a new package
+cannot skip it. Point a fixture repository's remote at an address that answers
+nothing (`https://127.0.0.1:1/<owner>/<repo>.git`), so a new network call fails at
+once rather than passing on a laptop with credentials and hanging in CI.
+
 ## TUI testing
 
 A subprocess pipe is not a terminal, so the program detects a non-tty and never renders.
-Exploratory checks need a real PTY: run it under `tmux new -d -x 80 -y 24 <cmd>`, drive
-it with `tmux send-keys`, and read what actually rendered with `tmux capture-pane -p`
-(`-e` keeps ANSI codes). A tab in captured output is not proof the program emitted one:
+Exploratory checks need a real PTY: run it under `tmux new -d -s tui-check -x 80 -y 24
+<cmd>`, drive it with `tmux send-keys`, and read what actually rendered with
+`tmux capture-pane -p` (`-e` keeps ANSI codes).
+
+Kill the session with `tmux kill-session -t tui-check` once the screen has been read.
+A detached session outlives the check that started it, and a TUI whose terminal goes
+away can spin rather than exit: 19 orphaned processes from one such burst held 40-49%
+CPU each for as long as 10 hours. Name the session, because an anonymous `-d` leaves
+nothing to identify a stray one by later.
+
+A tab in captured output is not proof the program emitted one:
 `tmux capture-pane` re-emits a tab wherever the cursor was advanced across cells that
 were never written. Check which column the text actually lands on before chasing it as
 a rendering bug. For scripted tests prefer
@@ -135,9 +183,47 @@ order and wraparound at list boundaries; empty and single-item states; rapid rep
 keypresses against a debounced action; multi-byte and unicode paste; and piped non-tty
 stdout degrading instead of hanging.
 
+tmux hides the first two of these, so pin them in a pty test with
+`github.com/charmbracelet/x/vt` as the screen; the last two are that harness's own traps:
+
+- **Color depth.** Inside tmux, `colorprofile.Detect` ignores `COLORTERM` and asks
+  `tmux info`, which a detached server answers without RGB, so a capture reads as 256
+  colors. Detect the profile honoring `COLORTERM=truecolor` (aragonite `theme.Profile`)
+  and hand that same profile to `tea.WithColorProfile`, so styles and renderer agree.
+- **Resize.** Bubble Tea restores scroll margins (DECSTBM) by number, so a frame
+  flushed just before a resize leaves the old height as the bottom margin and a grown
+  window scrolls on every repaint. tmux resets margins on resize itself. On each
+  `tea.WindowSizeMsg`, also send
+  `tea.Raw(ansi.SaveCursor + ansi.SetTopBottomMargins(0, 0) + ansi.RestoreCursor)`
+  followed by `tea.ClearScreen`. A resize test replaces its `vt` emulator rather than
+  resizing it, because the library's resize keeps the old scroll region.
+- **Partial redraws.** A redraw writes only the cells that changed, so `1 of 11`
+  becoming `1 of 15` puts `5` in the stream. Assert on the emulator's frame, not on
+  the bytes that drew it.
+- **Capability queries.** A bare pty answers none, so a program that asks the terminal
+  (background color over OSC 11, DA1) waits out a timeout on each before its first
+  frame. A pty harness answers them, or every test pays seconds of stall.
+
+Hold Bubble Tea at v2.1.2 or later: v2.1.1 can leave the screen blank for good after
+handing the terminal to another program (`tea.ExecProcess`) under load. A golden frame
+is byte-exact and still blind to a row wider than the frame, a box edge that joins
+nothing, and a glyph terminals measure differently; aragonite `tui/framecheck` checks
+those, so run it on a frame before comparing.
+
 Turn every bug found this way into a test named for its trigger
 (`TestQuit_RestoresCursorOnCtrlC`), parametrized over terminal size rather than
 hardcoding one.
+
+## Dependency updates
+
+The weekly Freshness workflow runs doneram and opens draft PRs on `doneram/*` branches.
+Two skills in `.agents/skills` finish what it cannot:
+
+- `doneram-fix-bump` on a `doneram/failing-<tool>` or `doneram/review-<tool>` branch:
+  `doneram explain <tool> --validate` gives the change, where it is pinned, the
+  breaking notes, and the `mise run ci` output; adapt the code until that passes.
+- `copier-update-conflicts` when the updates PR carries a template update: resolve the
+  `.rej` files under the rules below.
 
 ## Template-managed files
 
@@ -152,8 +238,9 @@ After `copier update --UNSAFE --conflict=rej --defaults`, re-apply real local co
 from each `.rej`, discard hunks the new template supersedes, and delete the files (a
 hook blocks committing them). Three specifics:
 
-- `.cz.toml` is re-rendered with `version = "0.0.0"`. Restore the real version by hand
-  or the next release cuts `v0.0.1`.
+- `.cz.toml` keeps its version: the update's diff carries it, and a post-update
+  migration reads it back from `HEAD` if a conflict left the `0.0.0` placeholder.
+  Check `grep ^version .cz.toml` anyway, since a `0.0.0` cuts `v0.0.1` on the next release.
 - Scaffolding the project then implements (the `cmd/` entry point, the `bindings/` cgo
   shim, its Python wrapper) conflicts on every update, because the template keeps
   rendering its starting version. Re-apply from the `.rej` and move on

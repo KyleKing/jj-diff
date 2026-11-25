@@ -53,12 +53,12 @@ func runEnd(lines []Line, start int, kind LineType) int {
 // alignRun lays the deletions in [from, mid) against the additions in [mid, to). A row AlignRun
 // leaves blank on one side carries -1 there, which is the SidePair convention too.
 func alignRun(lines []Line, from, mid, to int) []SidePair {
-	gone := make([]string, 0, mid-from)
+	gone := make([]string, 0, max(0, mid-from))
 	for j := from; j < mid; j++ {
 		gone = append(gone, lines[j].Content)
 	}
 
-	came := make([]string, 0, to-mid)
+	came := make([]string, 0, max(0, to-mid))
 	for j := mid; j < to; j++ {
 		came = append(came, lines[j].Content)
 	}

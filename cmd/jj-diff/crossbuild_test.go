@@ -13,43 +13,76 @@ import (
 type releaseTarget struct{ goos, goarch string }
 
 // releaseMatrix is the build section of .goreleaser.yml as lists: the goos
-// and goarch values and the pairs ignore drops.
+// and goarch values, the pairs ignore drops, and whether the build sets
+// CGO_ENABLED=1.
 type releaseMatrix struct {
 	ignored      map[releaseTarget]bool
 	list         string // the list the current line belongs to
 	pending      string // an ignore entry's goos, waiting for its goarch
 	goos, goarch []string
+	cgo          bool
 }
 
 // read takes one trimmed line of .goreleaser.yml. It is a line reader for the
 // template's own shape, not YAML: a key ending in a colon opens a list, and
-// any other line closes it.
+// any line that is not one of its entries closes it.
 func (m *releaseMatrix) read(line string) {
-	value := func(prefix string) string {
-		return strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, prefix)), `"'`)
-	}
-
-	switch {
-	case line == "goos:" || line == "goarch:" || line == "ignore:":
+	switch line {
+	case "env:", "goos:", "goarch:", "ignore:":
 		m.list = strings.TrimSuffix(line, ":")
-	case m.list == "ignore" && strings.HasPrefix(line, "- goos:"):
-		m.pending = value("- goos:")
-	case m.list == "ignore" && strings.HasPrefix(line, "goarch:"):
-		m.ignored[releaseTarget{m.pending, value("goarch:")}] = true
-	case m.list == "goos" && strings.HasPrefix(line, "- "):
-		m.goos = append(m.goos, value("- "))
-	case m.list == "goarch" && strings.HasPrefix(line, "- "):
-		m.goarch = append(m.goarch, value("- "))
 	default:
-		m.list = ""
+		if !m.entry(line) {
+			m.list = ""
+		}
 	}
 }
 
-// releaseTargets reads the build matrix out of .goreleaser.yml: every goos
-// crossed with every goarch, less the ignore pairs. It reads the file rather
-// than repeating the list, so a target the template adds is covered without
-// an edit here.
-func releaseTargets(t *testing.T) []releaseTarget {
+// entry records line as an entry of the open list and reports whether it was one.
+func (m *releaseMatrix) entry(line string) bool {
+	item, isItem := strings.CutPrefix(line, "- ")
+	value := func(s, key string) string {
+		return strings.Trim(strings.TrimSpace(strings.TrimPrefix(s, key)), `"'`)
+	}
+
+	switch {
+	case m.list == "ignore" && isItem && strings.HasPrefix(item, "goos:"):
+		m.pending = value(item, "goos:")
+	case m.list == "ignore" && strings.HasPrefix(line, "goarch:"):
+		m.ignored[releaseTarget{m.pending, value(line, "goarch:")}] = true
+	case !isItem:
+		return false
+	case m.list == "env":
+		m.cgo = m.cgo || value(item, "") == "CGO_ENABLED=1"
+	case m.list == "goos":
+		m.goos = append(m.goos, value(item, ""))
+	case m.list == "goarch":
+		m.goarch = append(m.goarch, value(item, ""))
+	default:
+		return false
+	}
+
+	return true
+}
+
+// targets is every goos crossed with every goarch, less the ignore pairs.
+func (m *releaseMatrix) targets() []releaseTarget {
+	var out []releaseTarget
+
+	for _, goos := range m.goos {
+		for _, goarch := range m.goarch {
+			if target := (releaseTarget{goos, goarch}); !m.ignored[target] {
+				out = append(out, target)
+			}
+		}
+	}
+
+	return out
+}
+
+// readReleaseMatrix reads the build matrix out of .goreleaser.yml rather than
+// repeating it, so a target added or dropped there is covered without an edit
+// here.
+func readReleaseMatrix(t *testing.T) releaseMatrix {
 	t.Helper()
 
 	file, err := os.Open(filepath.Join("..", "..", ".goreleaser.yml"))
@@ -69,23 +102,17 @@ func releaseTargets(t *testing.T) []releaseTarget {
 		t.Fatalf("reading .goreleaser.yml: %v", err)
 	}
 
-	var targets []releaseTarget
-
-	for _, goos := range matrix.goos {
-		for _, goarch := range matrix.goarch {
-			if target := (releaseTarget{goos, goarch}); !matrix.ignored[target] {
-				targets = append(targets, target)
-			}
-		}
-	}
-
-	return targets
+	return matrix
 }
 
 // TestEveryReleaseTargetBuilds compiles the binary for each pair goreleaser
 // ships. CI runs on Linux only, so a Unix-only call (an ioctl, a syscall
-// constant) would pass every check here and fail the release workflow, as it
-// once did in second-look.
+// constant) would pass every other check and fail only the release workflow,
+// after the tag is cut. It skips under -short, since a cold build cache
+// compiles the standard library once per target.
+//
+// The template keeps this file current, so a project-specific build check
+// belongs in a file of its own.
 func TestEveryReleaseTargetBuilds(t *testing.T) {
 	t.Parallel()
 
@@ -93,24 +120,20 @@ func TestEveryReleaseTargetBuilds(t *testing.T) {
 		t.Skip("cross-compiles the binary for every release target")
 	}
 
-	targets := releaseTargets(t)
-
-	seen := map[string]bool{}
-	for _, target := range targets {
-		seen[target.goos] = true
+	matrix := readReleaseMatrix(t)
+	if matrix.cgo {
+		t.Skip("CGO_ENABLED=1 cannot cross-compile; the release builds each target on its own runner")
 	}
 
-	// A reader that silently found nothing would pass, so insist on the
-	// operating systems a Unix-only call breaks.
-	for _, want := range []string{"linux", "darwin", "windows"} {
-		if !seen[want] {
-			t.Fatalf("read no %s target from .goreleaser.yml, got %v", want, targets)
-		}
+	targets := matrix.targets()
+	// A reader that silently found nothing would pass.
+	if len(targets) == 0 {
+		t.Fatal("read no goos/goarch targets from .goreleaser.yml")
 	}
 
-	// One target at a time, in this test rather than a parallel subtest each: ten parallel
-	// cross-compiles starved timed tests (jojo's picker previews, the pty resize test here) when hk ran ci
-	// and verify-released together, and a slower guard costs nothing a flaky suite does not.
+	// One target at a time rather than a parallel subtest each: ten parallel
+	// cross-compiles starved other packages' timed tests when hk ran ci and
+	// verify-released together, and a slower guard costs less than a flaky suite.
 	for _, target := range targets {
 		//nolint:gosec // the arguments are a constant and the matrix read above
 		cmd := exec.CommandContext(t.Context(), "go", "build", "-o", os.DevNull, ".")
