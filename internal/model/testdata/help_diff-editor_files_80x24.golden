@@ -10,7 +10,7 @@
   L11–13                                                                        
     11   line 10                                                                
     12 ▎ another line                                                           
-── keys 25 of 25 ───────────────────────────────────────────────────────────────
+── keys 26 of 26 ───────────────────────────────────────────────────────────────
 ── General ─────────────────────────────────────────────────────────────────────
 ▌ ?       help                                                                  
   :       command palette                                                       
@@ -21,4 +21,4 @@
   ctrl+r  redo                                                                  
   ctrl+l  reload from the source        jj diff -r @ --git                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
-  Diff-Editor  @   j/k nav   enter diff   f filter   / search   ? help          
+  Diff-Editor   j/k nav   c confirm   tab select hunks   enter diff   ? help    

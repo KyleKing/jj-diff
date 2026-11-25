@@ -2,43 +2,65 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/kyleking/aragonite/tui/coach"
+	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
-// welcomeFor is the first-run card for the mode jj-diff opened in: the keys a first session in it
-// starts with, labeled from the keymap so a rebind changes the card.
-func welcomeFor(mode OperatingMode, km *keys.Keymap) *coach.Welcome {
+// welcomeFor is the first-run card for the screen jj-diff opened on: the keys a first session there
+// starts with, labeled from the keymap so a rebind changes the card. A session launched into the
+// split columns (columns) is taught the columns' keys, not the interactive diff's it never shows.
+func welcomeFor(mode OperatingMode, columns bool, km *keys.Keymap) *coach.Welcome {
 	w := &coach.Welcome{Title: "Welcome to jj-diff"}
 
-	switch mode {
-	case ModeDiffEditor:
+	switch {
+	case columns:
+		w.Lead = "One column per commit the split makes, the revision on the left. Move changes " +
+			"into the columns, then apply."
+		w.Starters = starters(km, actionSelect, keys.ActionMoveRight, keys.ActionSendTo, keys.ActionDescribe,
+			actionApply)
+	case mode == ModeDiffEditor:
 		w.Lead = "jj asked which hunks to keep. Select them, then confirm to hand the selection back."
-		w.Starters = coach.StartersFrom(km, actionSelect, keys.NextAction(keys.ObjHunk), actionInvert,
-			actionConfirm)
-	case ModeResolve:
+		w.Starters = starters(km, actionSelect, keys.NextAction(keys.ObjHunk), actionInvert, actionConfirm)
+	case mode == ModeResolve:
 		w.Lead = "The conflicts in this revision, one side per column. Take a side, then apply."
-		w.Starters = coach.StartersFrom(km, keys.NextAction(keys.ObjConflict), keys.ActionTakeSide,
+		w.Starters = starters(km, keys.NextAction(keys.ObjConflict), keys.ActionTakeSide,
 			keys.ActionTakeAll, actionApply)
-	case ModeInteractive:
+	case mode == ModeInteractive:
 		w.Lead = "Select hunks or lines, then squash them into another change or split them out."
-		w.Starters = coach.StartersFrom(km, actionSelect, actionSquash, actionSplit,
-			keys.NextAction(keys.ObjHunk))
-	case ModeBrowse:
+		w.Starters = starters(km, actionSelect, actionSquash, actionSplit, keys.NextAction(keys.ObjHunk))
+	default:
 		w.Lead = "Read a revision hunk by hunk. -i opens it to select, squash, and split."
-		w.Starters = coach.StartersFrom(km, keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjFile),
+		w.Starters = starters(km, keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjFile),
 			keys.NextAction("unread"), keys.ActionOnlyUnread, keys.ActionSwitchPane)
 	}
 
 	w.HelpKeysFrom(km)
 
 	return w
+}
+
+// starters is the card's lines for actions, each keyed as the legend keys it, so a binding on every
+// digit reads "1–9" rather than its first digit.
+func starters(km *keys.Keymap, actions ...string) []keyhint.Hint {
+	out := coach.StartersFrom(km, actions...)
+
+	for i := range out {
+		for _, a := range actions {
+			if b, ok := km.Binding(a); ok && b.What == out[i].What && slices.Equal(b.Keys, keys.Digits()) {
+				out[i].Key = b.Labels()
+			}
+		}
+	}
+
+	return out
 }
 
 // welcomeKey answers a key while the card is up: any key takes it down and the dismissal is saved

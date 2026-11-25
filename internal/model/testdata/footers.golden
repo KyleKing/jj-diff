@@ -15,7 +15,7 @@ interactive_selected 80x24
 interactive_selected 100x30
   Interactive  @  ▸ next  1 hunk selected · s squash   space select   v lines   S split   ? help    
 diff-editor_all_kept 80x24
-  Diff-Editor  @   space keep/drop   v lines   c confirm   ]h hunk   ? help     
+  Diff-Editor   space keep/drop   v lines   c confirm   ]h hunk   ? help        
 diff-editor_all_kept 100x30
   ▸ next  everything is still kept · space drop   v lines   c confirm   u undo   ]h hunk   ? help   
 columns_all_in_one 80x24

@@ -273,6 +273,16 @@ func (m *Model) screenName() string {
 	return modeName(m.mode)
 }
 
+// footerSource is what the footer names beside the screen: the revision, or nothing in the diff
+// editor, whose source would only repeat the screen's name.
+func (m *Model) footerSource() string {
+	if m.mode == ModeDiffEditor {
+		return ""
+	}
+
+	return m.source
+}
+
 func (m *Model) renderStatusBar() string {
 	if m.searchModal.IsVisible() {
 		return m.searchModal.Line(m.width)
@@ -282,7 +292,7 @@ func (m *Model) renderStatusBar() string {
 		Destination:  m.destination,
 		IsVisualMode: m.isVisualMode || (m.cols != nil && m.cols.visual),
 		Mode:         m.screenName(),
-		Source:       m.source,
+		Source:       m.footerSource(),
 		Notice:       m.notice,
 		Alarm:        m.alarm,
 		Hints:        m.footerHints(),

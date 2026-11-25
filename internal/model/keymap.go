@@ -228,7 +228,7 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 	if mode == ModeDiffEditor {
 		return append(out, keys.Binding{
 			Action: actionConfirm, Keys: []string{"c"}, What: "confirm: write the selection and return to jj",
-			Short: "confirm", Group: groupWrite, Contexts: keys.Select,
+			Short: "confirm", Group: groupWrite, Contexts: keys.Select | keys.List,
 		})
 	}
 
@@ -356,6 +356,9 @@ func (m *Model) footerHints() []keyhint.Hint {
 		hints = slices.Concat(lines("move"),
 			hint(actionPick, ""), []keyhint.Hint{{Key: "-", What: "flags"}}, hint(keys.ActionSearch, "filter"),
 			hint(keys.ActionBack, "cancel"))
+	case ctx == keys.List && m.mode == ModeDiffEditor:
+		hints = slices.Concat(lines("nav"), hint(actionConfirm, ""), hint(keys.ActionSwitchPane, "select hunks"),
+			hint(actionOpen, ""), hint(keys.ActionFilter, ""), hint(keys.ActionHelp, ""))
 	case ctx == keys.List:
 		hints = slices.Concat(lines("nav"),
 			hint(actionOpen, ""), hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))

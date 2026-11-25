@@ -42,7 +42,7 @@ func (m *Model) WithUsage(r *keyusage.Recorder) *Model {
 // discover builds the palette and the coach, which the ledger feeds.
 func (m *Model) discover() {
 	m.pal = palette.New(theme.Skin)
-	m.welcome = welcomeFor(m.mode, m.keymap)
+	m.welcome = welcomeFor(m.mode, m.onlyColumns, m.keymap)
 	m.welcome.OpenIfDue(m.ledger)
 	m.coach = coach.New(coach.Config[coachState]{
 		Ledger: m.ledger, Keymap: m.keymap, Rules: coachRules(), Tips: coachTips(), Start: m.built,

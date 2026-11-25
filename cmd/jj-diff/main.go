@@ -195,6 +195,12 @@ func main() {
 		log.Printf("usage: %v", err)
 	}
 
+	// What the session wrote goes to stderr once the screen is gone, so the program that launched it
+	// can repeat it: the last line that starts with "jj-diff: " is the outcome.
+	if outcome := initialModel.Outcome(); outcome != "" {
+		fmt.Fprintln(os.Stderr, "jj-diff: "+outcome)
+	}
+
 	// A diff editor that quits without writing exits non-zero, which is what tells jj to leave the
 	// revision as it was instead of taking the right side it started with.
 	if initialModel.Aborted() {
@@ -294,6 +300,11 @@ func prepareRevisionMode(f *flags) (builder, error) {
 
 		if f.split {
 			m.StartInColumns()
+		}
+
+		// A launch for one write hands the terminal back once it lands, as jojo expects of both.
+		if f.split || f.resolve {
+			m.ReturnAfterWrite()
 		}
 
 		// jojo's read marks for this repository, shown read-only. A directory with no jj repository

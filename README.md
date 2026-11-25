@@ -222,6 +222,32 @@ markers, and jj reads them back as the conflict that remains, so a file can be
 resolved a region at a time. `jj undo` reverses the write. jojo, or any tool, can
 open it on a conflicted revision with `jj-diff --resolve -r <change-id>`.
 
+### Launched for one write
+
+`--split` and `--resolve` are how another program (jojo's `S` and `x`) hands jj-diff
+one job, and jj-diff hands the terminal back once the job is done rather than staying
+on what is left:
+
+- `--split` quits as soon as the split applies.
+- `--resolve` quits once a write leaves the revision with no conflict. A partial
+  resolve stays on the conflicts it left, and the footer says how many and that `q`
+  returns.
+- A failed write stays open with its reason, since nothing was written.
+
+The contract a launcher reads:
+
+| Exit | Meaning |
+| --- | --- |
+| `0` | jj-diff ran to its end: it wrote, or it was closed with nothing written |
+| non-zero | it could not start or run (the reason is on stderr), or, in the diff editor, it was left without `c` |
+
+After a write the last stderr line is the footer's outcome prefixed `jj-diff: `, for
+example `jj-diff: split vmzp into 2 commits · jj split -r vmzp -B vmzp · jj undo undoes
+it`. Whether anything was written is best read from jj's operation log moving, which
+also covers `M`'s merge tool. Opened from the diff editor (`jj squash -i`,
+`jj split -i` with `--tool jj-diff`), the session starts on the diff, where `space`
+keeps or drops a hunk and `c` hands the selection back; `c` works from the file list too.
+
 Moving from 0.8: `[`/`]` became `[f`/`]f`, `p` became `N`/`[h`, `g` became `gg`,
 `s`/`l`/`W` (side by side, line numbers, word diff) became `\s`/`\n`/`\r`, `z`
 became `za`, `F` merged into `f`, `r` became `ctrl+l`, `d` then `a` became `s` then

@@ -139,8 +139,11 @@ type Model struct {
 	destination string
 	source      string
 	// revision is the revset the diff was read from, empty outside revision mode.
-	revision     string
-	notice       string
+	revision string
+	notice   string
+	// outcome is what the last write did, in the footer's words, which the program repeats on
+	// stderr after it gives the terminal back.
+	outcome      string
 	changes      []diff.FileChange
 	undo         []*SelectionState
 	redo         []*SelectionState
@@ -172,6 +175,12 @@ type Model struct {
 	// onlyColumns is a session launched into the split columns, where backing out of them quits
 	// rather than dropping to the interactive diff nobody asked for.
 	onlyColumns bool
+	// returnOnWrite is a session launched for one write (--split, --resolve), which gives the
+	// terminal back to whoever launched it once that write lands.
+	returnOnWrite bool
+	// leaveIfResolved quits on the next read of the conflicts if it finds none left: a resolve
+	// launched for one write is done only once the revision holds no conflict.
+	leaveIfResolved bool
 	// band draws the coach's next steps as a band above the footer rather than in its status slot.
 	band bool
 	// loadedOnce is whether a diff has arrived, before which an empty one means nothing yet.
@@ -267,7 +276,21 @@ func NewModelWithSource(
 }
 
 // StartInColumns opens the split columns as soon as the diff loads, with every change in column 1.
-func (m *Model) StartInColumns() { m.startColumns, m.onlyColumns = true, true }
+// The first-run card teaches the columns' keys, since they are the whole session.
+func (m *Model) StartInColumns() {
+	m.startColumns, m.onlyColumns = true, true
+	m.welcome = welcomeFor(m.mode, true, m.keymap)
+	m.welcome.OpenIfDue(m.ledger)
+}
+
+// ReturnAfterWrite makes this a session launched for one write, as jojo launches --split and
+// --resolve: once the split applies, or a resolve leaves the revision with no conflict, the program
+// quits instead of showing what is left, and Outcome says what it wrote.
+func (m *Model) ReturnAfterWrite() { m.returnOnWrite = true }
+
+// Outcome is what the session's last write did, in the words the footer used, empty when nothing
+// was written.
+func (m *Model) Outcome() string { return m.outcome }
 
 // Aborted reports a diff-editor session that ended without writing. The program exits non-zero for
 // it, which is what tells jj to leave the revision as it was.
@@ -394,7 +417,9 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.edited(msg)
 
 	case conflictsLoadedMsg:
-		m.conflictsLoaded(msg)
+		cmd := m.conflictsLoaded(msg)
+
+		return m, cmd
 	}
 
 	return m, nil
@@ -403,6 +428,7 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 // loaded takes a fresh diff. Hunk indices from the last one mean nothing in it, so the selection and
 // its history start over, and the cursors are kept only where they still point at something.
 func (m *Model) loaded(changes []diff.FileChange) {
+	first := !m.loadedOnce
 	m.changes = changes
 	m.loadedOnce = true
 	m.fileList.SetFiles(m.changes)
@@ -423,6 +449,12 @@ func (m *Model) loaded(changes []diff.FileChange) {
 	// on confirm.
 	if m.mode == ModeDiffEditor {
 		diff.SelectAll(m.changes, m.selection)
+
+		// jj handed over a selection to edit and confirm, so the session starts where space and c
+		// act and the footer offers both, not on a file list that offers neither.
+		if first && len(m.changes) > 0 {
+			m.focusedPanel = PanelDiffView
+		}
 	}
 
 	// Line indices from the last diff mean nothing in this one, so the columns close with it.

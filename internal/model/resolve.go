@@ -62,12 +62,24 @@ func (m *Model) loadConflicts() tea.Cmd {
 	}
 }
 
-// conflictsLoaded takes a fresh read of the revision's conflicts, which starts the picks over.
-func (m *Model) conflictsLoaded(msg conflictsLoadedMsg) {
+// conflictsLoaded takes a fresh read of the revision's conflicts, which starts the picks over. After
+// a write in a session launched for one, a read that finds none left quits.
+func (m *Model) conflictsLoaded(msg conflictsLoadedMsg) tea.Cmd {
+	leave := m.leaveIfResolved
+	m.leaveIfResolved = false
+
 	if msg.err != nil {
 		m.err = msg.err
 
-		return
+		return nil
+	}
+
+	if leave && len(msg.files) == 0 {
+		return tea.Quit
+	}
+
+	if leave {
+		m.notice += " · " + plural(len(msg.files), "file") + " still conflicted, q returns"
 	}
 
 	res := &resolveState{}
@@ -83,6 +95,8 @@ func (m *Model) conflictsLoaded(msg conflictsLoadedMsg) {
 	}
 
 	m.res = res
+
+	return nil
 }
 
 // regions is the regions of the file at the cursor.

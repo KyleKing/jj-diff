@@ -342,12 +342,15 @@ func (m *Model) written(msg writtenMsg) tea.Cmd {
 	}
 
 	m.say(text, conflicts)
+	m.outcome = text
 
-	if m.quitAfterWrite {
+	if m.quitAfterWrite || (m.returnOnWrite && m.mode != ModeResolve) {
 		return tea.Quit
 	}
 
 	if m.mode == ModeResolve {
+		m.leaveIfResolved = m.returnOnWrite
+
 		return m.loadConflicts()
 	}
 
