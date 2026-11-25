@@ -12,11 +12,15 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/skin"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
+
+// filterLabel leads the filter line.
+const filterLabel = "filter "
 
 const (
 	centerDivisor = 2
@@ -35,7 +39,9 @@ type Model struct {
 	getMatches func(fileIdx int) []MatchRange
 	// drawn is the last frame View drew and what it drew it from. It is a pointer so a parent
 	// drawing from a copy of the list still fills the one cache.
-	drawn       *drawn
+	drawn *drawn
+	// filter is the field the filter is typed in, drawn under the rows while the filter is open.
+	filter      *vimtext.Field
 	filterQuery string
 	files       []diff.FileChange
 	counts      []changeCounts
@@ -75,13 +81,20 @@ func (m *Model) IsExpanded() bool {
 	return m.expanded
 }
 
-// SetFilterMode opens or closes the inline path filter. Closing it also clears the query, so a
-// reopened filter starts empty.
+// SetFilterMode opens or closes the inline path filter. Closing it also clears the query and lets
+// the field go, so a reopened filter starts empty.
 func (m *Model) SetFilterMode(enabled bool) {
 	m.filterMode = enabled
 	if !enabled {
 		m.filterQuery = ""
+		m.filter = nil
 	}
+}
+
+// SetFilterField is the field the filter is typed in, which the filter line draws with its cursor
+// and mode. The caller still sets the query from its value, so the rows follow every key.
+func (m *Model) SetFilterField(f *vimtext.Field) {
+	m.filter = f
 }
 
 // IsFilterMode reports whether the inline filter is open.
@@ -141,7 +154,9 @@ func (m *Model) SetSearchState(isSearching bool, getMatches func(fileIdx int) []
 // View renders the list at the given size, using only one row when collapsed regardless of height.
 // The list is only expanded while it has focus, so focus changes nothing a row draws.
 func (m *Model) View(width, height int, _ bool) string {
-	if m.drawn == nil {
+	// A filter being typed redraws its line on every key, cursor and mode included, which the cache
+	// keyed by query alone cannot tell apart.
+	if m.drawn == nil || (m.filterMode && m.filter != nil) {
 		return m.draw(width, height)
 	}
 
@@ -260,9 +275,14 @@ func (m *Model) renderExpanded(width, height int) string {
 	}
 
 	if m.filterMode {
-		filterLine := strings.Repeat(" ", margin) + theme.Skin.Muted.Render("filter ") +
-			theme.Skin.Body.Render(m.filterQuery) + theme.Skin.Accent.Render("\u2588")
-		lines = append(lines, "", fitRow(filterLine, "", width, &lipgloss.Style{}))
+		label := strings.Repeat(" ", margin) + theme.Skin.Muted.Render(filterLabel)
+
+		input := theme.Skin.Body.Render(m.filterQuery) + theme.Skin.Accent.Render("\u2588")
+		if m.filter != nil {
+			input = m.filter.View(max(width-lipgloss.Width(label)-rightPad, 1))
+		}
+
+		lines = append(lines, strings.Repeat(" ", max(width, 0)), fitRow(label+input, "", width, &lipgloss.Style{}))
 	}
 
 	return strings.Join(lines, "\n")

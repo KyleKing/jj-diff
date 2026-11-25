@@ -266,7 +266,7 @@ func moving(action string) bool {
 // an overlay, a picker, or a question.
 func (m *Model) busy() bool {
 	return m.pal.IsOpen() || m.msgs != nil || m.picker.IsVisible() || m.searchModal.IsVisible() ||
-		m.fileList.IsFilterMode() || m.quitPrompt || m.discarding != nil || (m.cols != nil && m.cols.describing) ||
+		m.fileList.IsFilterMode() || m.quitPrompt || m.discarding != nil || m.prompt != nil ||
 		len(m.matcher.Pending()) > 0
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/kyleking/aragonite/tui/launch"
 	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/pen"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/components/destpicker"
 	"github.com/kyleking/jj-diff/internal/components/diffview"
@@ -123,6 +124,11 @@ type Model struct {
 	// pending is the selection a picker or prompt opened on, which is what it writes when confirmed
 	// whatever moved while it was up.
 	pending *SelectionState
+	// prompt is the text field that has the keys (a column's description, search, a filter), nil
+	// while none is open. Inside it vim's keys win over the keymap; ctrl+c still quits.
+	prompt *vimtext.Field
+	// edits is what each $EDITOR round trip still out takes its text back into, by request ID.
+	edits map[string]editApply
 	// cols is the split columns while they are up, nil otherwise.
 	cols *splitColumns
 	// res is the conflict viewer's state in ModeResolve.
@@ -204,6 +210,8 @@ type Model struct {
 	onlyUnread bool
 	// lexAsked is the diff pane's file a settle wait was last handed out for.
 	lexAsked uint64
+	// editSeq numbers the $EDITOR requests, which names each in edits.
+	editSeq int
 }
 
 type errMsg struct {
@@ -452,8 +460,10 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 
-	case editedMsg:
-		m.edited(msg)
+	case vimtext.EditedMsg:
+		cmd := m.edited(msg)
+
+		return m, cmd
 
 	case conflictsLoadedMsg:
 		cmd := m.conflictsLoaded(msg)

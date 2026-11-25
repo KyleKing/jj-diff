@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
@@ -45,7 +46,6 @@ type columnsSnapshot struct {
 type splitColumns struct {
 	owner map[changeKey]int
 	sel   *SelectionState
-	draft string
 	// descs is each column's description; the source's is never written.
 	descs []string
 	// cursor is each column's hunk cursor, an index into its items.
@@ -524,6 +524,7 @@ func (m *Model) leaveColumns() {
 	}
 
 	m.cols = nil
+	m.closePrompt()
 	m.matcher.Reset()
 }
 
@@ -536,34 +537,10 @@ func (m *Model) describeColumn() {
 		return
 	}
 
-	c.describing, c.draft = true, c.descs[c.focus]
-}
-
-// handleDescribeKeyPress types into the focused column's description until Enter keeps it or Esc
-// drops it.
-func (m *Model) handleDescribeKeyPress(msg tea.KeyPressMsg) tea.Cmd {
-	c := m.cols
-
-	switch key := msg.String(); {
-	case key == keyEnter:
-		c.describing = false
-		draft, col := strings.TrimRight(c.draft, "\n"), c.focus
-		c.edit(func() { c.descs[col] = draft })
-	case isNewline(key):
-		c.draft += "\n"
-	case key == keyEsc:
-		c.describing = false
-	case key == keyCtrlC:
-		return m.cancel()
-	case key == keyBackspace:
-		if r := []rune(c.draft); len(r) > 0 {
-			c.draft = string(r[:len(r)-1])
-		}
-	default:
-		c.draft += msg.Key().Text
-	}
-
-	return nil
+	c.describing = true
+	m.openPrompt(promptDescribe, c.descs[c.focus], vimtext.WithHeight(1, describeRows),
+		vimtext.WithEditor("DESCRIPTION-*"), vimtext.WithPrompt("› "),
+		vimtext.WithPlaceholder("describe the new commit"))
 }
 
 // splitGroups turns the columns into Split's groups: every new-commit column that holds anything, in
@@ -675,7 +652,7 @@ func (m *Model) describeColumnInEditor() tea.Cmd {
 
 	col := c.focus
 
-	return editInEditor("DESCRIPTION", c.descs[col], func(m *Model, text string) {
+	return m.editInEditor("DESCRIPTION-*", c.descs[col], func(m *Model, text string) {
 		if m.cols == nil || col >= m.cols.count() {
 			return
 		}

@@ -90,6 +90,24 @@ func TestLoadConfigFromEnv(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "vim on by default",
+			envVars:  map[string]string{},
+			checkFn:  func(c config.Config) bool { return c.Vim },
+			expected: true,
+		},
+		{
+			name:     "vim off",
+			envVars:  map[string]string{"JJ_DIFF_VIM": "off"},
+			checkFn:  func(c config.Config) bool { return c.Vim },
+			expected: false,
+		},
+		{
+			name:     "vim typo keeps the default",
+			envVars:  map[string]string{"JJ_DIFF_VIM": "of"},
+			checkFn:  func(c config.Config) bool { return c.Vim },
+			expected: true,
+		},
+		{
 			name:     "nerd icons",
 			envVars:  map[string]string{"JJ_DIFF_ICONS": "nerd"},
 			checkFn:  func(c config.Config) bool { return c.Icons == "nerd" },

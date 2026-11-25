@@ -42,7 +42,10 @@ type Context struct {
 	Lead string
 	// LeadKey is the key the lead names, whose hint gives its room to the others while the lead is
 	// drawn.
-	LeadKey      string
+	LeadKey string
+	// Badge is an open text field's mode (INSERT, NORMAL), drawn just before the hints it names the
+	// keys of, and kept while they shed.
+	Badge        string
 	Hints        []keyhint.Hint
 	IsVisualMode bool
 	// Alarm draws Notice as a failure rather than news.
@@ -54,7 +57,7 @@ func (c *Context) key() string {
 	var b strings.Builder
 
 	b.WriteString(c.Destination + "\x00" + c.Mode + "\x00" + c.Source + "\x00" + c.Notice + "\x00" + c.Lead +
-		"\x00" + c.LeadKey)
+		"\x00" + c.LeadKey + "\x00" + c.Badge)
 
 	if c.IsVisualMode {
 		b.WriteString("\x00v")
@@ -135,13 +138,18 @@ func (Model) draw(width int, ctx *Context) string {
 		})
 	}
 
-	room := width - margin - lipgloss.Width(facts) - len(partGap)
-
-	if room < lipgloss.Width(keyhint.Pinned(hintStyles(), hints)) {
-		facts, room = "", width-margin
+	badge := ""
+	if ctx.Badge != "" {
+		badge = ctx.Badge + " "
 	}
 
-	line := keyhint.Fit(hintStyles(), hints, room)
+	room := width - margin - lipgloss.Width(facts) - len(partGap) - lipgloss.Width(badge)
+
+	if room < lipgloss.Width(keyhint.Pinned(hintStyles(), hints)) {
+		facts, room = "", width-margin-lipgloss.Width(badge)
+	}
+
+	line := badge + keyhint.Fit(hintStyles(), hints, room)
 	if facts != "" {
 		line = facts + partGap + line
 	}

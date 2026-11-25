@@ -103,5 +103,11 @@ func Fit(line string, width int) string {
 
 // Prompt is a text field: a chevron in the accent, what has been typed, and the cursor block.
 func Prompt(text string) string {
-	return theme.Skin.Accent.Render("› ") + theme.Skin.Body.Render(text) + theme.Skin.Accent.Render("▏")
+	return PromptMark() + theme.Skin.Body.Render(text) + theme.Skin.Accent.Render("▏")
 }
+
+// PromptMarkWidth is the cells PromptMark takes.
+const PromptMarkWidth = 2
+
+// PromptMark is what leads a prompt line, for a caller drawing the text after it itself.
+func PromptMark() string { return theme.Skin.Accent.Render("› ") }

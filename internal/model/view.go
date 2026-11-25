@@ -375,7 +375,7 @@ func (m *Model) footerSource() string {
 
 func (m *Model) renderStatusBar() string {
 	if m.searchModal.IsVisible() {
-		return m.searchModal.Line(m.width)
+		return m.searchModal.Line(m.width, m.prompt)
 	}
 
 	ctx := statusbar.Context{
@@ -390,6 +390,15 @@ func (m *Model) renderStatusBar() string {
 
 	if m.discarding != nil {
 		ctx.Notice, ctx.Alarm, ctx.Hints = m.discardQuestion(), true, discardHints()
+	}
+
+	// An open field names its mode beside its keys, and a refusal or a failed $EDITOR is its notice.
+	if f := m.prompt; f != nil {
+		ctx.Badge = f.Badge()
+
+		if status, failed := f.Status(); status != "" {
+			ctx.Notice, ctx.Alarm = status, failed
+		}
 	}
 
 	// A question or a prompt has the footer to itself: the coach's next step would name keys that

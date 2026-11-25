@@ -106,8 +106,25 @@ why when pressed ("u  nothing to undo") instead of doing nothing.
 
 Every text entry (search, the file filter, the picker's filter, a column's description)
 keeps one contract, shared with jojo and second-look, and the footer says it while you
-type: `enter` submits, `ctrl+j` (or `alt+enter`) starts a new line where the text can
-hold one, and `esc` cancels. A paste lands in the prompt.
+type: `enter` submits in every mode, `ctrl+j` (or `alt+enter`) starts a new line where
+the text can hold one, and `esc` backs out one level. A paste lands in the prompt.
+
+Each prompt is a vim field (aragonite `tui/vimtext`), so you edit text the way you edit
+everything else without leaving for nvim:
+
+- It opens in insert mode with the cursor at the end, so plain typing just works. The
+  footer's badge says the mode: `INSERT`, `NORMAL`, `VISUAL`, `V-LINE`
+- `esc` goes to normal mode, and `esc` again cancels, putting back what the prompt was
+  for (search returns the cursor to where it started)
+- Normal and visual mode have the motions, operators, text objects, counts, `u` and
+  `ctrl+r`, `.`, and `:w` / `:q` a vim user reaches for. Inside the field these are the
+  field's own, so `u` undoes typing, never a jj write. `ctrl+c` still quits
+- `ctrl+e` in a column's description opens it in `$VISUAL` or `$EDITOR` (nvim, say) and
+  brings the text back to the field; a failed editor keeps the draft
+- Search and the filters narrow on every key, in either mode
+
+`JJ_DIFF_VIM=off` turns the vim layer off: the same `enter`, `ctrl+j`, and `esc`, with
+`esc` cancelling at once and no badge.
 
 Selecting and writing (`-i`, or as jj's diff editor). A verb acts on the selection,
 or on the hunk under the cursor when nothing is selected:

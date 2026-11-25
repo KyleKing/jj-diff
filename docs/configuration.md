@@ -10,9 +10,11 @@ override them for one run.
 | `JJ_DIFF_SHOW_LINE_NUMBERS` | boolean | on | Show line numbers |
 | `JJ_DIFF_TAB_WIDTH` | 1 to 16 | 4 | Tab display width |
 | `JJ_DIFF_WORD_DIFF` | boolean | off | Word-level highlighting |
+| `JJ_DIFF_VIM` | boolean | on | The vim layer in every prompt; off leaves plain editing where `esc` cancels at once |
 | `CATPPUCCIN_THEME` | `latte`, `macchiato` | auto | Force the theme |
 
-Booleans are true only for `1`, `true`, `yes`, or `on`.
+Booleans are true only for `1`, `true`, `yes`, or `on`. `JJ_DIFF_VIM` is on by
+default, so it turns off only for `0`, `false`, `no`, or `off`.
 
 A value jj-diff cannot understand is ignored rather than reported, so the default
 survives and startup never fails on a typo. `JJ_DIFF_TAB_WIDTH` outside 1 to 16

@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/theme"
 )
@@ -67,14 +68,21 @@ func (m *Model) UpdateResults(matchCount, currentIdx int) {
 
 // Line renders the prompt as the footer row, exactly width cells, returning the empty string while
 // hidden. It takes the footer's place rather than sitting over the diff, so every match it
-// highlights stays in view while the query is typed, as / does in less and vim.
-func (m Model) Line(width int) string {
+// highlights stays in view while the query is typed, as / does in less and vim. The field is the
+// query being typed, drawn with its cursor and mode, and its keys join the footer's; a nil field
+// draws the query alone.
+func (m Model) Line(width int, field *vimtext.Field) string {
 	if !m.visible || width <= 0 {
 		return ""
 	}
 
 	lead := strings.Repeat(" ", min(margin, width))
 	prompt := theme.Skin.Accent.Render("/") + theme.Skin.Body.Render(m.query) + theme.Skin.Accent.Render("▏")
+
+	if field != nil {
+		prompt = theme.Skin.Accent.Render("/") + field.View(inputWidth(m.query, width))
+	}
+
 	status := theme.Skin.Subtitle.Render(m.statusText())
 
 	if m.query != "" && m.matchCount == 0 {
@@ -82,14 +90,27 @@ func (m Model) Line(width int) string {
 	}
 
 	head := prompt + theme.HintGap + status
+	if field != nil && field.Badge() != "" {
+		head += theme.HintGap + field.Badge()
+	}
+
 	room := width - margin - lipgloss.Width(head) - len(theme.HintGap)
 
 	// Listed in the order they are shed: the way out stays longest.
-	hints := []keyhint.Hint{
-		{Key: "ctrl-n/p", What: "next/prev"}, {Key: "enter", What: "keep"}, {Key: "esc", What: "cancel", Pin: true},
-	}
+	steps := keyhint.Hint{Key: "ctrl-n/p", What: "next/prev", Priority: 1}
+	hints := []keyhint.Hint{steps, {Key: "enter", What: "keep"}, {Key: "esc", What: "cancel", Pin: true}}
+
 	for i := range hints {
 		hints[i].Priority = i + 1
+	}
+
+	if field != nil {
+		hints = append([]keyhint.Hint{steps}, field.Hints()...)
+		for i := range hints {
+			if hints[i].What == "save" {
+				hints[i].What = "keep"
+			}
+		}
 	}
 
 	line := head
@@ -98,6 +119,18 @@ func (m Model) Line(width int) string {
 	}
 
 	return fit(lead+line, width)
+}
+
+// The query's box is as wide as what it holds plus room to type, at least minInput and at most a
+// third of the row, past which it scrolls sideways.
+const (
+	minInput     = 16
+	inputSlack   = 4
+	inputDivisor = 3
+)
+
+func inputWidth(query string, width int) int {
+	return max(min(lipgloss.Width(query)+inputSlack, width/inputDivisor), min(minInput, width/inputDivisor), 1)
 }
 
 func (m Model) statusText() string {

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/empty"
 	"github.com/kyleking/aragonite/tui/glyph"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -41,7 +42,7 @@ func (m *Model) renderColumns() string {
 	cells := make([][]string, 0, shown)
 	for i, width := range widths {
 		col := first + i
-		cells = append(cells, append(m.columnHeader(col, width), m.columnBody(col, width, bodyHeight)...))
+		cells = append(cells, append(m.columnHeader(col, width), m.columnCell(col, width, bodyHeight)...))
 	}
 
 	rows := []string{fit(title, inner), ""}
@@ -161,7 +162,7 @@ func (m *Model) columnHeader(col, width int) []string {
 	case strip && name == "":
 		name = "new"
 	case focused && c.describing:
-		name = draftLine(c.draft)
+		name = describingName(m.prompt)
 	case name == "":
 		name = "(no description)"
 	}
@@ -324,15 +325,35 @@ func emptyColumnRows(col, width int) []string {
 	return []string{fit(theme.Skin.Muted.Render(hint), width)}
 }
 
-// draftLine is a description being typed as its header row draws it: the line the cursor is on, led
-// by how many lines came before it once ctrl+j has started a second.
-func draftLine(draft string) string {
-	lines := strings.Split(draft, "\n")
-	last := glyph.Settle(lines[len(lines)-1]) + "█"
-
-	if len(lines) == 1 {
-		return last
+// describingName is the header of a column being described: the first line typed so far, or a
+// quiet word while the field below it is empty.
+func describingName(f *vimtext.Field) string {
+	first := ""
+	if f != nil {
+		first, _, _ = strings.Cut(f.Value(), "\n")
 	}
 
-	return theme.Skin.Muted.Render(fmt.Sprintf("line %d · ", len(lines))) + last
+	if first == "" {
+		return theme.Skin.Muted.Render("describing")
+	}
+
+	return glyph.Settle(first)
+}
+
+// columnCell is a column under its header: the description field on top while it is being written,
+// then the hunks in the rows left.
+func (m *Model) columnCell(col, width, height int) []string {
+	f := m.prompt
+	if col != m.cols.focus || !m.cols.describing || f == nil {
+		return m.columnBody(col, width, height)
+	}
+
+	rows := strings.Split(f.View(width), "\n")
+	rows = append(rows[:min(len(rows), max(height-1, 1))], theme.Skin.Hairline.Render(strings.Repeat("╌", width)))
+
+	if rest := height - len(rows); rest > 0 {
+		return append(rows, m.columnBody(col, width, rest)...)
+	}
+
+	return rows[:height]
 }

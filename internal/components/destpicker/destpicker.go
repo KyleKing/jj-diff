@@ -10,6 +10,7 @@ import (
 
 	"github.com/kyleking/aragonite/tui/glyph"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/components/modal"
 	"github.com/kyleking/jj-diff/internal/fuzzy"
@@ -32,6 +33,8 @@ const (
 // Model is the destination picker. Mutators take a pointer receiver, so a parent holding it by value
 // must keep the same field rather than a copy.
 type Model struct {
+	// filter is the field the filter is typed in while filtering.
+	filter    *vimtext.Field
 	command   string
 	query     string
 	revisions []jj.RevisionEntry
@@ -80,19 +83,21 @@ func (m *Model) Show() { m.visible = true }
 func (m *Model) Hide() {
 	m.visible = false
 	m.filtering = false
+	m.filter = nil
 }
 
 // IsVisible reports whether keys belong to the picker rather than the main view.
 func (m *Model) IsVisible() bool { return m.visible }
 
-// StartFilter makes typed keys narrow the rows until Enter or Esc.
-func (m *Model) StartFilter() { m.filtering = true }
+// StartFilter makes typed keys narrow the rows until Enter or Esc, typed into f, whose cursor and
+// mode the filter line draws. The caller still sets the query from its value on every key.
+func (m *Model) StartFilter(f *vimtext.Field) { m.filtering, m.filter = true, f }
 
 // IsFiltering reports whether typed keys go to the filter.
 func (m *Model) IsFiltering() bool { return m.filtering }
 
 // StopFilter hands keys back to the picker's bindings, keeping the rows the filter left.
-func (m *Model) StopFilter() { m.filtering = false }
+func (m *Model) StopFilter() { m.filtering, m.filter = false, nil }
 
 // Query is the filter text.
 func (m *Model) Query() string { return m.query }
@@ -164,7 +169,10 @@ func (m *Model) View(width, height int) string {
 
 	body := make([]string, 0, visibleRows+extraRows)
 
-	if m.filtering || m.query != "" {
+	switch {
+	case m.filtering && m.filter != nil:
+		body = append(body, modal.PromptMark()+m.filter.View(max(inner-modal.PromptMarkWidth, 1)))
+	case m.filtering || m.query != "":
 		body = append(body, modal.Prompt(m.query))
 	}
 

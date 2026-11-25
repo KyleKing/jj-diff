@@ -339,7 +339,7 @@ func (m *Model) editRegion() tea.Cmd {
 	text, _ := region.Text(r.picks[r.file][r.region])
 	file, idx := r.file, r.region
 
-	return editInEditor(fmt.Sprintf("region-%d.txt", idx+1), text, func(m *Model, text string) {
+	return m.editInEditor(fmt.Sprintf("region-%d-*.txt", idx+1), text, func(m *Model, text string) {
 		if m.res != r {
 			return
 		}

@@ -108,7 +108,8 @@ func TestColumns_DescribeInline(t *testing.T) {
 		t.Errorf("description = %q", got)
 	}
 
-	m = Press(t, m, "d", "z", "esc")
+	// esc leaves insert mode for normal, and esc again cancels.
+	m = Press(t, m, "d", "z", "esc", "esc")
 	if got := m.cols.descs[1]; got != "add " {
 		t.Errorf("esc kept the draft: %q", got)
 	}

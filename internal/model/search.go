@@ -8,53 +8,17 @@ import (
 	"github.com/kyleking/jj-diff/internal/search"
 )
 
-func (m *Model) handleSearchKeyPress(msg tea.KeyPressMsg) tea.Cmd {
-	switch msg.String() {
-	case keyEsc, keyCtrlC:
-		orig := m.searchState.RestoreOriginalState()
-		m.selectedFile = orig.SelectedFile
-		m.selectedHunk = orig.SelectedHunk
-		m.focusedPanel = FocusedPanel(orig.FocusedPanel)
-		m.searchModal.Hide()
-		m.searchState.IsActive = false
-
-		return nil
-
-	case keyEnter:
-		m.searchModal.Hide()
-		m.motion.Searched()
-
-		return nil
-
-	case "ctrl+n", keyDown:
-		return m.nextSearchMatch()
-
-	case "ctrl+p", "up":
-		return m.prevSearchMatch()
-
-	case keyBackspace:
-		if m.searchState.Query != "" {
-			m.searchState.Query = m.searchState.Query[:len(m.searchState.Query)-1]
-			m.searchModal.SetQuery(m.searchState.Query)
-
-			return m.executeSearch()
-		}
-
-		return nil
-
-	default:
-		if text := msg.Key().Text; text != "" {
-			m.searchState.Query += text
-			m.searchModal.SetQuery(m.searchState.Query)
-
-			return m.executeSearch()
-		}
-
-		return nil
-	}
+// cancelSearch is esc out of search: the cursor and focus go back to where the search began.
+func (m *Model) cancelSearch() {
+	orig := m.searchState.RestoreOriginalState()
+	m.selectedFile = orig.SelectedFile
+	m.selectedHunk = orig.SelectedHunk
+	m.focusedPanel = FocusedPanel(orig.FocusedPanel)
+	m.searchModal.Hide()
+	m.searchState.IsActive = false
 }
 
-func (m *Model) executeSearch() tea.Cmd {
+func (m *Model) executeSearch() {
 	m.searchState.ExecuteSearch(m.changes)
 	m.searchState.IsActive = true
 	m.searchModal.UpdateResults(m.searchState.MatchCount(), m.searchState.CurrentIdx)
@@ -70,8 +34,6 @@ func (m *Model) executeSearch() tea.Cmd {
 			m.diffView.SetFileChange(m.changes[m.selectedFile])
 		}
 	}
-
-	return nil
 }
 
 func (m *Model) nextSearchMatch() tea.Cmd {
@@ -180,41 +142,4 @@ func (m *Model) matchIndex() *matchIndex {
 	}
 
 	return idx
-}
-
-func (m *Model) handleFileListFilterKeyPress(msg tea.KeyPressMsg) tea.Cmd {
-	switch msg.String() {
-	case keyEsc:
-		m.fileList.SetFilterMode(false)
-		return nil
-
-	case keyEnter:
-		// Enter opens the best match, the top row the filter left, unless the cursor is already on one.
-		if idx, ok := m.fileList.FirstShown(); ok && !m.fileList.Shows(m.selectedFile) {
-			m.jumpToFile(idx)
-		}
-
-		m.fileList.SetFilterMode(false)
-		m.focusedPanel = PanelDiffView
-
-		return nil
-
-	case keyBackspace:
-		query := m.fileList.FilterQuery()
-		if query != "" {
-			query = query[:len(query)-1]
-			m.fileList.SetFilterQuery(query)
-		}
-
-		return nil
-
-	default:
-		if text := msg.Key().Text; text != "" {
-			query := m.fileList.FilterQuery()
-			query += text
-			m.fileList.SetFilterQuery(query)
-		}
-
-		return nil
-	}
 }

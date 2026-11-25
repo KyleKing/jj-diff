@@ -36,6 +36,10 @@ type Config struct {
 	ShowWhitespace  bool
 	ShowLineNumbers bool
 	WordLevelDiff   bool
+	// Vim is the vim layer on every text prompt (a column's description, search, the filters): the
+	// prompt opens in insert mode, esc goes to normal mode, and esc again cancels. JJ_DIFF_VIM=off
+	// leaves plain editing under the same enter, ctrl+j, and esc contract, where esc cancels at once.
+	Vim bool
 }
 
 // defaultTabWidth is the column width a tab renders as when JJ_DIFF_TAB_WIDTH is unset.
@@ -43,7 +47,7 @@ const defaultTabWidth = 4
 
 // DefaultConfig returns the settings that apply when no environment variable is
 // set: unified layout, line numbers on, whitespace and word-level diff off, tabs
-// four columns wide.
+// four columns wide, and the vim layer on in every prompt.
 func DefaultConfig() Config {
 	return Config{
 		ViewMode:        ViewModeUnified,
@@ -51,6 +55,7 @@ func DefaultConfig() Config {
 		ShowLineNumbers: true,
 		TabWidth:        defaultTabWidth,
 		WordLevelDiff:   false,
+		Vim:             true,
 	}
 }
 
@@ -92,6 +97,13 @@ func LoadConfig() Config {
 
 	if v := os.Getenv("JJ_DIFF_WORD_DIFF"); v != "" {
 		cfg.WordLevelDiff = parseBool(v)
+	}
+
+	// The vim layer is on by default, so only a value that clearly says off turns it off: a typo
+	// keeps the default rather than taking away the keys someone's fingers expect.
+	switch os.Getenv("JJ_DIFF_VIM") {
+	case "0", "false", "no", "off":
+		cfg.Vim = false
 	}
 
 	return cfg

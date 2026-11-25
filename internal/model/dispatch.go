@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/palette"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/components/filelist"
@@ -35,14 +36,9 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) tea.Cmd {
 		return m.handleMessagesKey(key)
 	case m.quitPrompt:
 		return m.handleQuitPrompt(key)
-	case m.cols != nil && m.cols.describing:
-		return m.handleDescribeKeyPress(msg)
-	case m.searchModal.IsVisible():
-		return m.handleSearchKeyPress(msg)
-	case m.fileList.IsFilterMode():
-		return m.handleFileListFilterKeyPress(msg)
-	case m.picker.IsFiltering():
-		return m.handlePickerFilterKeyPress(msg)
+	case m.prompt != nil:
+		// A field has the keyboard, so vim's keys (u, ctrl+r, v, Y, .) are its own, not the keymap's.
+		return m.handlePromptKey(msg)
 	}
 
 	match := m.matcher.Feed(m.context(), key)
@@ -140,6 +136,8 @@ func (m *Model) verb(action string) tea.Cmd {
 	case keys.ActionFilter:
 		m.focusedPanel = PanelFileList
 		m.fileList.SetFilterMode(true)
+		m.openPrompt(promptFilter, "", vimtext.WithOneLine())
+		m.fileList.SetFilterField(m.prompt)
 	case keys.ActionUndo:
 		return m.undoAction()
 	case keys.ActionRedo:
@@ -606,6 +604,7 @@ func (m *Model) closeAllModals() {
 	m.picker.Hide()
 	m.searchModal.Hide()
 	m.fileList.SetFilterMode(false)
+	m.closePrompt()
 	m.quitPrompt = false
 }
 
@@ -617,4 +616,5 @@ func (m *Model) enterSearchMode() {
 		FocusedPanel: int(m.focusedPanel),
 	})
 	m.searchModal.Show()
+	m.openPrompt(promptSearch, "", vimtext.WithOneLine())
 }

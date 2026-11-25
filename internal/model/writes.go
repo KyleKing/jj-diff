@@ -8,6 +8,7 @@ import (
 	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
@@ -158,7 +159,8 @@ func (m *Model) pickerAction(action string) tea.Cmd {
 	case keys.ActionBottom:
 		m.picker.Bottom()
 	case keys.ActionSearch:
-		m.picker.StartFilter()
+		m.openPrompt(promptPick, m.picker.Query(), vimtext.WithOneLine())
+		m.picker.StartFilter(m.prompt)
 	case keys.ActionBack, keys.ActionQuit:
 		m.picker.Hide()
 		m.pending = nil
@@ -170,29 +172,6 @@ func (m *Model) pickerAction(action string) tea.Cmd {
 	default:
 		if letter, ok := strings.CutPrefix(action, keys.FlagAction(keys.VerbSquash, "")); ok {
 			m.flags.Toggle(letter)
-		}
-	}
-
-	m.refreshPicker()
-
-	return nil
-}
-
-// handlePickerFilterKeyPress types into the picker's filter until Enter keeps it or Esc clears it.
-func (m *Model) handlePickerFilterKeyPress(msg tea.KeyPressMsg) tea.Cmd {
-	switch msg.String() {
-	case keyEnter:
-		m.picker.StopFilter()
-	case keyEsc:
-		m.picker.SetQuery("")
-		m.picker.StopFilter()
-	case keyBackspace:
-		if r := []rune(m.picker.Query()); len(r) > 0 {
-			m.picker.SetQuery(string(r[:len(r)-1]))
-		}
-	default:
-		if text := msg.Key().Text; text != "" {
-			m.picker.SetQuery(m.picker.Query() + text)
 		}
 	}
 
