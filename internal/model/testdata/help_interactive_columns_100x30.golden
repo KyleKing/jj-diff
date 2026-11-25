@@ -1,4 +1,4 @@
-  Split  jj split -r @ · chain 2 → 1         ╭─ keys · 35 of 35 ───────────────────────────────────╮
+  Split  jj split -r @ · chain 2 → 1 (2 becom╭─ keys · 35 of 35 ───────────────────────────────────╮
                                              │ a key explains itself · / filters                   │
     1   stays in @                           │ ── General ──────────────────────────────────────── │
   3 hunks · +3 −2                            │ ▌ ?       help                                      │

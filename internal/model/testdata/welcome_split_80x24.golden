@@ -1,6 +1,6 @@
-  Split  jj split -r @ · chain 2 → 1                                            
+  Split  jj split -r @ · chain 2 → 1 (2 becomes the parent of 1)                
                                                                                 
-    1   stays in @                                               │   2   (no …  
+    1   stays in @                                               │   2   new    
   4 hunks · +4 −2                                                │ empty        
   ────────────────────────────────────────────────────────────────────────────  
   file1.╭─ Welcome to jj-diff ─────────────────────────────────────────╮        

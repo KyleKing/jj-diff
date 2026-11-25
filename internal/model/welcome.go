@@ -38,7 +38,8 @@ func welcomeFor(mode OperatingMode, columns bool, km *keys.Keymap) *coach.Welcom
 		w.Starters = starters(km, actionSelect, actionSquash, actionSplit, keys.NextAction(keys.ObjHunk))
 	default:
 		w.Lead = "Read a revision hunk by hunk. -i opens it to select, squash, and split."
-		w.Starters = starters(km, keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjFile),
+		// space, the read tick, leads: it is the key a reading session presses most.
+		w.Starters = starters(km, keys.ActionRead, keys.NextAction(keys.ObjHunk), keys.NextAction(keys.ObjFile),
 			keys.NextAction("unread"), keys.ActionOnlyUnread, keys.ActionSwitchPane)
 	}
 

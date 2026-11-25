@@ -101,7 +101,7 @@ why when pressed ("u  nothing to undo") instead of doing nothing.
 | `:` | command palette: type a name or a git word (`amend`, `fixup`, `unstage`, `discard`, `stage`) and `enter` runs the jj verb it maps to; `:next` and `:tips off` live here | everywhere |
 | `gm` | the jj commands this session ran: writes, `r` adds the reads, `enter` shows stderr, `Y` copies the line as shell | everywhere |
 | `q` | quit (asks write / discard / stay over a pending selection) | everywhere |
-| `esc` | back out one level: a waiting prefix, visual mode, the file list | everywhere |
+| `esc` | back out one level: a waiting prefix, visual mode, the file list; at the root it never quits, and says `q` does | everywhere |
 | `ctrl+c` | quit now, writing nothing | everywhere |
 
 Every text entry (search, the file filter, the picker's filter, a column's description)
@@ -206,7 +206,7 @@ at its cursor:
 | `-p` | toggle `--parallel`: the new commits become siblings of the revision instead of a chain |
 | `u` / `ctrl+r` | undo / redo a move or a description |
 | `enter` / `c` | apply: `jj split` per non-empty column; empty columns are dropped |
-| `esc` / `q` | back out: visual, then the selection, then the columns, writing nothing. Launched with `--split`, leaving the columns exits jj-diff, asking write / discard / stay first when a hunk has moved |
+| `esc` / `q` | back out: visual, then the selection, then the columns, writing nothing. Launched with `--split`, the columns are the root: `q` exits jj-diff, asking write / discard / stay first when a hunk has moved, and `esc` says so rather than exiting |
 
 ### Conflict viewer
 
@@ -230,7 +230,7 @@ Picks are kept in memory until you write them.
 | `\s` | sides side by side, or stacked |
 | `u` / `ctrl+r` | undo / redo a pick, else the session's last write |
 | `c` / `enter` | write every pick as one `jj resolve` operation |
-| `q` / `esc` | quit, asking first when picks are unwritten |
+| `q` | quit, asking first when picks are unwritten (`esc` never quits a root; it says `q` does) |
 
 The write is `jj resolve -r REV --tool :editor` with jj-diff as the editor, which
 replaces each file with your picks applied. Regions you did not pick keep their

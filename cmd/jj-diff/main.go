@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/keyusage"
@@ -104,7 +105,7 @@ func parseFlags() flags {
 	)
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [options] [LEFT RIGHT]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [LEFT RIGHT]\n\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(
 			os.Stderr,
 			"A TUI for interactive diff viewing and manipulation in Jujutsu (jj)\n\n",
@@ -130,6 +131,10 @@ func parseFlags() flags {
 }
 
 func main() {
+	// An error reads as the program's own line, not a log record: no timestamp, named for what said it.
+	log.SetFlags(0)
+	log.SetPrefix("jj-diff: ")
+
 	f := parseFlags()
 
 	if f.version {

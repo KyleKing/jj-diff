@@ -149,9 +149,17 @@ func (m *Model) columnHeader(col, width int) []string {
 	first, _, _ := strings.Cut(c.descs[col], "\n")
 	name := glyph.Settle(first)
 
+	// A collapsed column is a strip a few cells wide, so its header says what it is in one word
+	// rather than the start of a sentence cut off.
+	strip := m.collapsed(col)
+
 	switch {
+	case col == 0 && strip:
+		name = "source"
 	case col == 0:
 		name = "stays in " + m.source
+	case strip && name == "":
+		name = "new"
 	case focused && c.describing:
 		name = draftLine(c.draft)
 	case name == "":

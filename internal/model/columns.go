@@ -302,7 +302,7 @@ func (m *Model) columnsEdit(action string) (tea.Cmd, bool) {
 	case keys.ActionRedo:
 		m.columnsHistory(&c.redo, &c.undo, "redo")
 	case keys.ActionBack:
-		return m.columnsBack(), true
+		m.columnsBack()
 	case keys.ActionQuit:
 		if m.onlyColumns {
 			return m.quitColumns(), true
@@ -488,9 +488,9 @@ func (m *Model) columnsHistory(from, to *[]columnsSnapshot, word string) {
 	*from = (*from)[:len(*from)-1]
 }
 
-// columnsBack backs out one level: visual, then the selection, then the columns themselves, which
-// for a session launched into them (--split) is leaving the program.
-func (m *Model) columnsBack() tea.Cmd {
+// columnsBack backs out one level: visual, then the selection, then the columns themselves. For a
+// session launched into them (--split) the columns are the root, which esc never leaves; q does.
+func (m *Model) columnsBack() {
 	c := m.cols
 
 	switch {
@@ -499,12 +499,11 @@ func (m *Model) columnsBack() tea.Cmd {
 	case !c.sel.IsEmpty():
 		c.sel = NewSelectionState()
 	case m.onlyColumns:
-		return m.quitColumns()
+		// The columns are this session's root, and esc never quits a root: q does.
+		m.atRoot()
 	default:
 		m.leaveColumns()
 	}
-
-	return nil
 }
 
 // quitColumns leaves a session launched into the columns, asking first when a hunk has moved out
@@ -652,10 +651,17 @@ func (m *Model) splitCommand() string {
 	order = append(order, "1")
 
 	if c.parallel {
-		return strings.Join(args, " ") + " · siblings " + strings.Join(order, " · ")
+		return strings.Join(args, " ") + " · siblings " + strings.Join(order, " · ") + " (each on the source's parent)"
 	}
 
-	return strings.Join(args, " ") + " · chain " + strings.Join(order, " → ")
+	// The arrow reads as "is the parent of": the first column lands nearest the old parent, and 1,
+	// the source, keeps its change ID on top.
+	legend := " (each the parent of the next)"
+	if len(order) == 2 { //nolint:mnd // one new commit and the source
+		legend = fmt.Sprintf(" (%s becomes the parent of 1)", order[0])
+	}
+
+	return strings.Join(args, " ") + " · chain " + strings.Join(order, " → ") + legend
 }
 
 // describeColumnInEditor writes the focused column's description in $EDITOR.

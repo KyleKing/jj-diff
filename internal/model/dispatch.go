@@ -304,7 +304,20 @@ func (m *Model) back() {
 		m.visualAnchor = 0
 	case m.focusedPanel == PanelFileList && len(m.changes) > 0:
 		m.focusedPanel = PanelDiffView
+	default:
+		m.atRoot()
 	}
+}
+
+// atRoot answers esc where there is no level left to back out of. It never quits, since esc pressed
+// to dismiss something already gone would otherwise end the session; it says which key does.
+func (m *Model) atRoot() {
+	where := "quits"
+	if m.returnOnWrite {
+		where = "returns without writing"
+	}
+
+	m.say("nothing to back out of; q "+where, false)
 }
 
 // quit closes the program, asking first where leaving would throw away a selection.

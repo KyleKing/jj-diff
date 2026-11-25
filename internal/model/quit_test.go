@@ -2,6 +2,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -43,21 +44,64 @@ func quits(cmd tea.Cmd) bool {
 	return false
 }
 
-// TestQuit_SplitLaunchExitsOnQAndEsc is a session jojo opens with jj-diff --split: q or esc at the
-// columns' top level leaves the program, rather than dropping to an interactive diff that then needs
-// a second q.
-func TestQuit_SplitLaunchExitsOnQAndEsc(t *testing.T) {
+// TestQuit_SplitLaunchExitsOnQ is a session jojo opens with jj-diff --split: q at the columns' top
+// level leaves the program, rather than dropping to an interactive diff that then needs a second q.
+func TestQuit_SplitLaunchExitsOnQ(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []tea.KeyPressMsg{KeyPress('q'), SpecialKey(tea.KeyEsc)} {
-		t.Run(key.String(), func(t *testing.T) {
+	m := launchedIntoColumns(t)
+
+	_, cmd := m.Update(KeyPress('q'))
+	if !quits(cmd) {
+		t.Errorf("q at the split's top level did not quit (columns open: %v)", m.cols != nil)
+	}
+}
+
+// TestQuit_EscAtTheRootNeverQuits holds esc to one meaning in every mode: back out one level, and at
+// the root say which key quits rather than quit. An esc pressed to dismiss a card that already went
+// must not end the session (or, launched from jojo, drop the split or the picks in progress).
+func TestQuit_EscAtTheRootNeverQuits(t *testing.T) {
+	t.Parallel()
+
+	roots := map[string]func(t *testing.T) *Model{
+		"browse": func(t *testing.T) *Model {
+			t.Helper()
+
+			m := NewTestModel(t, ModeBrowse)
+			m.loaded(TestChanges())
+
+			return m
+		},
+		"interactive": func(t *testing.T) *Model {
+			t.Helper()
+
+			m := NewTestModel(t, ModeInteractive)
+			m.loaded(TestChanges())
+
+			return m
+		},
+		"split launch": launchedIntoColumns,
+		"resolve":      inResolve,
+	}
+
+	for name, open := range roots {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			m := launchedIntoColumns(t)
+			m := open(t)
 
-			_, cmd := m.Update(key)
-			if !quits(cmd) {
-				t.Errorf("%s at the split's top level did not quit (columns open: %v)", key, m.cols != nil)
+			// Enough esc to back out of every level there is, and then some.
+			for range 4 {
+				var cmd tea.Cmd
+
+				_, cmd = m.Update(SpecialKey(tea.KeyEsc))
+				if quits(cmd) {
+					t.Fatal("esc quit the program")
+				}
+			}
+
+			if !strings.Contains(m.notice, "nothing to back out of; q") {
+				t.Errorf("esc at the root does not say which key quits: %q", m.notice)
 			}
 		})
 	}
@@ -95,17 +139,12 @@ func TestQuit_SplitOpenedFromTheDiffStillBacksOut(t *testing.T) {
 	}
 }
 
-// TestQuit_ResolveExitsOnEsc is jj-diff --resolve: esc at its top level leaves, as q does.
-func TestQuit_ResolveExitsOnEsc(t *testing.T) {
+// TestQuit_ResolveAsksOverUnwrittenPicks is jj-diff --resolve: q over an unwritten pick asks first.
+func TestQuit_ResolveAsksOverUnwrittenPicks(t *testing.T) {
 	t.Parallel()
 
-	_, cmd := inResolve(t).Update(SpecialKey(tea.KeyEsc))
-	if !quits(cmd) {
-		t.Error("esc in the conflict viewer did not quit")
-	}
-
-	m := Press(t, inResolve(t), "1", "esc")
+	m := Press(t, inResolve(t), "1", "q")
 	if !m.quitPrompt {
-		t.Error("esc over an unwritten pick quit without asking")
+		t.Error("q over an unwritten pick quit without asking")
 	}
 }

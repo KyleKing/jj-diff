@@ -201,9 +201,11 @@ func (m *Model) resolveGeneral(action string) (tea.Cmd, bool) {
 	case keys.ActionReload:
 		return m.loadConflicts(), true
 	case keys.ActionBack:
-		// The conflict viewer is always launched into (--resolve), so its top level has nothing to
-		// back out to but the shell.
-		return m.quit(), true
+		// The conflict viewer is always launched into (--resolve), so it is the root, and esc never
+		// quits a root: q does.
+		m.atRoot()
+
+		return nil, true
 	}
 
 	return nil, false

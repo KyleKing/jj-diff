@@ -1,4 +1,4 @@
-  Split  jj split -r @ · chain 2 → 3 → 1                                        
+  Split  jj split -r @ · chain 2 → 3 → 1 (each the parent of the next)          
                                                                                 
     1   stays in @              │   2   add   │   3   (no description)          
   3 hunks · +3 −2               │ empty       │ 1 hunk · +1 −0                  
