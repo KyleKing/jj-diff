@@ -149,6 +149,24 @@ cannot skip it. Point a fixture repository's remote at an address that answers
 nothing (`https://127.0.0.1:1/<owner>/<repo>.git`), so a new network call fails at
 once rather than passing on a laptop with credentials and hanging in CI.
 
+A test run from a git hook inherits the hook's repository: git sets `GIT_DIR` (and in a
+linked work tree `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and the rest of
+`git rev-parse --local-env-vars`) before it runs pre-commit or pre-push, and hk runs
+`go test` inside that hook. Every fixture `git init`, `git add`, or `git commit` in a
+temp directory then writes into the repository being pushed: it stages stale files into
+the real index and sets `core.worktree` in `.git/config`. Unset every variable
+`git rev-parse --local-env-vars` prints, plus `GIT_NAMESPACE`, in `TestMain` before any
+test runs. aragonite `hermetic.Main` (v1.31.1 or later) does this and also fails the run
+when the real repository's config, HEAD, refs, or staged entries changed. To check by
+hand, `GIT_DIR=$PWD/.git go test ./...` must pass and leave `git status` and
+`git config --get core.worktree` as they were.
+
+Write a stub executable from a child process
+(`sh -c 'cat > "$1" && chmod 700 "$1"' sh <path>` with the script on stdin), never
+`os.WriteFile` with an exec bit. A parallel test's child forked while the file is open
+for writing holds the descriptor until it execs, and running the stub meanwhile fails
+with "text file busy" (golang/go#22315).
+
 ## TUI testing
 
 A subprocess pipe is not a terminal, so the program detects a non-tty and never renders.

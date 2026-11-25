@@ -20,7 +20,27 @@ exclude = List("**/*.golden")
 local linters = new Mapping<String, Step> {
     ["actionlint"] = Builtins.actionlint
     ["byte-order-marker"] = Builtins.byte_order_marker
-    ["check-added-large-files"] = Builtins.check_added_large_files
+    // Refuses a file over 500 KB that the change adds or modifies, and passes
+    // one already in the base commit. hk 2 selects every tracked file under
+    // `hk check --all` and the builtin now reads binaries, so without the
+    // filter a committed demo gif fails every whole-tree check. The base is
+    // where HEAD meets origin's default branch, falling back to HEAD, so
+    // pre-commit sees the staged files and pre-push and `hk check --all` see
+    // whatever the unpushed commits and the working copy add.
+    ["check-added-large-files"] = (Builtins.check_added_large_files) {
+        check = """
+            base=$(git merge-base HEAD origin/HEAD 2>/dev/null || git rev-parse -q --verify HEAD)
+            set --
+            for f in {{files}}; do
+              if [ -z "$base" ] || [ "$(git rev-parse -q --verify "$base:$f")" != "$(git hash-object -- "$f")" ]; then
+                set -- "$@" "$f"
+              fi
+            done
+            if [ $# -gt 0 ]; then
+              hk util check-added-large-files "$@"
+            fi
+            """
+    }
     ["check-executables-have-shebangs"] = Builtins.check_executables_have_shebangs
     // Parse-only, matching pre-commit's check-json. `Builtins.jq` would also
     // reformat and key-sort every JSON file, which is a different decision.
