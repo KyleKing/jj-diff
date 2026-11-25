@@ -1,3 +1,9 @@
+## v0.15.3 (2026-11-25)
+
+### Fix
+
+- **deps**: aragonite v1.32.0, so the welcome card only closes on the key that dismisses it
+
 ## v0.15.2 (2026-11-25)
 
 ### Fix
