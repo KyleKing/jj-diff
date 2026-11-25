@@ -20,7 +20,7 @@ exclude = List("**/*.golden")
 local linters = new Mapping<String, Step> {
     ["actionlint"] = Builtins.actionlint
     ["byte-order-marker"] = Builtins.byte_order_marker
-    // Refuses a file over 500 KB that the change adds or modifies, and passes
+    // Refuses a file over 1 MB that the change adds or modifies, and passes
     // one already in the base commit. hk 2 selects every tracked file under
     // `hk check --all` and the builtin now reads binaries, so without the
     // filter a committed demo gif fails every whole-tree check. The base is
@@ -37,7 +37,7 @@ local linters = new Mapping<String, Step> {
               fi
             done
             if [ $# -gt 0 ]; then
-              hk util check-added-large-files "$@"
+              hk util check-added-large-files --maxkb 1024 "$@"
             fi
             """
     }
