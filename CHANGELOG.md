@@ -1,3 +1,9 @@
+## v0.19.1 (2026-11-25)
+
+### Fix
+
+- search and the filters close on one esc, as vim's command line does
+
 ## v0.19.0 (2026-11-25)
 
 ### Feat
