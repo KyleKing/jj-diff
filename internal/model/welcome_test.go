@@ -57,8 +57,8 @@ func TestWelcome_Golden(t *testing.T) {
 	}
 }
 
-// Any key takes the card down and still acts, esc only takes it down, the dismissal is saved, and
-// the next launch is not greeted.
+// The help key takes the card down and opens the legend it names, esc only takes it down, the dismissal is
+// saved, and the next launch is not greeted.
 func TestWelcome_AnyKeyDismissesAndActsOnce(t *testing.T) {
 	t.Parallel()
 
@@ -109,5 +109,33 @@ func TestWelcome_ReopensAndFallsBackToALine(t *testing.T) {
 	frame := ansi.Strip(m.render())
 	if strings.Contains(frame, "Welcome to jj-diff") || !strings.Contains(frame, "◇ welcome") {
 		t.Errorf("a 70x14 terminal should carry the card as a footer line:\n%s", frame)
+	}
+}
+
+// TestWelcome_DismissingKeyDoesNotAct is the first keystroke of a first launch: with the card up, S
+// in -i (split the selection out) or space (select) only closes the card, in every mode and at both
+// sizes a terminal opens at, so nothing is selected or opened behind it.
+func TestWelcome_DismissingKeyDoesNotAct(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range frameSizes {
+		for _, key := range []string{"S", "space", "j"} {
+			t.Run(fmt.Sprintf("%s_%dx%d", key, size.w, size.h), func(t *testing.T) {
+				t.Parallel()
+
+				m, _ := firstRun(t, ModeInteractive, size.w, size.h)
+				m.focusedPanel = PanelDiffView
+				m = Press(t, m, key)
+
+				if m.welcome.Showing() {
+					t.Fatalf("%s did not close the card", key)
+				}
+
+				if m.cols != nil || !m.selection.IsEmpty() || m.selectedHunk != 0 || m.lineCursor != 0 {
+					t.Errorf("%s acted behind the card: columns %v, selection empty %v, hunk %d, line %d",
+						key, m.cols != nil, m.selection.IsEmpty(), m.selectedHunk, m.lineCursor)
+				}
+			})
+		}
 	}
 }

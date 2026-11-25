@@ -60,9 +60,10 @@ a command by name.
 ![Moving a hunk into the commit it belongs to with s](docs/images/squash.gif)
 
 The first launch opens on a welcome card of the four or five keys the mode starts with
-(`space` select, `s` squash, `S` split, `]h` next hunk under `-i`; the jumps in browse; select
-and confirm in the diff editor) and where the rest are. Any key closes it and still does what
-it does, `esc` only closes it, it is recorded in `$XDG_STATE_HOME/jj-diff/coach.json` so it never
+(`space` select, `s` squash, `S` split, `]h` next hunk under `-i`; the column moves and `enter`
+under `--split`; the jumps in browse; select and confirm in the diff editor) and where the rest
+are. Any key only closes it, so a first keystroke never writes, except `?` and `:`, which open what
+the card names. It is recorded in `$XDG_STATE_HOME/jj-diff/coach.json` so it never
 shows again on its own, and `:welcome` brings it back. Below 60x16 it is a line in the footer.
 
 ## Keys

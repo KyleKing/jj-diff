@@ -15,23 +15,18 @@ import (
 
 // App is the state directory the marks live under. It is jojo's, not jj-diff's, because jojo is
 // where marks are made and both tools must name one directory for a repository.
-const App = "jojo"
+const App = seen.JJApp
 
 // Open is the store jojo keeps for the jj repository dir is in, whichever workspace or
-// subdirectory dir is: seen.JJRepo resolves every one of them to the repository's own store, which
-// is the path jojo keys its directory by too.
+// subdirectory dir is: aragonite's seen.OpenJJ resolves every one of them to the repository's own
+// store under jojo's state directory (seen.JJApp), which is where jojo and second-look file marks.
 func Open(dir string) (*seen.Store, error) {
-	repo, err := seen.JJRepo(dir)
+	store, err := seen.OpenJJ(dir)
 	if err != nil {
 		return nil, fmt.Errorf("finding the repository for read marks: %w", err)
 	}
 
-	state, err := seen.StateDir(App, "seen", seen.RepoKey(repo))
-	if err != nil {
-		return nil, fmt.Errorf("finding the read-mark directory: %w", err)
-	}
-
-	return seen.Open(state), nil
+	return store, nil
 }
 
 // Hunks is one diff's hunks as the store names them, laid over jj-diff's own parse of it.
