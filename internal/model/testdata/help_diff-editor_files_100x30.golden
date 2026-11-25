@@ -27,4 +27,4 @@
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │
                                              ╰─────────────────────────────────────────────────────╯
-  Diff-Editor   j/k nav   c confirm   tab select hunks   enter diff   f filter   ? help             
+icons  unicode (ARAGONITE_ICONS=unicode) · set JJ_DIFF_ICONS=nerd or ARAGONITE_ICONS=nerd           

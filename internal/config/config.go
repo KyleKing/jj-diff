@@ -5,8 +5,10 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/kyleking/aragonite/tui/coach"
+	"github.com/kyleking/aragonite/tui/icons"
 )
 
 // ViewModeType selects how the two sides of a diff are laid out.
@@ -23,8 +25,9 @@ const (
 // zero-value replacement from DefaultConfig, so callers never build one by hand.
 type Config struct {
 	ViewMode ViewModeType
-	// Icons names the icon set file rows are drawn with: "unicode" (the default, no file icons),
-	// "nerd" for a Nerd Font, or "none". JJ_DIFF_ICONS sets it and ARAGONITE_ICONS overrides it.
+	// Icons names the icon set file rows are drawn with, as JJ_DIFF_ICONS spells it: "auto" or
+	// empty (the default) for Nerd Font icons in a terminal that bundles them and unicode
+	// elsewhere, "nerd", "unicode" (or "plain"), or "none" (or "off"). ExplainIcons resolves it.
 	Icons string
 	// CoachLayout is where the next step shows: the footer's status slot (Inline, the default), or
 	// a labeled band above the footer, which JJ_DIFF_COACH_LAYOUT=band asks for.
@@ -85,7 +88,7 @@ func LoadConfig() Config {
 		cfg.CoachLayout = layout
 	}
 
-	cfg.Icons = os.Getenv("JJ_DIFF_ICONS")
+	cfg.Icons = os.Getenv(IconsEnv)
 
 	if v := os.Getenv("JJ_DIFF_WORD_DIFF"); v != "" {
 		cfg.WordLevelDiff = parseBool(v)
@@ -120,4 +123,31 @@ func (c Config) ToRenderOptions() RenderOptions {
 		TabWidth:        c.TabWidth,
 		WordLevelDiff:   c.WordLevelDiff,
 	}
+}
+
+// IconsEnv names the variable that picks jj-diff's icon set, ahead of aragonite's family-wide
+// icons.EnvOverride (ARAGONITE_ICONS).
+const IconsEnv = "JJ_DIFF_ICONS"
+
+// ExplainIcons resolves the icon set from setting, JJ_DIFF_ICONS's value, and says which input
+// decided it. The more specific wins: JJ_DIFF_ICONS, then ARAGONITE_ICONS, then the terminal
+// (icons.Explain's Auto). A setting that spells auto, or that icons.Parse cannot read, defers to
+// the next input, as icons.Explain does. A Resolution from FromSetting is JJ_DIFF_ICONS's.
+func ExplainIcons(setting string) icons.Resolution {
+	if m, ok := icons.Parse(setting); ok && m != icons.Auto {
+		return icons.Resolution{Mode: m, Source: icons.FromSetting, Detail: strings.TrimSpace(setting)}
+	}
+
+	return icons.Explain("")
+}
+
+// SayIcons is r in a few words, naming the variable that decided it: "nerd (auto: WezTerm)",
+// "none (ARAGONITE_ICONS=off)", or "plain" set through JJ_DIFF_ICONS as
+// "unicode (JJ_DIFF_ICONS=plain)", where icons.Resolution.String would say only "(setting)".
+func SayIcons(r icons.Resolution) string {
+	if r.Source == icons.FromSetting {
+		return r.Mode.String() + " (" + IconsEnv + "=" + r.Detail + ")"
+	}
+
+	return r.String()
 }

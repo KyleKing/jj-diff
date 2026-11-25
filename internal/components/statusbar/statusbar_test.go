@@ -133,7 +133,8 @@ func TestViewWithContext_KeepsEscInAVisualSelection(t *testing.T) {
 	}
 }
 
-// The key wears the accent and its word the muted face, so the two read apart without a colon.
+// The key wears the accent and its word the muted face, so the two read apart without a colon. The
+// space between them is drawn in the word's face, so the cell under it matches the word's.
 func TestViewWithContext_DrawsKeysInTheAccent(t *testing.T) {
 	t.Parallel()
 
@@ -144,7 +145,7 @@ func TestViewWithContext_DrawsKeysInTheAccent(t *testing.T) {
 		t.Errorf("footer %q, want the help key drawn as %q", got, want)
 	}
 
-	if want := theme.Skin.Muted.Render("help"); !strings.Contains(got, want) {
+	if want := theme.Skin.Muted.Render(" help"); !strings.Contains(got, want) {
 		t.Errorf("footer %q, want the help word drawn as %q", got, want)
 	}
 }

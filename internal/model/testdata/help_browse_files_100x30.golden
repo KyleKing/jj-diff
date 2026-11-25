@@ -27,4 +27,4 @@
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │
                                              ╰─────────────────────────────────────────────────────╯
-  Browse  @   j/k nav   enter diff   f filter   / search   ? help                                   
+icons  unicode (ARAGONITE_ICONS=unicode) · set JJ_DIFF_ICONS=nerd or ARAGONITE_ICONS=nerd           

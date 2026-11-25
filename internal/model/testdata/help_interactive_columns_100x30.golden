@@ -27,4 +27,4 @@
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │
                                              ╰─────────────────────────────────────────────────────╯
-  Split  @  ▸ next  2 commits ready · enter apply   h/l column   space select   </> move   ? help   
+icons  unicode (ARAGONITE_ICONS=unicode) · set JJ_DIFF_ICONS=nerd or ARAGONITE_ICONS=nerd           

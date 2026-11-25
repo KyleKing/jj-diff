@@ -1,0 +1,30 @@
+  ── Files 1/3 ──────────────────────────────╭─ keys · 23 of 23 ───────────────────────────────────╮
+  M file1.txt                                │ a key explains itself · / filters                   │
+  A file2.txt                                │ ── General ──────────────────────────────────────── │
+  D file3.txt                                │ ▌ ?       help                                      │
+  ───────────────────────────────────────────│   :       command palette                           │
+▸ L1–4                                       │   q       close, or quit at the root                │
+     1   line 1                              │   esc     back out one level                        │
+     2 ▎ new line                            │   ctrl+c  cancel the running command, else quit     │
+     3   line 2                              │   ctrl+l  reload from the source                    │
+  L11–13                                     │   tab     next pane                                 │
+    11   line 10                             │   gm      messages and the last failure             │
+    12 ▎ another line                        │ ── Move ─────────────────────────────────────────── │
+                                             │   gg      top                                       │
+                                             │   G       bottom                                    │
+                                             │   j/down  down a line                               │
+                                             │   k/up    up a line                                 │
+                                             │   ctrl+d  half a page down                          │
+                                             │   ctrl+u  half a page up                            │
+                                             │   ctrl+f  a page down                               │
+                                             │   ctrl+b  a page up                                 │
+                                             │   ctrl+e  scroll a line down                        │
+                                             │   ctrl+y  scroll a line up                          │
+                                             │   enter   show the file's diff                      │
+                                             │ ── Find ─────────────────────────────────────────── │
+                                             │   /       search                                    │
+                                             │ ── General · ?  help ────────────────────────────── │
+                                             │                                                     │
+                                             │ enter run  / filter  ↑↓ move  esc back              │
+                                             ╰─────────────────────────────────────────────────────╯
+icons  unicode (JJ_DIFF_ICONS=plain) · set JJ_DIFF_ICONS=nerd or unset it                           

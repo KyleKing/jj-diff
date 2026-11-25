@@ -27,4 +27,4 @@
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │
                                              ╰─────────────────────────────────────────────────────╯
-  Interactive  @   j/k move   enter apply   - flags   / filter   esc cancel                         
+icons  unicode (ARAGONITE_ICONS=unicode) · set JJ_DIFF_ICONS=nerd or ARAGONITE_ICONS=nerd           

@@ -791,8 +791,12 @@ func TestRender_ModalsCompositeOverThePanels(t *testing.T) {
 	}{
 		// Search takes the footer's row, so its prompt is what the last line holds.
 		{name: "search", height: 30, footer: "type to search", open: func(m *Model) { m.searchModal.Show() }},
-		// The legend is a drawer down the right edge, which leaves the file list in view.
-		{name: "help", height: 60, open: func(m *Model) { m.openPalette(palette.Browse) }},
+		// The legend is a drawer down the right edge, which leaves the file list in view, and takes
+		// the footer's row to name the icon set.
+		{
+			name: "help", height: 60, footer: "unicode (ARAGONITE_ICONS=unicode)",
+			open: func(m *Model) { m.openPalette(palette.Browse) },
+		},
 	}
 
 	for _, tt := range tests {

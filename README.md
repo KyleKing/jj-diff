@@ -276,10 +276,13 @@ became `za`, `F` merged into `f`, `r` became `ctrl+l`, `d` then `a` became `s` t
 
 ## Fonts
 
-File rows draw only glyphs every monospace font carries by default. With a
-[Nerd Font](https://www.nerdfonts.com/), set `JJ_DIFF_ICONS=nerd` for a filetype icon beside each
-file (`none` drops icons altogether); `ARAGONITE_ICONS` overrides it and is shared with second-look
-and jojo, and no column moves either way. File names and descriptions are drawn with any emoji a
+File rows draw a filetype icon beside each file in a terminal that bundles the
+[Nerd Font](https://www.nerdfonts.com/) symbols (WezTerm, kitty, Ghostty, and tmux started from one),
+and only glyphs every monospace font carries elsewhere. `JJ_DIFF_ICONS` picks a set outright:
+`nerd` (for a patched font in another terminal), `unicode` or `plain`, `none` (no icons), or `auto`
+(the default). It wins over `ARAGONITE_ICONS`, which is shared with second-look and jojo, and no
+column moves either way. The last row under `?` names the set, why, and how to change it:
+`icons  nerd (auto: WezTerm) · set JJ_DIFF_ICONS=plain or ARAGONITE_ICONS=plain`. File names and descriptions are drawn with any emoji a
 terminal may measure differently (a VS16 heart, a Unicode 10+ face) settled to a stable form, so the
 counts beside them stay in their column. Under `NO_COLOR` a changed line's sign bar turns into `+`
 and `−`.

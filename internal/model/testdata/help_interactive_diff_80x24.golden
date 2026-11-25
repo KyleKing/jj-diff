@@ -21,4 +21,4 @@
   ctrl+r  redo · nothing to redo                                                
   ctrl+l  reload from the source        jj diff -r @ --git                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
-  ▸ next  nothing selected yet · space select   v lines   s squash   ? help     
+icons  unicode (ARAGONITE_ICONS=unicode) · JJ_DIFF_ICONS=nerd                   

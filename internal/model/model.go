@@ -12,6 +12,7 @@ import (
 	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/coach"
+	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/launch"
 	"github.com/kyleking/aragonite/tui/palette"
@@ -104,6 +105,8 @@ type Model struct {
 	matcher     *keys.Matcher
 	// pal is the command palette on : and the legend on ?, one list both read.
 	pal *palette.Model
+	// icons is which icon set the file list draws and why, which the legend's last row says.
+	icons icons.Resolution
 	// coach names the next step and, now and then, a key not yet used.
 	coach *coach.Coach[coachState]
 	// ledger is where the coach remembers tips and runs across sessions, nil for none.
@@ -260,6 +263,7 @@ func NewModelWithSource(
 		flags:        keys.NewFlagSet(keys.VerbSquash),
 		built:        time.Now(),
 		band:         cfg.CoachLayout == coach.Band,
+		icons:        config.ExplainIcons(cfg.Icons),
 	}
 
 	if revision, ok := diff.RevisionOf(source); ok {

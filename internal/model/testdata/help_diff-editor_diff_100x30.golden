@@ -27,4 +27,4 @@
                                              │                                                     │
                                              │ enter run  / filter  ↑↓ move  esc back              │
                                              ╰─────────────────────────────────────────────────────╯
-  ▸ next  everything is still kept · space drop   v lines   c confirm   u undo   ]h hunk   ? help   
+icons  unicode (ARAGONITE_ICONS=unicode) · set JJ_DIFF_ICONS=nerd or ARAGONITE_ICONS=nerd           

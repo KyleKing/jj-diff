@@ -6,11 +6,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/palette"
+	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/components/statusbar"
+	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/theme"
 )
 
@@ -110,7 +114,75 @@ func (m *Model) finish(screen string) string {
 	lines := strings.Split(frame, "\n")
 	last := len(lines) - 1
 
-	return strings.Join(append(m.pal.Over(lines[:last], m.width), lines[last]), "\n")
+	// The legend says in the footer's row which icon set the file list draws, why, and how to change
+	// it; the command palette leaves the footer.
+	foot := lines[last]
+	if m.pal.Mode() == palette.Browse {
+		foot = m.iconsLine()
+	}
+
+	return strings.Join(append(m.pal.Over(lines[:last], m.width), foot), "\n")
+}
+
+// iconsLabel heads the legend's icons row.
+const iconsLabel = "icons"
+
+// iconsLine is the row the legend keeps under itself: which icon set the file list draws, why, and
+// how to change it, in the longest wording of the change that fits the width, padded to it. Where
+// none fits, the set and its reason keep their place and the change is cut, so the row never wraps.
+func (m *Model) iconsLine() string {
+	says := config.SayIcons(m.icons)
+	lead := iconsLabel + "  " + says + " · "
+	ways := iconsHow(m.icons)
+
+	how := ways[len(ways)-1]
+	for _, way := range ways {
+		if lipgloss.Width(lead+way) <= m.width {
+			how = way
+
+			break
+		}
+	}
+
+	room := m.width - lipgloss.Width(iconsLabel+"  ")
+	says = table.Truncate(says, room)
+	how = table.Truncate(how, room-lipgloss.Width(says+" · "))
+
+	line := theme.Skin.Key.Render(iconsLabel) + "  " + theme.Skin.Body.Render(says)
+	if how != "" {
+		line += theme.Skin.Muted.Render(" · " + how)
+	}
+
+	// Every row is the frame's width, as the footer it stands in for is.
+	return line + strings.Repeat(" ", max(0, m.width-lipgloss.Width(line)))
+}
+
+// iconsHow are the ways to change the icon set a resolution names, longest first: it suggests the
+// other set worth trying (plain where Nerd icons draw, nerd elsewhere) through JJ_DIFF_ICONS, which
+// wins over ARAGONITE_ICONS, and where JJ_DIFF_ICONS decided, that unsetting it hands the choice back.
+func iconsHow(r icons.Resolution) []string {
+	want := "nerd"
+	if r.Mode == icons.Nerd {
+		want = "plain"
+	}
+
+	mine := config.IconsEnv + "=" + want
+	if r.Source == icons.FromSetting {
+		return []string{
+			"set " + mine + ", or unset it for " + icons.EnvOverride + " or auto",
+			"set " + mine + " or unset it",
+			mine,
+		}
+	}
+
+	family := icons.EnvOverride + "=" + want
+
+	return []string{
+		"set " + mine + " (jj-diff) or " + family + " (every tool)",
+		"set " + mine + " or " + family,
+		mine + " or " + family,
+		mine,
+	}
 }
 
 // fileListHeight is the rows the file list takes: one collapsed, or as many as it has files up to a

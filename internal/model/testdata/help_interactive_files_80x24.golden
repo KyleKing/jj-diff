@@ -21,4 +21,4 @@
   ctrl+r  redo                                                                  
   ctrl+l  reload from the source        jj diff -r @ --git                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
-  Interactive  @   j/k nav   enter diff   f filter   / search   ? help          
+icons  unicode (ARAGONITE_ICONS=unicode) · JJ_DIFF_ICONS=nerd                   
