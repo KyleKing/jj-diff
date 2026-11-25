@@ -1,3 +1,22 @@
+## v0.18.0 (2026-11-25)
+
+### Feat
+
+- every prompt keeps the family contract: enter submits, ctrl+j newline, esc cancels
+- space on the -i file list selects the whole file, and the list names the write keys
+
+### Fix
+
+- a long revision name gives way to the footer's write keys
+- the squash picker counts the cursor's place, not a bare total
+- esc never quits a root, and polish from the dogfood audit
+- u undoes the session's last write, and R asks before discarding lines
+- **deps**: aragonite v1.35.1
+
+### Perf
+
+- the file list lexes only the file the cursor rests on, and once
+
 ## v0.17.0 (2026-11-25)
 
 ### Feat
