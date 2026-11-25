@@ -219,8 +219,12 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 		}
 	}
 
+	// In the file list space selects the whole file, the same tick a level up.
+	tick := keys.Tick(keys.TickSelect)
+	tick.Contexts |= keys.List
+
 	out = append(out,
-		keys.Tick(keys.TickSelect),
+		tick,
 		keys.Binding{
 			Action: keys.ActionVisual, Keys: []string{"v", "V"}, What: "select a range of lines",
 			Short: "lines", Group: groupSelect, Contexts: keys.Select | keys.Split,
@@ -241,19 +245,19 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 	return append(out,
 		keys.Binding{
 			Action: actionSquash, Keys: []string{"s"}, What: "squash the selection into…", Short: "squash",
-			Group: groupWrite, Contexts: keys.Select,
+			Group: groupWrite, Contexts: keys.Select | keys.List,
 		},
 		keys.Binding{
 			Action: actionSplit, Keys: []string{"S"}, What: "split the selection out to a new commit",
-			Short: "split", Group: groupWrite, Contexts: keys.Select,
+			Short: "split", Group: groupWrite, Contexts: keys.Select | keys.List,
 		},
 		keys.Binding{
 			Action: actionRestore, Keys: []string{"R"}, What: "discard the selection from the revision",
-			Short: verbDiscard, Group: groupWrite, Contexts: keys.Select,
+			Short: verbDiscard, Group: groupWrite, Contexts: keys.Select | keys.List,
 		},
 		keys.Binding{
 			Action: actionConfirm, Keys: []string{"c"}, What: "confirm: squash into -d, or apply the split",
-			Short: "confirm", Group: groupWrite, Contexts: keys.Select | keys.Split,
+			Short: "confirm", Group: groupWrite, Contexts: keys.Select | keys.List | keys.Split,
 		},
 		keys.Binding{
 			Action: actionApply, Keys: []string{keyEnter}, What: "apply the split", Short: "apply",
@@ -363,8 +367,13 @@ func (m *Model) footerHints() []keyhint.Hint {
 			hint(actionPick, ""), []keyhint.Hint{{Key: "-", What: "flags"}}, hint(keys.ActionSearch, "filter"),
 			hint(keys.ActionBack, "cancel"))
 	case ctx == keys.List && m.mode == ModeDiffEditor:
-		hints = slices.Concat(lines("nav"), hint(actionConfirm, ""), hint(keys.ActionSwitchPane, "select hunks"),
-			hint(actionOpen, ""), hint(keys.ActionFilter, ""), hint(keys.ActionHelp, ""))
+		hints = slices.Concat(lines("nav"), hint(actionSelect, "keep/drop file"), hint(actionConfirm, ""),
+			hint(keys.ActionSwitchPane, "hunks"), hint(actionOpen, ""), hint(keys.ActionFilter, ""),
+			hint(keys.ActionHelp, ""))
+	case ctx == keys.List && m.mode == ModeInteractive:
+		hints = slices.Concat(lines("nav"), hint(actionSelect, ""), hint(actionSquash, ""),
+			hint(actionSplit, ""), hint(actionRestore, ""), hint(actionOpen, ""), hint(keys.ActionUndo, m.undoWord()),
+			hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))
 	case ctx == keys.List:
 		hints = slices.Concat(lines("nav"),
 			hint(actionOpen, ""), hint(keys.ActionFilter, ""), hint(keys.ActionSearch, ""), hint(keys.ActionHelp, ""))

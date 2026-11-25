@@ -1,7 +1,7 @@
   ── Files 1/3 ──────────────────────────────────────────────────────────────────────────────────── 
-  M file1.txt                                                                                 +2    
-  A file2.txt                                                                                 +2    
-  D file3.txt                                                                                    -2 
+  M   file1.txt                                                                               +2    
+  A   file2.txt                                                                               +2    
+  D   file3.txt                                                                                  -2 
   ───────────────────────────────────────────────────────────────────────────────────────────────── 
 ▸ L1–4                                                                                              
      1   line 1                                                                                     
@@ -27,4 +27,4 @@
                                                                                                     
                                                                                                     
                                                                                                     
-  Interactive  @   j/k nav   enter diff   f filter   / search   ? help                              
+  Interactive  @   j/k nav   space select   s squash   S split   R discard   enter diff   ? help    

@@ -13,8 +13,8 @@ import (
 	"github.com/kyleking/jj-diff/internal/jj"
 )
 
-// target is what a verb acts on: the selection if there is one, else the hunk at the cursor, so a
-// verb on one hunk needs no selecting first.
+// target is what a verb acts on: the selection if there is one, else what the cursor is on (the
+// file in the file list, the hunk in the diff), so a verb on one needs no selecting first.
 func (m *Model) target() (*SelectionState, error) {
 	if !m.selection.IsEmpty() {
 		return m.selection.Clone(), nil
@@ -22,6 +22,10 @@ func (m *Model) target() (*SelectionState, error) {
 
 	if !m.hasCurrentHunk() {
 		return nil, errNothingSelected
+	}
+
+	if m.focusedPanel == PanelFileList {
+		return WholeFile(m.changes[m.selectedFile]), nil
 	}
 
 	return Only(m.changes[m.selectedFile].Path, m.selectedHunk), nil

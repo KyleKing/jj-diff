@@ -193,3 +193,22 @@ func TestDiscard_RepeatAsksAgain(t *testing.T) {
 	press(t, m, "y")
 	repo.AssertFileContent("f.txt", base)
 }
+
+// In the file list, space selects the whole file and R discards all of it; u brings it back.
+func TestDiscard_FromTheFileListTakesTheWholeFile(t *testing.T) {
+	t.Parallel()
+
+	repo := twoHunkWorkingCopy(t)
+
+	// tab back to the list from the diff pane interactive opens on.
+	m := press(t, interactive(t, repo, "@"), "tab", "space", "R")
+	if got := footer(m); !strings.Contains(got, "discard 4 lines from 2 hunks?") {
+		t.Fatalf("R on a file selected from the list does not ask about both hunks: %q", got)
+	}
+
+	m = press(t, m, "y")
+	repo.AssertFileContent("f.txt", base)
+
+	press(t, m, "u")
+	repo.AssertFileContent("f.txt", edited)
+}

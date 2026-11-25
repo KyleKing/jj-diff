@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
+	"github.com/kyleking/jj-diff/internal/components/filelist"
 	"github.com/kyleking/jj-diff/internal/components/statusbar"
 	"github.com/kyleking/jj-diff/internal/config"
 	"github.com/kyleking/jj-diff/internal/theme"
@@ -70,6 +71,7 @@ func (m *Model) render() string {
 	fileListHeight := frame.fileListHeight()
 
 	frame.pushSelectionState()
+	frame.pushPicks()
 	frame.pushSearchState()
 	frame.pushReads()
 
@@ -283,6 +285,22 @@ func (m *Model) pushSelectionState() {
 			return m.selection.IsLineSelected(currentFile.Path, hunkIdx, lineIdx)
 		},
 	)
+}
+
+// pushPicks hands the file list how much of each file is selected, in the modes that select.
+func (m *Model) pushPicks() {
+	if m.mode != ModeInteractive && m.mode != ModeDiffEditor {
+		m.fileList.SetPicks(nil)
+
+		return
+	}
+
+	picks := make([]filelist.Pick, len(m.changes))
+	for i := range m.changes {
+		picks[i] = m.selection.FilePick(m.changes[i])
+	}
+
+	m.fileList.SetPicks(picks)
 }
 
 func (m *Model) pushSearchState() {

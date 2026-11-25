@@ -109,7 +109,7 @@ or on the hunk under the cursor when nothing is selected:
 
 | Key | Action | Mode |
 | --- | --- | --- |
-| `space` | select the hunk, or in visual mode the lines | `-i`, editor |
+| `space` | select the hunk, or in visual mode the lines; on the file list, the whole file (✓ whole, ~ part) | `-i`, editor |
 | `v` / `V` | select a range of lines | `-i`, editor |
 | `~` | invert the selection in the file | `-i`, editor |
 | `u` / `ctrl+r` | undo / redo: the last selection edit, else (in `-i`) the session's last write, by restoring the operation before it | `-i`, editor |
@@ -119,6 +119,9 @@ or on the hunk under the cursor when nothing is selected:
 | `c` | confirm: squash into the `-d` destination, or write and return to jj | `-i`, editor |
 | `.` | repeat the last write on the current selection | `-i` |
 | `-t` `-o` `-A` `-B` `-u` `-k` | in the picker: `--into` / new commit onto, after, before / keep the destination's message / keep the emptied source | `-i` |
+
+`s`, `S`, and `R` act on the selection, else on what the cursor is on: the hunk in the
+diff, or the whole file on the file list.
 
 Every write is a single jj operation (`jj squash`, `jj split`, or `jj restore` with
 jj-diff as the diff editor), so `jj undo` reverses it whole. A split into more than

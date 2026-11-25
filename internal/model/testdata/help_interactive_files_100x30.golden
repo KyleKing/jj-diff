@@ -1,7 +1,7 @@
-  ── Files 1/3 ──────────────────────────────╭─ keys · 26 of 26 ───────────────────────────────────╮
-  M file1.txt                                │ a key explains itself · / filters                   │
-  A file2.txt                                │ ── General ──────────────────────────────────────── │
-  D file3.txt                                │ ▌ ?       help                                      │
+  ── Files 1/3 ──────────────────────────────╭─ keys · 31 of 31 ───────────────────────────────────╮
+  M   file1.txt                              │ a key explains itself · / filters                   │
+  A   file2.txt                              │ ── General ──────────────────────────────────────── │
+  D   file3.txt                              │ ▌ ?       help                                      │
   ───────────────────────────────────────────│   :       command palette                           │
 ▸ L1–4                                       │   q       close, or quit at the root                │
      1   line 1                              │   esc     back out one level                        │

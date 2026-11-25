@@ -1,6 +1,9 @@
 package model
 
-import "github.com/kyleking/jj-diff/internal/diff"
+import (
+	"github.com/kyleking/jj-diff/internal/components/filelist"
+	"github.com/kyleking/jj-diff/internal/diff"
+)
 
 // HunkSelection is one hunk's selection. WholeHunk wins over SelectedLines, and selecting the whole
 // hunk discards the per-line set, so the two are never both meaningful.
@@ -213,6 +216,56 @@ func (s *SelectionState) Invert(file diff.FileChange) {
 func Only(path string, hunkIdx int) *SelectionState {
 	s := NewSelectionState()
 	s.ToggleHunk(path, hunkIdx)
+
+	return s
+}
+
+// FilePick is how much of file the selection holds: none, some of its hunks or lines, or every hunk
+// whole.
+func (s *SelectionState) FilePick(file diff.FileChange) filelist.Pick {
+	whole, some := 0, false
+
+	for idx := range file.Hunks {
+		switch {
+		case s.IsHunkSelected(file.Path, idx):
+			whole++
+		case s.HasPartialSelection(file.Path, idx):
+			some = true
+		}
+	}
+
+	switch {
+	case len(file.Hunks) > 0 && whole == len(file.Hunks):
+		return filelist.PickAll
+	case whole > 0 || some:
+		return filelist.PickSome
+	}
+
+	return filelist.PickNone
+}
+
+// SetFile selects every hunk of file whole, or with on false none of them, dropping any lines picked
+// inside them.
+func (s *SelectionState) SetFile(file diff.FileChange, on bool) {
+	if !on {
+		delete(s.Files, file.Path)
+
+		return
+	}
+
+	hunks := make(map[int]*HunkSelection, len(file.Hunks))
+	for idx := range file.Hunks {
+		hunks[idx] = &HunkSelection{SelectedLines: map[int]bool{}, WholeHunk: true}
+	}
+
+	s.Files[file.Path] = &FileSelection{Hunks: hunks}
+}
+
+// WholeFile is a selection holding every hunk of file, which is what a verb on the file list acts on
+// when nothing is selected.
+func WholeFile(file diff.FileChange) *SelectionState {
+	s := NewSelectionState()
+	s.SetFile(file, true)
 
 	return s
 }

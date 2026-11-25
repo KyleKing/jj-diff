@@ -65,6 +65,21 @@ func (m *Model) listGate(action string) keys.Availability {
 		return m.historyGate(true)
 	}
 
+	switch action {
+	case actionSelect:
+		if !m.hasCurrentHunk() {
+			return keys.Refuse("this file has no hunks to select")
+		}
+	case actionSquash, actionSplit, actionRestore:
+		return m.writeGate()
+	case actionConfirm:
+		if m.mode == ModeDiffEditor {
+			return keys.Allow()
+		}
+
+		return m.writeGate()
+	}
+
 	if len(m.changes) > 0 {
 		return keys.Allow()
 	}

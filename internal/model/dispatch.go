@@ -9,6 +9,7 @@ import (
 	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
+	"github.com/kyleking/jj-diff/internal/components/filelist"
 	"github.com/kyleking/jj-diff/internal/search"
 )
 
@@ -426,6 +427,12 @@ func (m *Model) redoSelection() {
 }
 
 func (m *Model) toggleCurrentSelection() {
+	if m.mode != ModeBrowse && m.focusedPanel == PanelFileList {
+		m.toggleFile()
+
+		return
+	}
+
 	if !m.selectionAllowed() || !m.hasCurrentHunk() {
 		return
 	}
@@ -442,6 +449,18 @@ func (m *Model) toggleCurrentSelection() {
 
 		m.selection.ToggleHunk(path, m.selectedHunk)
 	})
+}
+
+// toggleFile is space on the file list: the whole file in, or, when every hunk of it already is, out.
+func (m *Model) toggleFile() {
+	if !m.hasCurrentHunk() {
+		return
+	}
+
+	file := m.changes[m.selectedFile]
+	on := m.selection.FilePick(file) != filelist.PickAll
+
+	m.edit(func() { m.selection.SetFile(file, on) })
 }
 
 func (m *Model) invertSelection() {

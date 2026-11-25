@@ -39,6 +39,8 @@ type Model struct {
 	filterQuery string
 	files       []diff.FileChange
 	counts      []changeCounts
+	// picks is the selection drawn beside each file, off unless SetPicks turned it on.
+	picks picks
 	// reads is the read state drawn beside each file, off unless SetReads turned it on.
 	reads        reads
 	selected     int
@@ -177,6 +179,7 @@ type drawKey struct {
 	filterMode  bool
 	onlyUnread  bool
 	reads       uint64
+	picks       uint64
 }
 
 func (m *Model) drawKey(width, height int) drawKey {
@@ -184,6 +187,7 @@ func (m *Model) drawKey(width, height int) drawKey {
 		filterQuery: m.filterQuery, generation: theme.Generation(), count: len(m.files),
 		selected: m.selected, scroll: m.scrollOffset, width: width, height: height,
 		expanded: m.expanded, filterMode: m.filterMode, onlyUnread: m.onlyUnread, reads: m.reads.generation,
+		picks: m.picks.generation,
 	}
 
 	if len(m.files) > 0 {
@@ -388,6 +392,8 @@ type rowKey struct {
 	selected bool
 	reads    bool
 	read     bool
+	picks    bool
+	pick     Pick
 }
 
 // renderRow draws one file's row, reusing the row drawn for the same file, layout, and selection,
@@ -396,7 +402,7 @@ type rowKey struct {
 func (m *Model) renderRow(originalIdx int, layout columnLayout) string {
 	key := rowKey{
 		layout: layout, index: originalIdx, selected: originalIdx == m.selected,
-		reads: m.reads.on, read: m.reads.fileRead(originalIdx),
+		reads: m.reads.on, read: m.reads.fileRead(originalIdx), picks: m.picks.on, pick: m.picks.at(originalIdx),
 	}
 
 	if m.drawn != nil {
@@ -428,7 +434,8 @@ func (m *Model) drawRow(originalIdx int, layout columnLayout) string {
 	base := lipgloss.NewStyle()
 	right := m.counts[originalIdx].render(&base, layout.addWidth, layout.delWidth) +
 		strings.Repeat(" ", rightPad)
-	lead := strings.Repeat(" ", margin) + statusCell(file.ChangeType, &base) + " " + m.reads.cell(originalIdx, &base)
+	lead := strings.Repeat(" ", margin) + statusCell(file.ChangeType, &base) + " " +
+		m.picks.cell(originalIdx, &base) + m.reads.cell(originalIdx, &base)
 	room := layout.width - lipgloss.Width(lead) - lipgloss.Width(right) - len(headingGap)
 	row := fitRow(lead+pathCell(file.Path, max(room, 0), &base, selected), right, layout.width, &base)
 
