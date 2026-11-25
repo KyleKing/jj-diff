@@ -1,3 +1,9 @@
+## v0.15.2 (2026-11-25)
+
+### Fix
+
+- return to the launcher once a --split or --resolve write lands
+
 ## v0.15.1 (2026-11-24)
 
 ### Fix
