@@ -17,7 +17,7 @@ jj-diff/
 │   ├── jj/               # jj CLI integration
 │   ├── diff/             # Diff parsing and patch generation
 │   ├── conflict/         # Snapshot-style conflict markers: parse, pick, write back
-│   ├── reads/            # jojo's read marks, shown read-only on a revision
+│   ├── reads/            # the shared read marks: shown on a revision, marked in browse
 │   ├── search/           # Search functionality
 │   ├── fuzzy/            # Fuzzy matching
 │   ├── components/       # UI components (filelist, diffview, modals)
@@ -116,8 +116,9 @@ second-look and jojo use:
 
 **Read marks** (`internal/reads`, `internal/model/reads.go`)
 
-jojo marks hunks read and jj-diff shows them, read-only, on a revision in browse or interactive
-mode. The two must name one directory and one id per hunk, so nothing is jj-diff's own:
+jj-diff shows the read marks jojo and second-look keep on a revision in browse or interactive
+mode, and browse's `␣` (aragonite's read tick) marks the hunk under the cursor in the same store.
+The tools must name one directory and one id per hunk, so nothing is jj-diff's own:
 
 - The directory is `seen.StateDir("jojo", "seen", seen.RepoKey(repo))`, where `repo` is
   aragonite's `seen.JJRepo(cwd)`: the nearest `.jj` above the working directory, followed through
@@ -135,8 +136,11 @@ mode. The two must name one directory and one id per hunk, so nothing is jj-diff
 - The change id and the diff load as two commands, so the first frame waits on neither; marks
   appear once both have arrived. Every message runs one `stat` of the scope's file, and a changed
   modification time or size rereads it (`Marks.Refresh`), with focus reporting turned on so a
-  terminal regaining focus is a message. Nothing in jj-diff writes a mark, which is why `␣` can
-  keep meaning select
+  terminal regaining focus is a message
+- Browse's `␣` writes through `Marks.Toggle`, which is aragonite's `seen.Store.Mark`: it saves
+  under the save lock at once, merging what another process saved meanwhile, and keeps marks only
+  for the hunks of the whole diff `reads.Map` parsed, never a filtered view of it. `-i` and the
+  split columns keep `␣` on select (aragonite's select tick), so a selection never marks
 - The diff editor and the conflict viewer have no change to scope marks by and show none; their
   keymaps bind no `]u`. Where marks show, `]u` / `[u` are also bound on the file list, the screen
   a session opens on

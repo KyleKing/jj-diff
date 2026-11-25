@@ -83,6 +83,7 @@ why when pressed ("u  nothing to undo") instead of doing nothing.
 | `j`/`k`, `ctrl+d`/`ctrl+u`, `ctrl+f`/`ctrl+b`, `ctrl+e`/`ctrl+y` | line, half page, page, scroll a line | everywhere |
 | `gg` / `G` | top / bottom (first / last file in the list) | everywhere |
 | `]h` / `[h` | next / previous hunk | diff |
+| `space` | browse: mark the hunk read, or unread again, in the marks jojo and second-look share (a revision with read marks; `-i` and the split columns keep `space` on select) | diff |
 | `]f` / `[f` | next / previous file | diff |
 | `]u` / `[u` | next / previous unread hunk, across files, wrapping (a revision with read marks) | file list, diff |
 | `U` | only what is unread: read hunks shrink to their header (the one under the cursor stays whole) and files read whole leave the list; again shows everything (a revision with read marks) | file list, diff |
@@ -129,21 +130,23 @@ undo undoes it`), and `gm` lists every one.
 
 ### Read marks
 
-A revision viewed with `-r` (browse or `-i`) shows which hunks you have marked read
-in [jojo](https://github.com/KyleKing/jj-tui): a muted `▰` (the cell jojo's read strip
+A revision viewed with `-r` (browse or `-i`) shows which hunks you have marked read,
+here or in [jojo](https://github.com/KyleKing/jj-tui) or second-look: a muted `▰` (the cell jojo's read strip
 fills) leads each read hunk's header, a file read whole carries one in the file list,
 the heading counts the file's unread hunks, and the Files rule the revision's. `]u` /
 `[u` step to the next or previous unread hunk, and `U` shrinks what is read to its
 one-line header until pressed again. That is intended: the header keeps the hunk's place
 and range in view, so the read hunks stay countable and `]h` can still land on one, where
-hiding them outright would make the diff's numbering jump. The marks are jojo's and jj-diff only shows them: `space` keeps meaning select,
-and marking a hunk read happens in jojo.
+hiding them outright would make the diff's numbering jump. In browse `space` marks the hunk
+under the cursor read, or unread when it already is, and saves it at once, so jojo and
+second-look show it on their next look; the footer names it `space read`. In `-i` and the split
+columns `space` stays select (`space select` in the footer) and never marks.
 
 Read is never a check, because in `-i` a selected hunk ends its header in a green `✓`.
 A hunk that is both reads `▰ name  L1–4 ✓`: the read cell leads the section, the
 selection's check follows the range, and the two differ in shape, not only in color.
 
-Both tools read one directory per repository,
+Every tool reads and writes one directory per repository,
 `$XDG_STATE_HOME/jojo/seen/<repo>-<hash>/` (else `~/.local/state/...`), keyed by the
 repository's store, so every workspace of a repository shares its marks, and marks are
 filed by the full change id with hunks named by their text, so a mark survives a rebase and
@@ -153,7 +156,7 @@ tool opens the change, since that prefix grows once another change shares it. Th
 disk, checked with one `stat` per keypress or when the terminal regains focus, so a
 hunk marked in jojo shows here without a reload. As jj's diff editor
 (`--tool jj-diff`) there are two directories and no change to file marks under, so
-nothing is shown.
+nothing is shown, and outside a jj repository browse's `space` says why it cannot mark.
 
 ### What next, and tips
 

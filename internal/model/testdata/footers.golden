@@ -1,7 +1,7 @@
 browse_diff 80x24
   Browse  @   j/k scroll   ]h hunk   ]f file   w ws   \s sbs   ? help           
 browse_diff 100x30
-  Browse  @   j/k scroll   ]h hunk   ]f file   w ws   \s sbs   ? help                               
+  Browse  @   j/k scroll   space read   ]h hunk   ]f file   w ws   \s sbs   ? help                  
 browse_files 80x24
   Browse  @   j/k nav   enter diff   f filter   / search   ? help               
 browse_files 100x30

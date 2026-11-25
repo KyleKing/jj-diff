@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/keys"
@@ -9,8 +11,9 @@ import (
 	"github.com/kyleking/jj-diff/internal/reads"
 )
 
-// Read marks are jojo's: jojo marks hunks read and jj-diff shows them, read-only, on a revision.
-// `␣` keeps meaning select here, so nothing in jj-diff writes a mark.
+// Read marks are shared with jojo and second-look: browse's `␣` marks the hunk under the cursor read
+// in the same store, and every mode that views a revision shows them. `-i` and the split columns
+// keep `␣` on select and never mark.
 
 // scopeMsg is the change id the revision names, which its marks are filed under, and what moving
 // marks an older jojo filed under a prefix of it answered.
@@ -212,6 +215,43 @@ func (m *Model) unreadGate() keys.Availability {
 		return keys.Refuse("read marks are still loading")
 	case m.marks.Unread() == 0:
 		return keys.Refuse("every hunk is read")
+	}
+
+	return keys.Allow()
+}
+
+// markRead is browse's space: the hunk under the cursor goes read, or unread when it already is,
+// written to the shared store at once.
+func (m *Model) markRead() {
+	read, err := m.marks.Toggle(m.selectedFile, m.selectedHunk)
+	if err != nil {
+		m.say(err.Error(), true)
+
+		return
+	}
+
+	m.syncReads()
+	m.pushReads()
+
+	word := "unread"
+	if read {
+		word = "read"
+	}
+
+	m.say(fmt.Sprintf("hunk %d marked %s", m.selectedHunk+1, word), false)
+}
+
+// readGate refuses space where no mark can be kept: no store or change id (the diff editor sees two
+// directories, and a directory outside a jj repository has no store), marks still loading, or no
+// hunk under the cursor.
+func (m *Model) readGate() keys.Availability {
+	switch {
+	case !m.marks.On():
+		return keys.Refuse("read marks need a revision in a jj repository")
+	case !m.marks.Ready():
+		return keys.Refuse("read marks are still loading")
+	case m.selectedFile < 0 || m.selectedFile >= len(m.changes) || len(m.changes[m.selectedFile].Hunks) == 0:
+		return keys.Refuse("no hunk under the cursor")
 	}
 
 	return keys.Allow()

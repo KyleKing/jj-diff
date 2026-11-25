@@ -229,6 +229,8 @@ func (m *Model) viewAction(action string) bool {
 		m.frame(diffview.FrameBottom)
 	case keys.ActionOnlyUnread:
 		m.toggleOnlyUnread()
+	case keys.ActionRead:
+		m.markRead()
 	default:
 		return false
 	}

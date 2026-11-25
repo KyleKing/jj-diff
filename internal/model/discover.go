@@ -90,7 +90,11 @@ func (m *Model) about() map[string]palette.About {
 			Also:  words("unstage / discard / revert / checkout / drop"),
 			Prose: []string{"Takes the selection out of the revision; jj undo brings it back."},
 		},
-		actionSelect:  {Also: words("stage / add / pick / mark")},
+		actionSelect: {Also: words("stage / add / pick")},
+		keys.ActionRead: {
+			Also:  words("mark / reviewed / viewed / seen / unread"),
+			Prose: []string{"Marks the hunk read in the store jojo and second-look share; again unmarks it."},
+		},
 		actionInvert:  {Also: words("toggle all / flip")},
 		actionConfirm: confirm,
 		actionApply: map[bool]palette.About{

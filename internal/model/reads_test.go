@@ -413,3 +413,62 @@ func TestReads_OnlyUnreadRefusedWithNothingUnread(t *testing.T) {
 		t.Errorf("U with nothing unread: only unread %t, said %q", m.onlyUnread, m.notice)
 	}
 }
+
+// Space in browse is the read tick: it marks the hunk under the cursor in the shared store at once,
+// and again unmarks it. It never selects.
+func TestReads_BrowseSpaceMarksTheHunkInTheStore(t *testing.T) {
+	t.Parallel()
+
+	m, dir := readsModelWith(t, ModeBrowse)
+	m.focusedPanel = PanelDiffView
+	live := seen.Parse([]byte(readsPatch))
+
+	m = Press(t, m, "space")
+
+	if seen.Open(dir).Unread(readsScope, string(live[0].ID)) {
+		t.Fatal("space did not save the hunk read")
+	}
+
+	if !m.marks.Read(0, 0) || m.selection.IsHunkSelected(m.changes[0].Path, 0) {
+		t.Errorf("after space: read %t, selected %t; want read and not selected",
+			m.marks.Read(0, 0), m.selection.IsHunkSelected(m.changes[0].Path, 0))
+	}
+
+	Press(t, m, "space")
+
+	if !seen.Open(dir).Unread(readsScope, string(live[0].ID)) {
+		t.Error("space on a read hunk did not unmark it")
+	}
+}
+
+// -i keeps space on select: the same key over the same marks selects and writes nothing.
+func TestReads_InteractiveSpaceSelectsAndNeverMarks(t *testing.T) {
+	t.Parallel()
+
+	m, dir := readsModelWith(t, ModeInteractive)
+	m.focusedPanel = PanelDiffView
+	live := seen.Parse([]byte(readsPatch))
+
+	m = Press(t, m, "space")
+
+	if !m.selection.IsHunkSelected(m.changes[0].Path, 0) {
+		t.Error("space in -i did not select the hunk")
+	}
+
+	if !seen.Open(dir).Unread(readsScope, string(live[0].ID)) {
+		t.Error("space in -i marked the hunk read")
+	}
+}
+
+// Without a store (a directory outside a jj repository) browse keeps space bound and refuses it
+// with the reason, rather than leaving the key dead.
+func TestReads_BrowseSpaceRefusesWithoutAStore(t *testing.T) {
+	t.Parallel()
+
+	m := NewTestModel(t, ModeBrowse)
+	m.focusedPanel = PanelDiffView
+
+	if a := m.gate(keys.ActionRead); a.OK || !strings.Contains(a.Why, "jj repository") {
+		t.Errorf("gate(read) = %+v, want a refusal naming the repository", a)
+	}
+}

@@ -10,7 +10,7 @@ import (
 // Actions jj-diff adds to the shared vocabulary. The shared ones keep aragonite's names, so a rebind
 // written for jojo or second-look means the same thing here.
 const (
-	actionSelect  = "select"
+	actionSelect  = keys.ActionSelect
 	actionInvert  = "invert"
 	actionSquash  = "squash"
 	actionSplit   = "split"
@@ -117,6 +117,12 @@ func sharedBindings(mode OperatingMode, reads bool) []keys.Binding {
 		drop = slices.DeleteFunc(drop, func(a string) bool { return a == keys.ActionOnlyUnread })
 	}
 
+	// Browse is the one mode whose space is the read tick: -i and the split columns keep it on select
+	// and never mark. Read stays bound in browse without marks too, refused by the gate with a reason.
+	if mode == ModeBrowse {
+		drop = slices.DeleteFunc(drop, func(a string) bool { return a == keys.ActionRead })
+	}
+
 	for _, o := range keys.Objects() {
 		if !slices.Contains(supportedObjects(mode, reads), o.Noun) {
 			drop = append(drop, keys.NextAction(o.Noun), keys.PrevAction(o.Noun))
@@ -211,10 +217,7 @@ func toolBindings(mode OperatingMode) []keys.Binding {
 	}
 
 	out = append(out,
-		keys.Binding{
-			Action: actionSelect, Keys: []string{"space"}, What: "select the hunk, or in visual the lines",
-			Short: "select", Group: groupSelect, Contexts: keys.Select | keys.Split,
-		},
+		keys.Tick(keys.TickSelect),
 		keys.Binding{
 			Action: keys.ActionVisual, Keys: []string{"v", "V"}, What: "select a range of lines",
 			Short: "lines", Group: groupSelect, Contexts: keys.Select | keys.Split,
@@ -370,7 +373,8 @@ func (m *Model) footerHints() []keyhint.Hint {
 		hints = slices.Concat(hint(actionSelect, ""), hint(keys.ActionVisual, ""), hint(actionSquash, ""),
 			hint(actionSplit, ""), hint(actionRestore, ""), hint(keys.ActionUndo, ""), hint(keys.ActionHelp, ""))
 	default:
-		hints = slices.Concat(lines("scroll"),
+		// The tick leads after the motion, so the footer names what space does here at every width.
+		hints = slices.Concat(lines("scroll"), hint(keys.ActionRead, ""),
 			hint(keys.NextAction(keys.ObjHunk), ""), hint(keys.NextAction(keys.ObjUnread), ""),
 			hint(keys.ActionOnlyUnread, m.onlyUnreadWord()), hint(keys.NextAction(keys.ObjFile), ""),
 			hint(keys.ActionWhitespace, ""), hint(keys.ActionViewSideBySide, ""), hint(keys.ActionHelp, ""))

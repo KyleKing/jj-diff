@@ -1,9 +1,11 @@
-// Package reads shows which hunks of a revision jojo's reader has marked read. It opens the store
-// jojo writes, names jj-diff's hunks by the same content hash, and answers per hunk, per file, and
-// for the whole revision. Nothing here writes a mark: jj-diff only shows them.
+// Package reads keeps which hunks of a revision have been read, in the store jojo and second-look
+// share. It opens that store, names jj-diff's hunks by the same content hash, answers per hunk, per
+// file, and for the whole revision, and marks a hunk read or unread there (Toggle), so a mark made
+// in any of the three tools shows in the other two.
 package reads
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -13,8 +15,8 @@ import (
 	"github.com/kyleking/jj-diff/internal/diff"
 )
 
-// App is the state directory the marks live under. It is jojo's, not jj-diff's, because jojo is
-// where marks are made and both tools must name one directory for a repository.
+// App is the state directory the marks live under. It is jojo's, not jj-diff's, because every tool
+// that marks must name one directory for a repository.
 const App = seen.JJApp
 
 // Open is the store jojo keeps for the jj repository dir is in, whichever workspace or
@@ -34,6 +36,8 @@ type Hunks struct {
 	// ids is [file][hunk] in the order of the changes Map was given, empty for a file whose hunks
 	// could not be paired, which then draws no marks rather than wrong ones.
 	ids [][]seen.ID
+	// live is every hunk of the diff as the store parsed it, which a save keeps marks for.
+	live []seen.Ref
 }
 
 // Map names every hunk of changes, which jj-diff parsed from gitDiff, by the id jojo gives it.
@@ -41,12 +45,13 @@ type Hunks struct {
 // parsers read differently is left unnamed.
 func Map(gitDiff string, changes []diff.FileChange) Hunks {
 	byPath := map[string][]seen.ID{}
+	live := seen.Parse([]byte(gitDiff))
 
-	for _, r := range seen.Parse([]byte(gitDiff)) {
+	for _, r := range live {
 		byPath[r.Path] = append(byPath[r.Path], r.ID)
 	}
 
-	out := Hunks{ids: make([][]seen.ID, len(changes))}
+	out := Hunks{ids: make([][]seen.ID, len(changes)), live: live}
 
 	for i := range changes {
 		if ids := byPath[changes[i].Path]; len(ids) == len(changes[i].Hunks) {
@@ -210,4 +215,27 @@ func (k *Marks) Unread() int {
 	}
 
 	return n
+}
+
+// ErrUnnamed refuses a mark on a hunk the store has no name for: one in a file the two parsers read
+// differently, or a diff still loading.
+var ErrUnnamed = errors.New("this hunk has no read-mark name")
+
+// Toggle marks hunk h of file f read, or unread when it already is, and saves the scope at once so
+// jojo and second-look see it before the next keystroke. It reports what the hunk is now. The save
+// keeps marks only for hunks this revision's diff still carries, which is the whole diff Map named,
+// never a filtered view of it. The caller's next Refresh picks up the file the save rewrote.
+func (k *Marks) Toggle(f, h int) (bool, error) {
+	id, ok := k.hunks.ID(f, h)
+	if !k.Ready() || !ok {
+		return false, ErrUnnamed
+	}
+
+	read := !k.Read(f, h)
+
+	if err := k.store.Mark(k.scope, read, k.hunks.live, id); err != nil {
+		return !read, fmt.Errorf("saving the read mark: %w", err)
+	}
+
+	return read, nil
 }

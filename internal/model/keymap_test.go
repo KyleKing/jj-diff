@@ -34,9 +34,14 @@ func TestKeymap_AgreesWithShared(t *testing.T) {
 		}
 
 		for _, reads := range []bool{false, true} {
-			if _, err := keys.Merge(sharedBindings(mode, reads), toolBindings(mode), nil); err != nil {
+			km, err := keys.Merge(sharedBindings(mode, reads), toolBindings(mode), nil)
+			if err != nil {
 				t.Errorf("%s (reads %t): %v", modeName(mode), reads, err)
+
+				continue
 			}
+
+			keys.RequireReserved(t, km)
 		}
 	}
 }
