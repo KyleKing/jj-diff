@@ -4,6 +4,7 @@
 package statusbar
 
 import (
+	"math"
 	"slices"
 	"strings"
 
@@ -206,7 +207,10 @@ func facts(ctx *Context, width int) string {
 
 	parts := []string{mode}
 	if ctx.Source != "" {
-		source := ellipsize(ctx.Source, max(width/sourceShare-margin, minSourceWidth))
+		// The revision's name gives way to the keys a reader acts with: it keeps at most its share,
+		// less whatever the leading hints need to be drawn beside it.
+		room := width - margin - lipgloss.Width(mode) - len(factGap) - len(partGap) - leadingHints(ctx.Hints)
+		source := ellipsize(ctx.Source, max(min(width/sourceShare-margin, room), minSourceWidth))
 		parts = append(parts, theme.Skin.Muted.Render(source))
 	}
 
@@ -215,6 +219,24 @@ func facts(ctx *Context, width int) string {
 	}
 
 	return strings.Join(parts, factGap)
+}
+
+// keptHints is how many of the footer's most useful hints the revision's name makes room for.
+const keptHints = 5
+
+// leadingHints is the width the keptHints most useful hints and the pinned one take drawn together.
+func leadingHints(hints []keyhint.Hint) int {
+	byUse := slices.Clone(hints)
+	slices.SortStableFunc(byUse, func(a, b keyhint.Hint) int { return b.Priority - a.Priority })
+
+	keep := make([]keyhint.Hint, 0, keptHints+1)
+	for i, h := range byUse {
+		if i < keptHints || h.Pin {
+			keep = append(keep, h)
+		}
+	}
+
+	return lipgloss.Width(keyhint.Fit(hintStyles(), keep, math.MaxInt32))
 }
 
 // ellipsize cuts text to at most width display cells, ending in an ellipsis when it cut.

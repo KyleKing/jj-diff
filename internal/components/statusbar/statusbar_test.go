@@ -183,3 +183,24 @@ func ansiless(s string) string {
 
 	return b.String()
 }
+
+// A long revision name gives way to the footer's leading keys: at 80 and 120 columns the first hints
+// after the motion are drawn, and the name is cut instead.
+func TestViewWithContext_LongSourceYieldsToTheLeadingHints(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{80, 120} {
+		ctx := statusbar.Context{
+			Mode:   "Interactive",
+			Source: "swktoryx refactor: rename err to errv across internal (big diff)",
+			Hints:  hints("j/k", "nav", "space", "select", "s", "squash", "?", "help"),
+		}
+
+		line := ansiless(statusbar.New().ViewWithContext(width, &ctx))
+		for _, want := range []string{"space select", "s squash", "? help"} {
+			if !strings.Contains(line, want) {
+				t.Errorf("at %d the footer dropped %q for the revision's name: %q", width, want, line)
+			}
+		}
+	}
+}
