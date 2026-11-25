@@ -36,9 +36,10 @@ type Config struct {
 	ShowWhitespace  bool
 	ShowLineNumbers bool
 	WordLevelDiff   bool
-	// Vim is the vim layer on every text prompt (a column's description, search, the filters): the
-	// prompt opens in insert mode, esc goes to normal mode, and esc again cancels. JJ_DIFF_VIM=off
-	// leaves plain editing under the same enter, ctrl+j, and esc contract, where esc cancels at once.
+	// Vim is the vim layer on prose prompts (a column's description): the field opens in insert
+	// mode, esc goes to normal mode, and esc again cancels. JJ_DIFF_VIM=off leaves plain editing
+	// under the same enter, ctrl+j, and esc contract, where esc cancels at once. The one-line boxes
+	// (search, the filters) never take the layer, so one esc closes them either way.
 	Vim bool
 }
 
@@ -47,7 +48,7 @@ const defaultTabWidth = 4
 
 // DefaultConfig returns the settings that apply when no environment variable is
 // set: unified layout, line numbers on, whitespace and word-level diff off, tabs
-// four columns wide, and the vim layer on in every prompt.
+// four columns wide, and the vim layer on in prose prompts.
 func DefaultConfig() Config {
 	return Config{
 		ViewMode:        ViewModeUnified,

@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/palette"
-	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/components/diffview"
 	"github.com/kyleking/jj-diff/internal/components/filelist"
@@ -136,7 +135,7 @@ func (m *Model) verb(action string) tea.Cmd {
 	case keys.ActionFilter:
 		m.focusedPanel = PanelFileList
 		m.fileList.SetFilterMode(true)
-		m.openPrompt(promptFilter, "", vimtext.WithOneLine())
+		m.openLinePrompt(promptFilter, "")
 		m.fileList.SetFilterField(m.prompt)
 	case keys.ActionUndo:
 		return m.undoAction()
@@ -616,5 +615,5 @@ func (m *Model) enterSearchMode() {
 		FocusedPanel: int(m.focusedPanel),
 	})
 	m.searchModal.Show()
-	m.openPrompt(promptSearch, "", vimtext.WithOneLine())
+	m.openLinePrompt(promptSearch, "")
 }

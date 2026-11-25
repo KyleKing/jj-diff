@@ -11,10 +11,12 @@ import (
 )
 
 // Every text entry is an aragonite vimtext field keeping the family's contract: enter submits in
-// every mode, ctrl+j (or alt+enter) starts a new line where the text can hold one, and esc backs out
-// one level, insert to normal and normal to canceled. The field opens in insert mode with the cursor
-// at the end, so typing needs no vim at all, and JJ_DIFF_VIM=off drops the modal layer for plain
-// editing where esc cancels at once. The footer says the contract while a prompt has the keys.
+// every mode, ctrl+j (or alt+enter) starts a new line where the text can hold one, and esc backs out.
+// Prose (a column's description) has the vim layer: it opens in insert mode with the cursor at the
+// end, so typing needs no vim at all, esc goes to normal mode, and esc again cancels; JJ_DIFF_VIM=off
+// drops the layer. A one-line box (search, the filters) is never modal and closes on one esc, as
+// vim's own command line does, which keeps it in step with second-look. The footer says the
+// contract while a prompt has the keys.
 //
 // The prompts, by the ID their field carries.
 const (
@@ -39,6 +41,12 @@ func (m *Model) openPrompt(id, value string, opts ...vimtext.Option) {
 		vimtext.WithStyles(vimtext.StylesFor(&theme.Skin)))
 
 	m.prompt = vimtext.New(value, append(all, opts...)...)
+}
+
+// openLinePrompt gives the keys to a one-line box: plain editing, with no modal layer whatever
+// JJ_DIFF_VIM says, so one esc closes it.
+func (m *Model) openLinePrompt(id, value string) {
+	m.openPrompt(id, value, vimtext.WithOneLine(), vimtext.WithVim(false))
 }
 
 // handlePromptKey gives a key to the open field. The field never takes ctrl+c, so it quits from

@@ -8,7 +8,6 @@ import (
 	"github.com/kyleking/aragonite/trail"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/keys"
-	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/jj-diff/internal/diff"
 	"github.com/kyleking/jj-diff/internal/jj"
@@ -159,7 +158,7 @@ func (m *Model) pickerAction(action string) tea.Cmd {
 	case keys.ActionBottom:
 		m.picker.Bottom()
 	case keys.ActionSearch:
-		m.openPrompt(promptPick, m.picker.Query(), vimtext.WithOneLine())
+		m.openLinePrompt(promptPick, m.picker.Query())
 		m.picker.StartFilter(m.prompt)
 	case keys.ActionBack, keys.ActionQuit:
 		m.picker.Hide()

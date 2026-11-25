@@ -49,9 +49,10 @@ var openers = []struct {
 	name string
 	// submit is what enter does here, in the footer's word.
 	submit string
-	multi  bool
+	// modal is a prose field with the vim layer; a one-line box is plain and closes on one esc.
+	modal bool
 }{
-	{name: "describe", submit: "set", multi: true, open: func(t *testing.T, vim bool) *Model {
+	{name: "describe", submit: "set", modal: true, open: func(t *testing.T, vim bool) *Model {
 		t.Helper()
 
 		m := inColumns(t)
@@ -102,28 +103,34 @@ func inPicker(t *testing.T, vim bool) *Model {
 	return m
 }
 
-// While a prompt has the keys, the footer says the contract in the field's words: the mode's badge,
-// enter named for what it does here, ctrl+j where a newline means something, and esc, which leaves
-// insert for normal mode and cancels from there. With the vim layer off there is no badge and esc
-// cancels at once.
+// While a prompt has the keys, the footer says the contract in the field's words: enter named for
+// what it does here, ctrl+j where a newline means something, and esc. A prose field adds the mode's
+// badge, and its esc leaves insert for normal mode and cancels from there. A one-line box, and any
+// field with the vim layer off, has no badge and cancels on esc at once.
 func TestPrompt_FooterSaysTheContract(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range openers {
 		for _, width := range []int{80, 120} {
-			m := Update(t, tc.open(t, true), tea.WindowSizeMsg{Width: width, Height: 24})
-			footHas(t, tc.name+" insert", width, lastRow(m), tc.multi,
-				"INSERT", "⏎ "+tc.submit, "esc normal")
+			for _, vim := range []bool{true, false} {
+				name := fmt.Sprintf("%s vim=%v", tc.name, vim)
+				m := Update(t, tc.open(t, vim), tea.WindowSizeMsg{Width: width, Height: 24})
+				foot := lastRow(m)
 
-			m = Press(t, m, "esc")
-			footHas(t, tc.name+" normal", width, lastRow(m), false, "NORMAL", "⏎ "+tc.submit, "esc cancel")
+				if !tc.modal || !vim {
+					footHas(t, name, width, foot, tc.modal, "⏎ "+tc.submit, "esc cancel")
 
-			m = Update(t, tc.open(t, false), tea.WindowSizeMsg{Width: width, Height: 24})
-			foot := lastRow(m)
-			footHas(t, tc.name+" vim off", width, foot, tc.multi, "⏎ "+tc.submit, "esc cancel")
+					if strings.Contains(foot, "INSERT") {
+						t.Errorf("%s at %d: a plain field draws a badge: %q", name, width, foot)
+					}
 
-			if strings.Contains(foot, "INSERT") {
-				t.Errorf("%s at %d: vim off still draws a badge: %q", tc.name, width, foot)
+					continue
+				}
+
+				footHas(t, name+" insert", width, foot, true, "INSERT", "⏎ "+tc.submit, "esc normal")
+
+				m = Press(t, m, "esc")
+				footHas(t, name+" normal", width, lastRow(m), false, "NORMAL", "⏎ "+tc.submit, "esc cancel")
 			}
 		}
 	}
@@ -145,12 +152,23 @@ func footHas(t *testing.T, name string, width int, foot string, multi bool, want
 	}
 }
 
-// esc backs out one level: insert to normal, normal to closed, with what the prompt was for put
-// back. With the vim layer off one esc closes it.
+// esc backs out one level: a prose field goes insert to normal, then closed, with what the prompt
+// was for put back. A one-line box closes on one esc, as vim's own command line does, and so does
+// any field with the vim layer off.
 func TestPrompt_EscBacksOutOneLevel(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range openers {
+		if !tc.modal {
+			for _, vim := range []bool{true, false} {
+				if m := Press(t, tc.open(t, vim), "x", "esc"); m.prompt != nil {
+					t.Errorf("%s vim=%v: one esc left the box open", tc.name, vim)
+				}
+			}
+
+			continue
+		}
+
 		m := Press(t, tc.open(t, true), "x", "esc")
 		if m.prompt == nil || m.prompt.Mode() != vimtext.Normal {
 			t.Errorf("%s: the first esc did not leave the field in normal mode", tc.name)
@@ -168,9 +186,9 @@ func TestPrompt_EscBacksOutOneLevel(t *testing.T) {
 	}
 }
 
-// Inside an open field vim's keys win: u in normal mode undoes the field's text and never reaches
-// the keymap, where u is jj undo of the session's last write. The field's ctrl+r redoes the same
-// way.
+// Inside an open field the field's keys win: in a prose field u in normal mode undoes the field's
+// text, and in a one-line box it is typed, and neither reaches the keymap, where u is jj undo of the
+// session's last write. The field's ctrl+r redoes the same way.
 func TestPrompt_UInNormalModeUndoesTextNotTheWrite(t *testing.T) {
 	t.Parallel()
 
@@ -187,35 +205,59 @@ func TestPrompt_UInNormalModeUndoesTextNotTheWrite(t *testing.T) {
 	for _, tc := range openers {
 		m := tc.open(t, true)
 		m.writes = []writeRecord{write}
-		before := len(m.undo)
 
-		m = Press(t, m, "a", "b", "c", "esc")
-
-		_, cmd := m.Update(Key("u"))
-		if m.inFlight || cmd != nil || len(m.writes) != 1 {
-			t.Errorf("%s: u in the field ran jj undo (in flight %v, cmd %v)", tc.name, m.inFlight, cmd != nil)
+		if tc.modal {
+			proseKeysStayInTheField(t, tc.name, m)
+		} else {
+			lineKeysAreText(t, tc.name, m)
 		}
+	}
+}
 
-		if m.prompt == nil || m.prompt.Value() != "" {
-			t.Errorf("%s: u did not undo the typing in the field", tc.name)
+// lineKeysAreText checks a one-line box types u as text rather than running jj undo.
+func lineKeysAreText(t *testing.T, name string, m *Model) {
+	t.Helper()
 
-			continue
-		}
+	m = Press(t, m, "a", "b", "c")
 
-		if len(m.undo) != before {
-			t.Errorf("%s: u in the field took back a selection edit", tc.name)
-		}
+	_, cmd := m.Update(Key("u"))
+	if m.inFlight || cmd != nil || len(m.writes) != 1 || valueOf(m) != "abcu" {
+		t.Errorf("%s: u in the box ran jj undo or was not typed: %q (in flight %v)", name, valueOf(m), m.inFlight)
+	}
+}
 
-		if m = Press(t, m, "ctrl+r"); m.prompt.Value() != "abc" || m.inFlight {
-			t.Errorf("%s: ctrl+r in the field = %q, in flight %v", tc.name, m.prompt.Value(), m.inFlight)
-		}
+// proseKeysStayInTheField checks that a prose field's normal-mode keys (u, ctrl+r, v, y, the dot)
+// edit its text and touch nothing of the session's.
+func proseKeysStayInTheField(t *testing.T, name string, m *Model) {
+	t.Helper()
 
-		// v, Y, and . are the field's too: a visual yank of the text and a repeat change nothing of
-		// the session's.
-		m = Press(t, m, "0", "v", "l", "y", "x", ".")
-		if m.prompt == nil || m.prompt.Value() != "c" || m.isVisualMode {
-			t.Errorf("%s: v y x . in the field left %q (visual %v)", tc.name, valueOf(m), m.isVisualMode)
-		}
+	before := len(m.undo)
+	m = Press(t, m, "a", "b", "c", "esc")
+
+	_, cmd := m.Update(Key("u"))
+	if m.inFlight || cmd != nil || len(m.writes) != 1 {
+		t.Errorf("%s: u in the field ran jj undo (in flight %v, cmd %v)", name, m.inFlight, cmd != nil)
+	}
+
+	if m.prompt == nil || m.prompt.Value() != "" {
+		t.Errorf("%s: u did not undo the typing in the field", name)
+
+		return
+	}
+
+	if len(m.undo) != before {
+		t.Errorf("%s: u in the field took back a selection edit", name)
+	}
+
+	if m = Press(t, m, "ctrl+r"); m.prompt.Value() != "abc" || m.inFlight {
+		t.Errorf("%s: ctrl+r in the field = %q, in flight %v", name, m.prompt.Value(), m.inFlight)
+	}
+
+	// v, Y, and . are the field's too: a visual yank of the text and a repeat change nothing of the
+	// session's.
+	m = Press(t, m, "0", "v", "l", "y", "x", ".")
+	if m.prompt == nil || m.prompt.Value() != "c" || m.isVisualMode {
+		t.Errorf("%s: v y x . in the field left %q (visual %v)", name, valueOf(m), m.isVisualMode)
 	}
 }
 
@@ -259,9 +301,9 @@ func TestPrompt_FiltersFollowEveryKey(t *testing.T) {
 		t.Errorf("search query %q with %d matches", m.searchState.Query, m.searchState.MatchCount())
 	}
 
-	m = Press(t, m, "esc", "x")
+	m = Press(t, m, "backspace")
 	if m.searchState.Query != "file" {
-		t.Errorf("x in normal mode left the search at %q", m.searchState.Query)
+		t.Errorf("backspace left the search at %q", m.searchState.Query)
 	}
 
 	f := Press(t, loadedModel(t, true), "f", "3")
@@ -310,11 +352,11 @@ func TestPrompt_PasteTypesIntoThePrompt(t *testing.T) {
 		t.Errorf("a paste into the filter left %q, want one line", got)
 	}
 
-	s := Press(t, loadedModel(t, true), "/", "esc")
+	s := Press(t, loadedModel(t, true), "/")
 	s = Update(t, s, tea.PasteMsg{Content: "file"})
 
 	if s.searchState.Query != "file" {
-		t.Errorf("a paste into search in normal mode left %q", s.searchState.Query)
+		t.Errorf("a paste into search left %q", s.searchState.Query)
 	}
 }
 
@@ -373,13 +415,18 @@ func TestPrompt_EditorRepliesAreKeyedByRequest(t *testing.T) {
 	}
 }
 
-// Each prompt drawn at 80 columns in insert and in normal mode, held to the glyph and width policy
-// before it is compared.
+// Each prompt drawn at 80 columns, the prose field in insert and in normal mode, held to the glyph
+// and width policy before it is compared.
 func TestPrompt_Frames(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range openers {
-		for _, mode := range []string{"insert", "normal"} {
+		modes := []string{"open"}
+		if tc.modal {
+			modes = []string{"insert", "normal"}
+		}
+
+		for _, mode := range modes {
 			name := fmt.Sprintf("prompt_%s_%s_80x24", strings.ReplaceAll(tc.name, " ", "_"), mode)
 
 			t.Run(name, func(t *testing.T) {

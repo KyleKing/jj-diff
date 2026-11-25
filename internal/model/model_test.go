@@ -633,14 +633,11 @@ func TestModalMutualExclusivity(t *testing.T) {
 	Assert(t, m).HelpIsNotVisible()
 	Assert(t, m).SearchIsVisible()
 
-	// A prompt opens in insert mode: esc goes to normal mode, and esc again closes it.
-	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, KeyPress('f'))
 	Assert(t, m).FileListFilterModeEnabled()
 	Assert(t, m).HelpIsNotVisible()
 
-	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, KeyPress('?'))
 	Assert(t, m).HelpIsVisible()
@@ -658,17 +655,13 @@ func TestModalEscClosesAny(t *testing.T) {
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	Assert(t, m).NoModalsVisible()
 
-	// A prompt backs out one level per esc: insert to normal, then closed.
+	// A one-line box closes on one esc, as vim's own command line does.
 	m = Update(t, m, KeyPress('/'))
-	Assert(t, m).SearchIsVisible()
-	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	Assert(t, m).SearchIsVisible()
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	Assert(t, m).NoModalsVisible()
 
 	m = Update(t, m, KeyPress('f'))
-	Assert(t, m).FileListFilterModeEnabled()
-	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	Assert(t, m).FileListFilterModeEnabled()
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	Assert(t, m).NoModalsVisible()
@@ -697,7 +690,6 @@ func TestAllModalsOpenAndClose(t *testing.T) {
 
 	m = Update(t, m, KeyPress('f'))
 	Assert(t, m).FileListFilterModeEnabled()
-	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	m = Update(t, m, SpecialKey(tea.KeyEsc))
 	Assert(t, m).FileListFilterModeDisabled()
 }

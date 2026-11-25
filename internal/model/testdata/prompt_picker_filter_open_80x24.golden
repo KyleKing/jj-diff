@@ -12,7 +12,7 @@
     │                                                                      │    
     │ jj squash --from @ --into bbbb                                       │    
     │                                                                      │    
-    │ ⏎ keep   esc normal                                                  │    
+    │ ⏎ keep   esc cancel                                                  │    
     ╰──────────────────────────────────────────────────────────────────────╯    
                                                                                 
                                                                                 
@@ -21,4 +21,4 @@
                                                                                 
                                                                                 
                                                                                 
-  Interactive  @    INSERT  ⏎ keep   esc normal                                 
+  Interactive  @   ⏎ keep   esc cancel                                          
