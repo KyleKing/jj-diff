@@ -29,11 +29,11 @@ jobs:
           persist-credentials: false
 
       # pkl evaluates .doneram.pkl and mise answers the tool resolvers.
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
 
-      - uses: kyleking/doneram@a582b5cdbf32b7cf80a50815f6b585b59a91638f # v2.0.0
+      - uses: kyleking/doneram@065160ffcca308f24122254915a885656293882f # v3.1.0
         with:
-          version: v2.0.0
+          version: v3.1.0
 
       - id: plan
         env:
@@ -62,11 +62,11 @@ jobs:
           persist-credentials: false
 
       # pkl evaluates .doneram.pkl and mise answers the tool resolvers.
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
 
-      - uses: kyleking/doneram@a582b5cdbf32b7cf80a50815f6b585b59a91638f # v2.0.0
+      - uses: kyleking/doneram@065160ffcca308f24122254915a885656293882f # v3.1.0
         with:
-          version: v2.0.0
+          version: v3.1.0
 
       - id: check
         env:
@@ -84,12 +84,12 @@ jobs:
       # the PR and any workflow-file patch fails the push loudly.
       - id: app-token
         if: env.HAS_APP == 'true' && steps.check.outputs.has_upgrades == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ secrets.DONERAM_APP_CLIENT_ID }}
           private-key: ${{ secrets.DONERAM_APP_PRIVATE_KEY }}
 
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         if: steps.check.outputs.has_upgrades == 'true'
         with:
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
